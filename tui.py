@@ -41,10 +41,37 @@ class DummySocketIO:
 
 class NetMonTUI:
     def __init__(self):
+        # Enable ANSI colors on Windows Console
+        if sys.platform == 'win32':
+            os.system('')
         self.db = Database()
         self.socketio = DummySocketIO()
         self.worker = SNMPWorker(self.db, self.socketio)
         self.running = True
+        # Start background polling thread to monitor devices in real-time
+        self.poll_thread = threading.Thread(target=self._background_poll_loop, daemon=True)
+        self.poll_thread.start()
+
+    def _background_poll_loop(self):
+        while self.running:
+            try:
+                settings = self.db.get_settings()
+                interval = max(10, int(settings.get('poll_interval', 30)))
+                devices = self.db.get_all_devices()
+                for device in devices:
+                    if not self.running:
+                        break
+                    try:
+                        self.worker.poll_device(device)
+                    except Exception:
+                        pass
+                # Sleep in small increments to respond quickly to shutdown
+                for _ in range(interval):
+                    if not self.running:
+                        break
+                    time.sleep(1)
+            except Exception:
+                time.sleep(10)
 
     def clear_screen(self):
         print("\033[H\033[2J", end="")
@@ -244,7 +271,10 @@ class NetMonTUI:
             dev_id = self.db.add_device(data)
             input(f" Perangkat berhasil ditambahkan (ID: {dev_id}). Tekan Enter...")
         except Exception as e:
-            input(f" Gagal menambahkan perangkat: {e}. Tekan Enter...")
+            if "UNIQUE" in str(e):
+                input(f" Gagal: Alamat IP '{ip}' sudah terdaftar! Tekan Enter...")
+            else:
+                input(f" Gagal menambahkan perangkat: {e}. Tekan Enter...")
 
     def manage_alerts(self):
         while True:

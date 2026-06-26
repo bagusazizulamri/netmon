@@ -70,16 +70,45 @@ class SNMPWorker:
 
     # ─── poll a single device ────────────────────────────────────────
 
+    def _ping(self, ip):
+        import subprocess
+        import platform
+        is_win = platform.system().lower() == 'windows'
+        param = '-n' if is_win else '-c'
+        timeout_param = '-w' if is_win else '-W'
+        timeout_val = '1000' if is_win else '1'
+        
+        cmd = ['ping', param, '1', timeout_param, timeout_val, ip]
+        try:
+            startupinfo = None
+            if is_win:
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            res = subprocess.run(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                startupinfo=startupinfo, 
+                timeout=2
+            )
+            return res.returncode == 0
+        except Exception:
+            return False
+
     def poll_device(self, device):
         did, ip   = device['id'], device['ip']
         community = device.get('snmp_community', 'public')
         port      = device.get('snmp_port', 161)
         version   = device.get('snmp_version', '2c')
         old_st    = device.get('status', 'unknown')
+        snmp_en   = bool(device.get('snmp_enabled', 0))
         now       = datetime.now().isoformat()
 
-        result = self._get(ip, community,
-                           [OID['sysDescr'], OID['sysName'], OID['sysUpTime']], port, version)
+        result = None
+        if snmp_en:
+            result = self._get(ip, community,
+                               [OID['sysDescr'], OID['sysName'], OID['sysUpTime']], port, version)
 
         if result:
             upd = {'status':'up', 'last_polled': now}
@@ -100,12 +129,23 @@ class SNMPWorker:
             if self._check_ifaces(device, ip, community, port, version) == 'warning':
                 self.db.update_device(did, {'status': 'warning'})
         else:
-            self.db.update_device(did, {'status':'down','last_polled':now})
-            if old_st != 'down':
-                s = self.db.get_settings()
-                if s.get('alert_on_down','true') == 'true':
-                    self._alert(device, 'critical',
-                                f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — SNMP unreachable")
+            # Fallback to Ping to check if the device is actually online
+            is_alive = self._ping(ip)
+            if is_alive:
+                upd = {'status': 'up', 'last_polled': now}
+                if old_st == 'down':
+                    upd['last_seen'] = now
+                    self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
+                elif old_st == 'unknown':
+                    upd['last_seen'] = now
+                self.db.update_device(did, upd)
+            else:
+                self.db.update_device(did, {'status':'down','last_polled':now})
+                if old_st != 'down':
+                    s = self.db.get_settings()
+                    if s.get('alert_on_down','true') == 'true':
+                        self._alert(device, 'critical',
+                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
 
         updated = self.db.get_device(did)
         if updated:

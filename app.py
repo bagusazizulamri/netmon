@@ -299,7 +299,7 @@ def handle_request_poll(data):
 # ============================================================
 
 def background_poll():
-    devices = db.get_snmp_enabled_devices()
+    devices = db.get_all_devices()
     for device in devices:
         try:
             snmp_worker.poll_device(device)
