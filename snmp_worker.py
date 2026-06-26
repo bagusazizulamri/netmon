@@ -106,6 +106,23 @@ class SNMPWorker:
     # ─── poll a single device ────────────────────────────────────────
 
     def _ping(self, ip):
+        # 1. Try TCP connection check on common ports (works perfectly through NAT)
+        import socket
+        common_ports = [22, 80, 443, 445]
+        for port in common_ports:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.2)  # Fast 200ms timeout
+                result = s.connect_ex((ip, port))
+                s.close()
+                # 0: Connected successfully
+                # 111 (Linux) or 10061 (Windows): Connection Refused (means host is active and rejected it)
+                if result == 0 or result in (111, 10061):
+                    return True
+            except Exception:
+                pass
+
+        # 2. Fallback to standard OS Ping
         import subprocess
         import platform
         is_win = platform.system().lower() == 'windows'
@@ -125,7 +142,7 @@ class SNMPWorker:
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
                 startupinfo=startupinfo, 
-                timeout=2
+                timeout=1.5
             )
             return res.returncode == 0
         except Exception:
