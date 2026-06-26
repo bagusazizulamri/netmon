@@ -243,6 +243,9 @@ init_database() {
   step "Initialising database"
   cd "$INSTALL_DIR"
   ./venv/bin/python -c "from database import Database; db = Database(); print('  Database OK')"
+  if [[ $OS == "Linux" ]]; then
+    chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
+  fi
   success "netmon.db initialised"
 }
 
