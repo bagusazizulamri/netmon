@@ -209,22 +209,27 @@ class SNMPWorker:
             
             if cpu_val is not None:
                 try:
-                    upd['cpu_usage'] = float(cpu_val)
+                    val = float(cpu_val)
+                    if val > 100:  # Scale down if in deci-percent (e.g. 360 -> 36.0)
+                        val = val / 10.0
+                    upd['cpu_usage'] = val
                     self.db.save_metric(did, 'cpu_usage', upd['cpu_usage'])
                 except ValueError:
                     pass
             if mem_val is not None:
                 try:
-                    upd['memory_usage'] = float(mem_val)
+                    val = float(mem_val)
+                    if val > 100:  # Scale down if in deci-percent
+                        val = val / 10.0
+                    upd['memory_usage'] = val
                     self.db.save_metric(did, 'memory_usage', upd['memory_usage'])
                 except ValueError:
                     pass
             if temp_val is not None:
                 try:
                     val = float(temp_val)
-                    if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower:
-                        if val > 150: # Mikrotik temperature scale is usually *10 (deci-degrees)
-                            val = val / 10.0
+                    if val > 120:  # Scale down if in deci-degrees (e.g. 238 -> 23.8)
+                        val = val / 10.0
                     upd['temperature'] = val
                     self.db.save_metric(did, 'temperature', upd['temperature'])
                 except ValueError:

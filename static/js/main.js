@@ -115,27 +115,30 @@ function formatBandwidth(bps) {
   if (bps === null || bps === undefined || isNaN(bps) || bps === '') return '—';
   const val = parseFloat(bps);
   if (val === 0) return '0 bps';
-  const commaFormatted = Math.round(val).toLocaleString('en-US');
+  const commaFormatted = Math.round(val).toLocaleString('id-ID');
   if (val >= 1000000000) {
-    return `${(val / 1000000000).toFixed(2)} Gbps (${commaFormatted} bps)`;
+    const formattedVal = (val / 1000000000).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${formattedVal} Gbps (${commaFormatted} bps)`;
   }
   if (val >= 1000000) {
-    return `${(val / 1000000).toFixed(2)} Mbps (${commaFormatted} bps)`;
+    const formattedVal = (val / 1000000).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${formattedVal} Mbps (${commaFormatted} bps)`;
   }
   if (val >= 1000) {
-    return `${(val / 1000).toFixed(2)} Kbps (${commaFormatted} bps)`;
+    const formattedVal = (val / 1000).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${formattedVal} Kbps (${commaFormatted} bps)`;
   }
-  return `${Math.round(val)} bps`;
+  return `${Math.round(val).toLocaleString('id-ID')} bps`;
 }
 
 function formatPercent(val) {
   if (val === null || val === undefined || isNaN(val) || val === '') return '—';
-  return `${parseFloat(val).toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+  return `${parseFloat(val).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 function formatTemp(val) {
   if (val === null || val === undefined || isNaN(val) || val === '') return '—';
-  return `${parseFloat(val).toLocaleString('en-US', { maximumFractionDigits: 1 })}°C`;
+  return `${parseFloat(val).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}°C`;
 }
 
 function relTime(ts) {

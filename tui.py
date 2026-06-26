@@ -47,15 +47,38 @@ def format_bandwidth(bps):
     if val == 0:
         return '0 bps'
         
-    comma_formatted = f"{int(val):,}"
+    comma_formatted = f"{int(val):,}".replace(',', '.')
     
     if val >= 1000000000:
-        return f"{val / 1000000000:.2f} Gbps ({comma_formatted} bps)"
+        num_str = f"{val / 1000000000:.2f}".replace('.', ',')
+        return f"{num_str} Gbps ({comma_formatted} bps)"
     if val >= 1000000:
-        return f"{val / 1000000:.2f} Mbps ({comma_formatted} bps)"
+        num_str = f"{val / 1000000:.2f}".replace('.', ',')
+        return f"{num_str} Mbps ({comma_formatted} bps)"
     if val >= 1000:
-        return f"{val / 1000:.2f} Kbps ({comma_formatted} bps)"
+        num_str = f"{val / 1000:.2f}".replace('.', ',')
+        return f"{num_str} Kbps ({comma_formatted} bps)"
     return f"{int(val)} bps"
+
+
+def format_percent(val):
+    if val is None or str(val).strip() == '':
+        return '—'
+    try:
+        num = float(val)
+        return f"{num:.1f}%".replace('.', ',')
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def format_temp(val):
+    if val is None or str(val).strip() == '':
+        return '—'
+    try:
+        num = float(val)
+        return f"{num:.1f}°C".replace('.', ',')
+    except (ValueError, TypeError):
+        return str(val)
 
 
 class NetMonTUI:
@@ -266,9 +289,9 @@ class NetMonTUI:
             
             print("-" * 50)
             print(f" {C_BOLD}METRIK REAL-TIME:{C_RESET}")
-            print(f" CPU Usage:    {f'{C_CYAN}{cpu_usage}%{C_RESET}' if cpu_usage is not None else '—'}")
-            print(f" RAM Usage:    {f'{C_CYAN}{mem_usage}%{C_RESET}' if mem_usage is not None else '—'}")
-            print(f" Temperature:  {f'{C_RED}{temperature}°C{C_RESET}' if temperature is not None else '—'}")
+            print(f" CPU Usage:    {C_CYAN}{format_percent(cpu_usage)}{C_RESET}")
+            print(f" RAM Usage:    {C_CYAN}{format_percent(mem_usage)}{C_RESET}")
+            print(f" Temperature:  {C_RED}{format_temp(temperature)}{C_RESET}")
             print(f" WAN Traffic In:  {C_GREEN}{format_bandwidth(wan_in)}{C_RESET}")
             print(f" WAN Traffic Out: {C_GREEN}{format_bandwidth(wan_out)}{C_RESET}")
             print("-" * 50)
