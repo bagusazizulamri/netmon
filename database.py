@@ -240,26 +240,31 @@ class Database:
                     (ip, data.get('unifi_id', ''))
                 ).fetchone()
                 if existing:
+                    now_str = datetime.now().isoformat()
                     c.execute('''
                         UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, zone_id=?, updated_at=?,
-                                           cpu_usage=?, memory_usage=?, temperature=?, status=?
+                                           cpu_usage=?, memory_usage=?, temperature=?, status=?, uptime=?, last_polled=?,
+                                           last_seen=CASE WHEN ? = 'up' THEN ? ELSE last_seen END
                         WHERE id=?
                     ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
                           data.get('model',''), data.get('unifi_id',''), zone_id,
-                          datetime.now().isoformat(),
+                          now_str,
                           data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
-                          data.get('status','unknown'), existing['id']))
+                          data.get('status','unknown'), data.get('uptime',''), now_str,
+                          data.get('status','unknown'), now_str, existing['id']))
                     return False
                 else:
+                    now_str = datetime.now().isoformat()
                     c.execute('''
                         INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status,
-                                             cpu_usage, memory_usage, temperature)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                                             cpu_usage, memory_usage, temperature, uptime, last_polled, last_seen)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
                           data.get('unifi_id',''), zone_id, data.get('status','unknown'),
-                          data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature')))
+                          data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
+                          data.get('uptime',''), now_str, now_str if data.get('status') == 'up' else None))
                     return True
         except sqlite3.IntegrityError:
             return False

@@ -100,6 +100,34 @@ class UniFiClient:
         return []
 
 
+def format_uptime(seconds):
+    if seconds is None or str(seconds).strip() == '':
+        return ''
+    try:
+        seconds = int(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    
+    days = seconds // 86400
+    seconds %= 86400
+    hours = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds > 0 or not parts:
+        parts.append(f"{seconds}s")
+        
+    return " ".join(parts)
+
+
     # --------------------------------------------------------
     # Parsers
     # --------------------------------------------------------
@@ -123,7 +151,7 @@ class UniFiClient:
             'type':         TYPE_MAP.get(utype, 'unknown'),
             'unifi_id':     d.get('_id', ''),
             'status':       'up' if d.get('state') == 1 else 'down',
-            'uptime':       str(d.get('uptime', '')),
+            'uptime':       format_uptime(d.get('uptime', '')),
             'icon':         TYPE_MAP.get(utype, 'device'),
             'cpu_usage':    float(cpu) if cpu is not None else None,
             'memory_usage': float(mem) if mem is not None else None,
