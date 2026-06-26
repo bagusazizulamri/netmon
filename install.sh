@@ -164,6 +164,24 @@ STARTEOF
 }
 
 # =============================================================
+# REGISTER TUI COMMAND
+# =============================================================
+create_tui_command() {
+  [[ $OS != "Linux" ]] && return
+  step "Registering netmon-tui CLI command"
+  
+  cat > "/usr/local/bin/netmon-tui" << TUIEOF
+#!/usr/bin/env bash
+# NetMon TUI CLI Wrapper
+exec ${INSTALL_DIR}/venv/bin/python ${INSTALL_DIR}/tui.py "\$@"
+TUIEOF
+  
+  chmod +x "/usr/local/bin/netmon-tui"
+  chmod +x "$INSTALL_DIR/tui.py"
+  success "netmon-tui command registered (/usr/local/bin/netmon-tui)"
+}
+
+# =============================================================
 # LINUX SYSTEMD SERVICE
 # =============================================================
 create_systemd_service() {
@@ -268,6 +286,7 @@ print_summary() {
     echo -e "    Stop:    ${CYAN}sudo systemctl stop netmon${NC}"
     echo -e "    Status:  ${CYAN}sudo systemctl status netmon${NC}"
     echo -e "    Logs:    ${CYAN}sudo journalctl -u netmon -f${NC}"
+    echo -e "    TUI CLI: ${CYAN}sudo netmon-tui${NC}"
     echo ""
     echo -e "  ${BOLD}Start now:${NC}"
     echo -e "    ${CYAN}sudo systemctl start netmon${NC}"
@@ -298,6 +317,7 @@ main() {
   create_venv
   install_deps
   create_start_script
+  create_tui_command
   create_systemd_service
   configure_firewall
   init_database

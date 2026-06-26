@@ -73,6 +73,10 @@ remove_firewall() {
 # Delete Installation Files
 delete_files() {
   step "Deleting installation files"
+  if [[ -f "/usr/local/bin/netmon-tui" ]]; then
+    rm -f "/usr/local/bin/netmon-tui"
+    success "Removed CLI command: /usr/local/bin/netmon-tui"
+  fi
   if [[ -d "$INSTALL_DIR" ]]; then
     # Double check it is not root directory before deletion
     if [[ "$INSTALL_DIR" != "/" && "$INSTALL_DIR" != "/home" ]]; then
