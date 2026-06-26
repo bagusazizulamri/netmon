@@ -61,13 +61,14 @@
           <th>Type</th>
           <th>Zone</th>
           <th>SNMP</th>
+          <th>Metrics</th>
           <th>Last Seen</th>
           <th>Uptime</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="devices-tbody">
-        <tr><td colspan="10" class="text-center text-muted py-5">Loading…</td></tr>
+        <tr><td colspan="11" class="text-center text-muted py-5">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -333,7 +334,7 @@ function renderTable(devices) {
   document.getElementById('dev-count').textContent = devices.length;
   const tbody = document.getElementById('devices-tbody');
   if (!devices.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-5">
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-5">
       No devices yet. <button class="btn-nm btn-sm btn-success" onclick="openDeviceModal()">Add one</button> or run a <button class="btn-nm btn-sm" onclick="openScanModal()">Network Scan</button>
     </td></tr>`;
     return;
@@ -359,6 +360,14 @@ function renderTable(devices) {
         ${d.snmp_enabled
           ? `<span class="badge-snmp on">SNMP ON</span>`
           : `<span class="badge-snmp off">SNMP OFF</span>`}
+      </td>
+      <td>
+        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 2px; line-height: 1.2;">
+          ${d.cpu_usage !== null && d.cpu_usage !== undefined ? `<div><span class="text-muted">CPU:</span> <strong style="color: #00d4ff">${d.cpu_usage}%</strong></div>` : ''}
+          ${d.memory_usage !== null && d.memory_usage !== undefined ? `<div><span class="text-muted">RAM:</span> <strong style="color: #00d4ff">${d.memory_usage}%</strong></div>` : ''}
+          ${d.temperature !== null && d.temperature !== undefined ? `<div><span class="text-muted">Suhu:</span> <strong style="color: #ff4b4b">${d.temperature}°C</strong></div>` : ''}
+          ${(d.cpu_usage === null || d.cpu_usage === undefined) && (d.memory_usage === null || d.memory_usage === undefined) && (d.temperature === null || d.temperature === undefined) ? '<span class="text-muted">—</span>' : ''}
+        </div>
       </td>
       <td class="text-sm text-muted mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
       <td class="text-sm text-muted mono-sm">${esc(d.uptime||'—')}</td>

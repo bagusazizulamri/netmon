@@ -506,7 +506,12 @@ const FP = (() => {
               <span class="status-indicator" style="background:${col}"></span>
               <div>
                 <strong style="color: #e6edf3;">${esc(d.name)}</strong>
-                <div class="text-muted mono-sm" style="font-size: 10px;">${esc(d.ip)}</div>
+                <div class="text-muted mono-sm" style="font-size: 10px; line-height: 1.3;">
+                  ${esc(d.ip)}
+                  ${d.cpu_usage !== null && d.cpu_usage !== undefined ? ` | CPU: <span style="color: #00d4ff">${d.cpu_usage}%</span>` : ''}
+                  ${d.memory_usage !== null && d.memory_usage !== undefined ? ` | RAM: <span style="color: #00d4ff">${d.memory_usage}%</span>` : ''}
+                  ${d.temperature !== null && d.temperature !== undefined ? ` | <span style="color: #ff4b4b">${d.temperature}°C</span>` : ''}
+                </div>
               </div>
             </span>
             <span class="badge ${badgeClass} status-tag">${stat}</span>

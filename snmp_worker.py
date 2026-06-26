@@ -171,16 +171,64 @@ class SNMPWorker:
         snmp_en   = bool(device.get('snmp_enabled', 0))
         now       = datetime.now().isoformat()
 
+        # Target OIDs based on vendor detection
+        vendor_lower = str(device.get('vendor') or '').lower()
+        descr_lower = str(device.get('description') or '').lower()
+        
+        cpu_oid = None
+        mem_oid = None
+        temp_oid = None
+        
+        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+            cpu_oid = '1.3.6.1.4.1.14988.1.1.3.10.0' # MikroTik CPU
+            temp_oid = '1.3.6.1.4.1.14988.1.1.3.8.0' # MikroTik Temp
+        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
+            cpu_oid = '1.3.6.1.4.1.41112.1.4.1.1.4.1'
+            mem_oid = '1.3.6.1.4.1.41112.1.4.1.1.5.1'
+        elif 'cisco' in vendor_lower or 'cisco' in descr_lower:
+            cpu_oid = '1.3.6.1.4.1.9.9.109.1.1.1.1.5.1'
+
         result = None
         if snmp_en:
-            result = self._get(ip, community,
-                               [OID['sysDescr'], OID['sysName'], OID['sysUpTime']], port, version)
+            oids_to_get = [OID['sysDescr'], OID['sysName'], OID['sysUpTime']]
+            if cpu_oid: oids_to_get.append(cpu_oid)
+            if mem_oid: oids_to_get.append(mem_oid)
+            if temp_oid: oids_to_get.append(temp_oid)
+            result = self._get(ip, community, oids_to_get, port, version)
 
         if result:
             upd = {'status':'up', 'last_polled': now}
             if result.get(OID['sysName']):   upd['sys_name']    = result[OID['sysName']]
             if result.get(OID['sysDescr']):  upd['description'] = result[OID['sysDescr']][:500]
             if result.get(OID['sysUpTime']): upd['uptime']      = result[OID['sysUpTime']]
+
+            # Extract metrics
+            cpu_val = result.get(cpu_oid) if cpu_oid else None
+            mem_val = result.get(mem_oid) if mem_oid else None
+            temp_val = result.get(temp_oid) if temp_oid else None
+            
+            if cpu_val is not None:
+                try:
+                    upd['cpu_usage'] = float(cpu_val)
+                    self.db.save_metric(did, 'cpu_usage', upd['cpu_usage'])
+                except ValueError:
+                    pass
+            if mem_val is not None:
+                try:
+                    upd['memory_usage'] = float(mem_val)
+                    self.db.save_metric(did, 'memory_usage', upd['memory_usage'])
+                except ValueError:
+                    pass
+            if temp_val is not None:
+                try:
+                    val = float(temp_val)
+                    if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower:
+                        if val > 150: # Mikrotik temperature scale is usually *10 (deci-degrees)
+                            val = val / 10.0
+                    upd['temperature'] = val
+                    self.db.save_metric(did, 'temperature', upd['temperature'])
+                except ValueError:
+                    pass
 
             if old_st == 'down':
                 upd['last_seen'] = now

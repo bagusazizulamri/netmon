@@ -58,6 +58,9 @@ class Database:
                     pos_y         REAL DEFAULT 100,
                     icon          TEXT DEFAULT 'router',
                     unifi_id      TEXT DEFAULT '',
+                    cpu_usage     REAL DEFAULT NULL,
+                    memory_usage  REAL DEFAULT NULL,
+                    temperature   REAL DEFAULT NULL,
                     created_at    TEXT DEFAULT (datetime('now')),
                     updated_at    TEXT DEFAULT (datetime('now'))
                 );
@@ -119,6 +122,13 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_access_logs_created ON access_logs(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_metrics_device ON snmp_metrics(device_id, metric_name);
             ''')
+
+            # Migration: Add CPU, Memory, and Temperature fields to devices if they don't exist
+            for col in ['cpu_usage', 'memory_usage', 'temperature']:
+                try:
+                    c.execute(f"ALTER TABLE devices ADD COLUMN {col} REAL DEFAULT NULL")
+                except sqlite3.OperationalError:
+                    pass # Column already exists
 
             # Default settings
             defaults = {
@@ -199,7 +209,8 @@ class Database:
         allowed = ['name', 'ip', 'mac', 'type', 'vendor', 'model', 'zone_id',
                    'snmp_enabled', 'snmp_community', 'snmp_version', 'snmp_port',
                    'icon', 'pos_x', 'pos_y', 'description', 'status',
-                   'last_seen', 'last_polled', 'uptime', 'sys_name']
+                   'last_seen', 'last_polled', 'uptime', 'sys_name',
+                   'cpu_usage', 'memory_usage', 'temperature']
         fields, values = [], []
         for f in allowed:
             if f in data:
@@ -208,9 +219,10 @@ class Database:
         if not fields:
             return
         fields.append('updated_at = ?')
-        values.extend([datetime.now().isoformat(), device_id])
+        values.append(datetime.now().isoformat())
+        values.append(device_id)
         with self.conn() as c:
-            c.execute(f'UPDATE devices SET {", ".join(fields)} WHERE id = ?', values)
+            c.execute(f'UPDATE devices SET {", ".join(fields)} WHERE id = ?', tuple(values))
 
     def delete_device(self, device_id):
         with self.conn() as c:
@@ -229,20 +241,25 @@ class Database:
                 ).fetchone()
                 if existing:
                     c.execute('''
-                        UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, zone_id=?, updated_at=?
+                        UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, zone_id=?, updated_at=?,
+                                           cpu_usage=?, memory_usage=?, temperature=?, status=?
                         WHERE id=?
                     ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
                           data.get('model',''), data.get('unifi_id',''), zone_id,
-                          datetime.now().isoformat(), existing['id']))
+                          datetime.now().isoformat(),
+                          data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
+                          data.get('status','unknown'), existing['id']))
                     return False
                 else:
                     c.execute('''
-                        INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                        INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status,
+                                             cpu_usage, memory_usage, temperature)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
-                          data.get('unifi_id',''), zone_id, data.get('status','unknown')))
+                          data.get('unifi_id',''), zone_id, data.get('status','unknown'),
+                          data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature')))
                     return True
         except sqlite3.IntegrityError:
             return False

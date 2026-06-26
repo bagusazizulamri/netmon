@@ -106,15 +106,26 @@ class UniFiClient:
 
     def _parse_device(self, d):
         utype = d.get('type', 'unknown').lower()
+        
+        # Parse CPU, Memory and Temperature from UniFi telemetry
+        sys_stats = d.get('sys_stats', {})
+        system_status = d.get('system-status', {})
+        cpu = sys_stats.get('cpu') or system_status.get('cpu')
+        mem = sys_stats.get('mem') or system_status.get('mem')
+        temp = d.get('general_temperature') or d.get('temperatures', [{}])[0].get('value')
+
         return {
-            'name':      d.get('name') or d.get('hostname') or d.get('ip', 'Unknown'),
-            'ip':        d.get('ip', ''),
-            'mac':       d.get('mac', ''),
-            'model':     d.get('model', ''),
-            'vendor':    'Ubiquiti',
-            'type':      TYPE_MAP.get(utype, 'unknown'),
-            'unifi_id':  d.get('_id', ''),
-            'status':    'up' if d.get('state') == 1 else 'down',
-            'uptime':    str(d.get('uptime', '')),
-            'icon':      TYPE_MAP.get(utype, 'device'),
+            'name':         d.get('name') or d.get('hostname') or d.get('ip', 'Unknown'),
+            'ip':           d.get('ip', ''),
+            'mac':          d.get('mac', ''),
+            'model':        d.get('model', ''),
+            'vendor':       'Ubiquiti',
+            'type':         TYPE_MAP.get(utype, 'unknown'),
+            'unifi_id':     d.get('_id', ''),
+            'status':       'up' if d.get('state') == 1 else 'down',
+            'uptime':       str(d.get('uptime', '')),
+            'icon':         TYPE_MAP.get(utype, 'device'),
+            'cpu_usage':    float(cpu) if cpu is not None else None,
+            'memory_usage': float(mem) if mem is not None else None,
+            'temperature':  float(temp) if temp is not None else None,
         }

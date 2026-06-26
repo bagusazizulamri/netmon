@@ -292,6 +292,25 @@ def handle_connect():
 # ============================================================
 
 def background_poll():
+    # 1. Sync UniFi telemetries if configured
+    try:
+        settings = db.get_settings()
+        host = settings.get('unifi_host', '')
+        username = settings.get('unifi_user', '')
+        password = settings.get('unifi_pass', '')
+        port = int(settings.get('unifi_port', 8443) or 8443)
+        site = settings.get('unifi_site', 'default') or 'default'
+        
+        if host and username and password:
+            from unifi_client import UniFiClient
+            unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
+            unifi_devs = unifi.get_devices()
+            for ud in unifi_devs:
+                db.add_or_update_unifi_device(ud)
+    except Exception as e:
+        print(f"[Poll] UniFi auto-poll failed: {e}")
+
+    # 2. Poll SNMP/Ping devices
     devices = db.get_all_devices()
     for device in devices:
         try:
