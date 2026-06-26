@@ -52,14 +52,50 @@ class NetMonTUI:
         self.poll_thread = threading.Thread(target=self._background_poll_loop, daemon=True)
         self.poll_thread.start()
 
+    def _is_web_ui_active(self):
+        import socket
+        port = int(os.environ.get('PORT', 5000))
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            s.connect(('127.0.0.1', port))
+            s.close()
+            return True
+        except Exception:
+            return False
+
     def _background_poll_loop(self):
         while self.running:
             try:
+                # If Web UI is active, let Web UI do the polling.
+                # TUI will run passively to avoid SQLite locks and double polling.
+                if self._is_web_ui_active():
+                    time.sleep(5)
+                    continue
+
                 settings = self.db.get_settings()
                 interval = max(10, int(settings.get('poll_interval', 30)))
+
+                # UniFi telemetry poller fallback if web UI is offline
+                host = settings.get('unifi_host', '')
+                username = settings.get('unifi_user', '')
+                password = settings.get('unifi_pass', '')
+                port = int(settings.get('unifi_port', 8443) or 8443)
+                site = settings.get('unifi_site', 'default') or 'default'
+
+                if host and username and password:
+                    try:
+                        from unifi_client import UniFiClient
+                        unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
+                        unifi_devs = unifi.get_devices()
+                        for ud in unifi_devs:
+                            self.db.add_or_update_unifi_device(ud)
+                    except Exception:
+                        pass
+
                 devices = self.db.get_all_devices()
                 for device in devices:
-                    if not self.running:
+                    if not self.running or self._is_web_ui_active():
                         break
                     try:
                         self.worker.poll_device(device)
@@ -67,7 +103,7 @@ class NetMonTUI:
                         pass
                 # Sleep in small increments to respond quickly to shutdown
                 for _ in range(interval):
-                    if not self.running:
+                    if not self.running or self._is_web_ui_active():
                         break
                     time.sleep(1)
             except Exception:
@@ -202,6 +238,16 @@ class NetMonTUI:
             print(f" Uptime:       {dev.get('uptime') or '—'}")
             print(f" Deskripsi:    {dev.get('description') or '—'}")
             print(f" Terakhir Poll:{dev.get('last_polled') or '—'}")
+            # Print metrics
+            cpu_usage = dev.get('cpu_usage')
+            mem_usage = dev.get('memory_usage')
+            temperature = dev.get('temperature')
+            
+            print("-" * 50)
+            print(f" {C_BOLD}METRIK REAL-TIME:{C_RESET}")
+            print(f" CPU Usage:    {f'{C_CYAN}{cpu_usage}%{C_RESET}' if cpu_usage is not None else '—'}")
+            print(f" RAM Usage:    {f'{C_CYAN}{mem_usage}%{C_RESET}' if mem_usage is not None else '—'}")
+            print(f" Temperature:  {f'{C_RED}{temperature}°C{C_RESET}' if temperature is not None else '—'}")
             print("-" * 50)
             print(f" SNMP Status:  {'AKTIF' if dev.get('snmp_enabled') else 'MATI'}")
             if dev.get('snmp_enabled'):
