@@ -1677,6 +1677,38 @@ sudo systemctl restart snmpd</code></pre>
                 </li>
                 <li><strong>Broadcast Real-Time (WebSockets)</strong>: Setelah proses integrasi selesai di backend, Flask akan menulis rincian aktivitas ke dalam <code>access_logs</code> untuk audit trail. Selanjutnya, Socket.IO memancarkan event <code>unifi_sync_complete</code> secara real-time ke semua klien web yang sedang membuka dashboard guna memperbarui UI secara langsung tanpa muat ulang halaman.</li>
             </ol>
+
+            <h3>5. Konsol Antarmuka Teks Alternatif (NetMon TUI)</h3>
+            <p>Sebagai alternatif saat Web UI Flask sedang mengalami kendala, dalam masa pemeliharaan, atau ketika Anda mengakses server dari koneksi SSH yang lambat, NetMon dilengkapi dengan aplikasi <strong>TUI (Text User Interface)</strong> berbasis CLI bernama <a href="file:///D:/PVT/PERSONAL PROJECT/netmon/tui.py">tui.py</a>. Alat ini langsung membaca database SQLite secara mandiri tanpa memerlukan server web Flask berjalan.</p>
+            
+            <div class="alert-card warning">
+                <div class="alert-icon"><i class="bi bi-terminal-fill"></i></div>
+                <div class="alert-content">
+                    <span class="alert-title">Kelebihan Menggunakan TUI</span>
+                    <p>Dapat beroperasi meskipun layanan Web Server (Flask/Socket.IO) dimatikan. Tetap bisa melakukan polling SNMP ke perangkat dan memicu pemindaian subnet secara manual secara langsung.</p>
+                </div>
+            </div>
+
+            <p>Untuk menjalankan NetMon TUI, masuk ke direktori instalasi dan jalankan perintah berikut:</p>
+            
+            <div class="code-header">
+                <span class="code-lang">CLI Command</span>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <pre><code><span class="code-comment"># Masuk ke direktori NetMon</span>
+cd /opt/netmon
+
+<span class="code-comment"># Jalankan TUI menggunakan python virtual environment agar dependensi terpenuhi</span>
+sudo ./venv/bin/python tui.py</code></pre>
+
+            <h4 style="font-size: 15px; margin-top: 16px;"><i class="bi bi-list-check" style="color: var(--accent-color);"></i> Fitur Menu TUI:</h4>
+            <ul style="margin-left: 20px; color: var(--text-muted); font-size: 14px; display: flex; flex-direction: column; gap: 6px; list-style: square;">
+                <li><strong>[1] Lihat &amp; Poll Perangkat</strong>: Menampilkan tabel daftar status perangkat, detail informasi perangkat keras, pemicu polling SNMP instan di tempat, dan hapus perangkat.</li>
+                <li><strong>[2] Acknowledge Alerts</strong>: Menampilkan log peringatan (kegagalan perangkat) yang aktif, serta opsi untuk *acknowledge* satu persatu maupun semua peringatan sekaligus.</li>
+                <li><strong>[3] Network Scan</strong>: Melakukan pemindaian subnet CIDR asinkron dengan bilah kemajuan (*progress bar*) teks interaktif langsung di terminal.</li>
+                <li><strong>[4] Log Audit Akses</strong>: Menampilkan catatan audit aktivitas sistem terbaru.</li>
+                <li><strong>[5] Pengaturan Aplikasi</strong>: Melihat konfigurasi aktif interval kueri, community string bawaan, dan konfigurasi integrasi UniFi.</li>
+            </ul>
         </section>
 
         <!-- Section: Architecture -->
