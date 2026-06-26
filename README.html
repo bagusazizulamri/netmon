@@ -1270,6 +1270,7 @@
             <li class="menu-item"><a href="#configuration"><i class="bi bi-sliders"></i> Konfigurasi</a></li>
             <li class="menu-item"><a href="#usage"><i class="bi bi-laptop"></i> Penggunaan</a></li>
             <li class="menu-item"><a href="#architecture"><i class="bi bi-diagram-3"></i> Arsitektur & DB</a></li>
+            <li class="menu-item"><a href="#code-flow"><i class="bi bi-shuffle"></i> Flow Logika Kode</a></li>
             <li class="menu-item"><a href="#api-reference"><i class="bi bi-code-slash"></i> API & WebSockets</a></li>
             <li class="menu-item"><a href="#service-mgmt"><i class="bi bi-gear"></i> Layanan Linux</a></li>
             <li class="menu-item"><a href="#troubleshooting"><i class="bi bi-exclamation-triangle"></i> Troubleshooting</a></li>
@@ -1759,6 +1760,107 @@ sudo systemctl restart snmpd</code></pre>
                         <li><i class="bi bi-arrow-right-short"></i> Satu <strong>zones</strong> dapat menampung banyak <strong>devices</strong> (<code>zones.id &rarr; devices.zone_id</code>).</li>
                         <li><i class="bi bi-arrow-right-short"></i> Satu <strong>devices</strong> dapat menghasilkan banyak catatan <strong>alerts</strong> (<code>devices.id &rarr; alerts.device_id</code>).</li>
                         <li><i class="bi bi-arrow-right-short"></i> Data performa detail tercatat pada tabel terpisah <code>snmp_metrics</code> untuk meminimalkan beban read pada data master perangkat.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Code Flow Logic -->
+        <section id="code-flow">
+            <h2><i class="bi bi-shuffle"></i> Flow Logika Kode</h2>
+            <p>NetMon dibangun menggunakan arsitektur modular yang membagi tanggung jawab antara penanganan antarmuka web, penyimpanan data persisten SQLite, dan kueri SNMP asinkron.</p>
+
+            <div class="tab-container">
+                <ul class="tab-nav">
+                    <li><button class="tab-btn active" onclick="switchTab(event, 'flow-overview')"><i class="bi bi-diagram-3-fill"></i> Arsitektur Umum</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'flow-app')"><i class="bi bi-filetype-py"></i> app.py</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'flow-db')"><i class="bi bi-filetype-py"></i> database.py</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'flow-snmp')"><i class="bi bi-filetype-py"></i> snmp_worker.py</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'flow-unifi')"><i class="bi bi-filetype-py"></i> unifi_client.py</button></li>
+                </ul>
+
+                <!-- Sub-tab: Overview Flow -->
+                <div id="flow-overview" class="tab-panel active">
+                    <p>Secara garis besar, interaksi data dalam NetMon berputar pada tiga alur proses utama:</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px;">
+                        <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                            <span style="font-weight: 700; color: var(--accent-color); font-size: 15px;">1. Alur Polling SNMP Berkala</span>
+                            <span style="font-size: 13.5px; color: var(--text-muted);">
+                                <strong>APScheduler</strong> (di <code>app.py</code>) memicu <code>background_poll()</code> setiap X detik &rarr; Membaca daftar perangkat dari <code>database.py</code> &rarr; Memanggil thread <code>snmp_worker.py</code> untuk melakukan kueri GET &rarr; Hasil disimpan ke DB &rarr; Event WebSockets dikirim ke browser.
+                            </span>
+                        </div>
+                        <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                            <span style="font-weight: 700; color: var(--green); font-size: 15px;">2. Alur Scanning Jaringan</span>
+                            <span style="font-size: 13.5px; color: var(--text-muted);">
+                                User klik "Scan" di browser &rarr; Request POST dikirim ke <code>app.py</code> &rarr; Spawns thread baru menjalankan <code>snmp_worker.py:scan_network()</code> &rarr; Iterasi subnet IP menggunakan ICMP/SNMP &rarr; Perangkat baru dimasukkan ke DB &rarr; Progress dipancarkan real-time via WebSockets.
+                            </span>
+                        </div>
+                        <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                            <span style="font-weight: 700; color: var(--yellow); font-size: 15px;">3. Alur Sinkronisasi UniFi</span>
+                            <span style="font-size: 13.5px; color: var(--text-muted);">
+                                User klik "Sync UniFi" &rarr; POST <code>/api/unifi/sync</code> di <code>app.py</code> &rarr; Memanggil kelas <code>UniFiClient</code> (pada <code>unifi_client.py</code>) &rarr; Login dan ambil data JSON dari controller &rarr; Tipe perangkat dipetakan &rarr; Fungsi Upsert di <code>database.py</code> dijalankan.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="alert-card success">
+                        <div class="alert-icon"><i class="bi bi-activity"></i></div>
+                        <div class="alert-content">
+                            <span class="alert-title">Integrasi Asinkron &amp; Real-Time</span>
+                            <p>Dengan membagi tugas polling ke dalam thread terpisah dan menggunakan Socket.IO untuk pembaruan UI, NetMon tidak mengunci antarmuka web saat melakukan scanning atau polling yang memakan waktu.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-tab: app.py Flow -->
+                <div id="flow-app" class="tab-panel">
+                    <h4 style="margin-top: 0;"><i class="bi bi-filetype-py" style="color: var(--accent-color);"></i> app.py — Titik Masuk Utama &amp; Router</h4>
+                    <p>Berkas ini bertindak sebagai orkestrator utama aplikasi yang menghubungkan antarmuka pengguna dengan backend logis.</p>
+                    
+                    <ul style="margin-left: 20px; color: var(--text-muted); font-size: 14.5px; display: flex; flex-direction: column; gap: 8px;">
+                        <li><strong>Inisialisasi Server</strong>: Menginisialisasi modul Flask, Flask-SocketIO (dengan opsi <code>async_mode='threading'</code> agar berjalan di lingkungan thread python biasa), dan database manager SQLite.</li>
+                        <li><strong>Seksi Background Scheduler</strong>: Menggunakan <code>APScheduler</code> untuk mendaftarkan pekerjaan interval <code>background_poll()</code> yang mengeksekusi pemeriksaan perangkat secara berulang berdasarkan setelan interval di database.</li>
+                        <li><strong>API Endpoints Handler</strong>: Mengatur API RESTful untuk memanipulasi data perangkat, manajemen zona, merespons permintaan scan jaringan, serta mengunggah gambar denah lantai kustom ke direktori <code>static/img</code>.</li>
+                        <li><strong>WebSocket Events Linker</strong>: Menangani koneksi awal WebSocket, mengirimkan data inisialisasi (<code>init_data</code>) yang mencakup seluruh status jaringan saat browser baru dibuka, serta merespons event instan dari client seperti permintaan force-poll perangkat.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-tab: database.py Flow -->
+                <div id="flow-db" class="tab-panel">
+                    <h4 style="margin-top: 0;"><i class="bi bi-filetype-py" style="color: var(--accent-color);"></i> database.py — Data Persistence Engine</h4>
+                    <p>Bertanggung jawab atas seluruh siklus hidup penyimpanan data persisten aplikasi NetMon menggunakan SQLite.</p>
+
+                    <ul style="margin-left: 20px; color: var(--text-muted); font-size: 14.5px; display: flex; flex-direction: column; gap: 8px;">
+                        <li><strong>Database Initialization (<code>_init_db</code>)</strong>: Secara otomatis membuat tabel-tabel utama (devices, zones, alerts, access_logs, floorplans, settings, snmp_metrics) jika berkas <code>netmon.db</code> belum ada di sistem saat aplikasi dinyalakan.</li>
+                        <li><strong>Thread-Safe Connection Context (<code>conn</code>)</strong>: Menggunakan python <code>@contextmanager</code> untuk membagi koneksi SQLite di lingkungan multithreading. Mengaktifkan <code>PRAGMA journal_mode=WAL</code> untuk mengizinkan operasi read/write simultan, serta melakukan otomatis commit jika kueri sukses dan rollback jika terjadi kegagalan data.</li>
+                        <li><strong>Integrasi UniFi Upsert (<code>add_or_update_unifi_device</code>)</strong>: Mengimplementasikan logika cerdas di mana jika ada perangkat UniFi baru, data dimasukkan. Jika perangkat sudah terdaftar berdasarkan IP atau UUID Controller, kolom properti perangkat akan diperbarui demi mencegah duplikasi.</li>
+                        <li><strong>Metode Utilitas Alerting (<code>acknowledge_alert</code>)</strong>: Mengubah status peringatan aktif menjadi terbaca (acknowledged) beserta perekaman waktu dan nama admin yang mengeksekusi aksi.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-tab: snmp_worker.py Flow -->
+                <div id="flow-snmp" class="tab-panel">
+                    <h4 style="margin-top: 0;"><i class="bi bi-filetype-py" style="color: var(--accent-color);"></i> snmp_worker.py — SNMP Driver &amp; Scanner</h4>
+                    <p>Berkas ini berisi logika tingkat rendah untuk berinteraksi dengan protokol SNMP menggunakan library <code>puresnmp</code>.</p>
+
+                    <ul style="margin-left: 20px; color: var(--text-muted); font-size: 14.5px; display: flex; flex-direction: column; gap: 8px;">
+                        <li><strong>Low-Level Wrappers (<code>_get</code> &amp; <code>_walk</code>)</strong>: Membungkus instansiasi client <code>puresnmp.PyWrapper</code> dengan parameter community string, IP target, port, versi SNMP (v1/v2c), dan timeout guna menangani eksepsi kehilangan koneksi secara aman.</li>
+                        <li><strong>Device Polling Logic (<code>poll_device</code>)</strong>: Mengambil nilai OID standar (Deskripsi, Uptime, Hostname). Jika perangkat yang sebelumnya 'down' merespons, status diubah menjadi 'up' dan alert pemulihan dipancarkan. Jika perangkat gagal merespons, status diubah menjadi 'down' dan record alert baru akan dicatat.</li>
+                        <li><strong>Interface Status Check (<code>_check_ifaces</code>)</strong>: Melakukan SNMP WALK pada OID interface <code>ifOperStatus</code> (operational status) untuk memverifikasi jika ada port penting perangkat yang mati (Down/Warning). Jika ada port mati, status visual perangkat akan beralih ke warna kuning (Warning).</li>
+                        <li><strong>Network Scanner (<code>scan_network</code>)</strong>: Memecah alamat CIDR menjadi deretan IP individual menggunakan modul <code>ipaddress</code>. Melakukan ping ICMP dasar lalu dilanjutkan dengan SNMP GET deskripsi sistem. Setiap perangkat baru yang ditemukan akan dikirim ke database dan dikabarkan ke UI via WebSocket progres.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-tab: unifi_client.py Flow -->
+                <div id="flow-unifi" class="tab-panel">
+                    <h4 style="margin-top: 0;"><i class="bi bi-filetype-py" style="color: var(--accent-color);"></i> unifi_client.py — UniFi API Integrator</h4>
+                    <p>Menyediakan jembatan API HTTPS untuk mengambil data topologi jaringan langsung dari UniFi SDN Controller.</p>
+
+                    <ul style="margin-left: 20px; color: var(--text-muted); font-size: 14.5px; display: flex; flex-direction: column; gap: 8px;">
+                        <li><strong>Login Dual-Path (<code>login</code>)</strong>: Mencoba autentikasi HTTP POST pada jalur <code>/api/login</code> (untuk controller klasik port 8443) atau <code>/api/auth/login</code> (untuk UniFi OS modern) guna memastikan kompatibilitas yang luas pada firmware controller yang berbeda.</li>
+                        <li><strong>Data Fetchers (<code>get_devices</code> &amp; <code>get_clients</code>)</strong>: Mengambil daftar perangkat keras (APs, Switches, Gateways) dan perangkat klien nirkabel/kabel yang terhubung ke jaringan UniFi.</li>
+                        <li><strong>Unified Parsing (<code>_parse_device</code>)</strong>: Melakukan standardisasi skema data mentah UniFi. Menyelaraskan atribut alamat MAC, uptime, status (Up/Down), serta memetakan tipe perangkat UniFi (seperti gateway model 'udm' menjadi tipe 'router' NetMon) menggunakan kamus <code>TYPE_MAP</code> agar cocok dengan struktur tabel perangkat SQLite.</li>
                     </ul>
                 </div>
             </div>
