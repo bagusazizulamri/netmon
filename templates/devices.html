@@ -253,6 +253,10 @@
             <label class="nm-label">Site</label>
             <input type="text" class="nm-input" id="uf-site" value="default">
           </div>
+          <div class="col-md-6">
+            <label class="nm-label">Target Zone</label>
+            <select class="nm-select w-100" id="uf-zone"></select>
+          </div>
         </div>
         <div id="uf-result" class="mt-3"></div>
       </div>
@@ -392,6 +396,8 @@ function populateZoneTabs(zones) {
 function populateZoneSelect(zones) {
   const sel = document.getElementById('dev-zone');
   sel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
+  const ufSel = document.getElementById('uf-zone');
+  if (ufSel) ufSel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
 }
 
 let activeZone = 'all';
@@ -550,6 +556,7 @@ function doUnifiSync() {
     username: document.getElementById('uf-user').value.trim(),
     password: document.getElementById('uf-pass').value,
     site: document.getElementById('uf-site').value.trim() || 'default',
+    zone_id: parseInt(document.getElementById('uf-zone').value) || 1,
   };
   document.getElementById('uf-result').innerHTML = '<div class="text-muted text-sm"><i class="bi bi-arrow-repeat spin me-1"></i>Connecting…</div>';
   fetch('/api/unifi/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})

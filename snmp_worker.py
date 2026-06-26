@@ -68,14 +68,18 @@ class SNMPWorker:
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
         if not SNMP_OK: return None
         import asyncio
-        try:
-            loop = asyncio.new_event_loop()
-            coro = self._async_get(ip, community, oids, port, version, timeout)
-            res = loop.run_until_complete(coro)
-            loop.close()
-            return res
-        except Exception:
-            return None
+        # Retry up to 2 times to prevent random NAT UDP packet loss
+        for attempt in range(2):
+            try:
+                loop = asyncio.new_event_loop()
+                coro = self._async_get(ip, community, oids, port, version, timeout)
+                res = loop.run_until_complete(coro)
+                loop.close()
+                if res:
+                    return res
+            except Exception:
+                pass
+        return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
         import asyncio
@@ -100,14 +104,18 @@ class SNMPWorker:
     def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2):
         if not SNMP_OK: return {}
         import asyncio
-        try:
-            loop = asyncio.new_event_loop()
-            coro = self._async_walk(ip, community, base_oid, port, version, timeout)
-            res = loop.run_until_complete(coro)
-            loop.close()
-            return res
-        except Exception:
-            return {}
+        # Retry up to 2 times to prevent random NAT UDP packet loss
+        for attempt in range(2):
+            try:
+                loop = asyncio.new_event_loop()
+                coro = self._async_walk(ip, community, base_oid, port, version, timeout)
+                res = loop.run_until_complete(coro)
+                loop.close()
+                if res:
+                    return res
+            except Exception:
+                pass
+        return {}
 
     # ─── poll a single device ────────────────────────────────────────
 
@@ -183,9 +191,6 @@ class SNMPWorker:
             self.db.update_device(did, upd)
             if upd.get('uptime'):
                 self.db.save_metric(did, 'uptime', upd['uptime'])
-
-            if self._check_ifaces(device, ip, community, port, version) == 'warning':
-                self.db.update_device(did, {'status': 'warning'})
         else:
             # Fallback to Ping to check if the device is actually online
             is_alive = self._ping(ip)

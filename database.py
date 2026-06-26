@@ -217,7 +217,7 @@ class Database:
             c.execute('DELETE FROM devices WHERE id = ?', (device_id,))
 
 
-    def add_or_update_unifi_device(self, data):
+    def add_or_update_unifi_device(self, data, zone_id=1):
         ip = str(data.get('ip', '') or '').strip()
         if not ip:
             return False
@@ -229,20 +229,20 @@ class Database:
                 ).fetchone()
                 if existing:
                     c.execute('''
-                        UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, updated_at=?
+                        UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, zone_id=?, updated_at=?
                         WHERE id=?
                     ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
-                          data.get('model',''), data.get('unifi_id',''),
+                          data.get('model',''), data.get('unifi_id',''), zone_id,
                           datetime.now().isoformat(), existing['id']))
                     return False
                 else:
                     c.execute('''
                         INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
-                          data.get('unifi_id',''), data.get('status','unknown')))
+                          data.get('unifi_id',''), zone_id, data.get('status','unknown')))
                     return True
         except sqlite3.IntegrityError:
             return False

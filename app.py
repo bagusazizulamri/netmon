@@ -230,7 +230,8 @@ def sync_unifi():
         unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
         devices = unifi.get_devices()
         clients = unifi.get_clients()
-        added = sum(1 for d in devices if db.add_or_update_unifi_device(d))
+        zone_id = int(data.get('zone_id', 1))
+        added = sum(1 for d in devices if db.add_or_update_unifi_device(d, zone_id=zone_id))
 
         db.add_access_log({
             'source': request.remote_addr,
