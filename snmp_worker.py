@@ -28,8 +28,8 @@ def _creds(version, community):
     return V1(community) if version == '1' else V2C(community)
 
 
-def _client(ip, version, community, port, timeout):
-    return PyWrapper(Client(ip, _creds(version, community), port=port, timeout=timeout))
+def _client(ip, version, community, port):
+    return PyWrapper(Client(ip, _creds(version, community), port=port))
 
 
 class SNMPWorker:
@@ -47,11 +47,13 @@ class SNMPWorker:
     # ─── low-level helpers ───────────────────────────────────────────
 
     async def _async_get(self, ip, community, oids, port, version, timeout):
-        c = _client(ip, version, community, port, timeout)
+        import asyncio
+        c = _client(ip, version, community, port)
         res = {}
         for oid in oids:
             try:
-                val = await c.get(oid)
+                # Wrap the await in asyncio.wait_for to apply timeout
+                val = await asyncio.wait_for(c.get(oid), timeout=timeout)
                 # Clean up bytes to string if needed
                 if isinstance(val, bytes):
                     try:
@@ -76,17 +78,21 @@ class SNMPWorker:
             return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
-        c = _client(ip, version, community, port, timeout)
+        import asyncio
+        c = _client(ip, version, community, port)
         res = {}
         try:
-            async for oid, val in c.walk(base_oid):
-                # Clean up bytes to string if needed
-                if isinstance(val, bytes):
-                    try:
-                        val = val.decode('utf-8', errors='ignore')
-                    except Exception:
-                        pass
-                res[str(oid)] = str(val)
+            async def run_walk():
+                async for oid, val in c.walk(base_oid):
+                    # Clean up bytes to string if needed
+                    if isinstance(val, bytes):
+                        try:
+                            val = val.decode('utf-8', errors='ignore')
+                        except Exception:
+                            pass
+                    res[str(oid)] = str(val)
+            
+            await asyncio.wait_for(run_walk(), timeout=timeout)
         except Exception:
             pass
         return res
