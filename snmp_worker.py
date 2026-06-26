@@ -50,7 +50,13 @@ class SNMPWorker:
         if not SNMP_OK: return None
         try:
             c  = _client(ip, version, community, port, timeout)
-            return {oid: str(c.get(oid)) for oid in oids}
+            res = {}
+            for oid in oids:
+                try:
+                    res[oid] = str(c.get(oid))
+                except Exception:
+                    pass
+            return res if res else None
         except Exception:
             return None
 
@@ -149,6 +155,7 @@ class SNMPWorker:
             self._status.update({'running':True,'found':0,'progress':0,'message':f'Scanning {cidr}…'})
 
         try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             net   = ipaddress.ip_network(cidr, strict=False)
             hosts = list(net.hosts())
             total = len(hosts)
@@ -156,15 +163,12 @@ class SNMPWorker:
             self.socketio.emit('scan_started', {'network':str(net),'total':total})
 
             found = []
-            for i, host in enumerate(hosts):
-                if self._stop.is_set(): break
-                ip  = str(host)
-                pct = round((i+1)/total*100)
-                self._status.update({'progress':i+1,'current_ip':ip,'percent':pct,
-                                     'message':f'Scanning {ip}…'})
-                self.socketio.emit('scan_progress',
-                                   {'progress':i+1,'total':total,'percent':pct,'current_ip':ip})
+            progress_counter = 0
+            progress_lock = threading.Lock()
 
+            def scan_ip(ip):
+                if self._stop.is_set():
+                    return None
                 result = self._get(ip, community, [OID['sysName'], OID['sysDescr']],
                                    version=version, timeout=1)
                 if result:
@@ -175,20 +179,43 @@ class SNMPWorker:
                              'sys_name':name,'snmp_enabled':True,
                              'snmp_community':community,'snmp_version':version,
                              'status':'up','zone_id':1}
-                    existing = self.db.get_device_by_ip(ip)
-                    if existing:
-                        self.db.update_device(existing['id'],
-                                              {'sys_name':name,'description':descr[:200],
-                                               'snmp_enabled':1,'status':'up'})
-                        dev['id'] = existing['id']
-                    else:
-                        try: dev['id'] = self.db.add_device(dev)
-                        except Exception: pass
-                    found.append(dev)
-                    self._status['found'] += 1
-                    self.socketio.emit('device_found', dev)
+                    try:
+                        existing = self.db.get_device_by_ip(ip)
+                        if existing:
+                            self.db.update_device(existing['id'],
+                                                  {'sys_name':name,'description':descr[:200],
+                                                   'snmp_enabled':1,'status':'up'})
+                            dev['id'] = existing['id']
+                        else:
+                            dev['id'] = self.db.add_device(dev)
+                        return dev
+                    except Exception:
+                        pass
+                return None
 
-                time.sleep(0.03)
+            max_workers = 30
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(scan_ip, str(host)): str(host) for host in hosts}
+                for future in as_completed(futures):
+                    if self._stop.is_set():
+                        break
+                    ip = futures[future]
+                    with progress_lock:
+                        progress_counter += 1
+                        pct = round((progress_counter)/total*100)
+                        self._status.update({'progress':progress_counter,'current_ip':ip,'percent':pct,
+                                             'message':f'Scanning {ip}…'})
+                        self.socketio.emit('scan_progress',
+                                           {'progress':progress_counter,'total':total,'percent':pct,'current_ip':ip})
+                    try:
+                        dev = future.result()
+                        if dev:
+                            found.append(dev)
+                            with progress_lock:
+                                self._status['found'] += 1
+                            self.socketio.emit('device_found', dev)
+                    except Exception as e:
+                        print(f"[Scan] Error scanning {ip}: {e}")
 
             self._status.update({'running':False,'percent':100,
                                  'message':f'Done — {len(found)} device(s) found'})

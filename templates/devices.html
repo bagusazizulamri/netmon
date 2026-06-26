@@ -291,12 +291,15 @@
 {% block scripts %}
 <script>
 let allDevices = [], allZones = [];
-const devModal    = new bootstrap.Modal(document.getElementById('deviceModal'));
-const scanModal   = new bootstrap.Modal(document.getElementById('scanModal'));
-const unifiModal  = new bootstrap.Modal(document.getElementById('unifiModal'));
-const delModal    = new bootstrap.Modal(document.getElementById('delModal'));
+let devModal, scanModal, unifiModal, delModal;
 
-document.addEventListener('DOMContentLoaded', loadAll);
+document.addEventListener('DOMContentLoaded', () => {
+  devModal    = new bootstrap.Modal(document.getElementById('deviceModal'));
+  scanModal   = new bootstrap.Modal(document.getElementById('scanModal'));
+  unifiModal  = new bootstrap.Modal(document.getElementById('unifiModal'));
+  delModal    = new bootstrap.Modal(document.getElementById('delModal'));
+  loadAll();
+});
 
 function loadAll() {
   Promise.all([

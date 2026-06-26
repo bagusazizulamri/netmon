@@ -226,28 +226,34 @@ class Database:
             return row['status'] if row else 'unknown'
 
     def add_or_update_unifi_device(self, data):
-        with self.conn() as c:
-            existing = c.execute(
-                'SELECT id FROM devices WHERE ip = ? OR (unifi_id != "" AND unifi_id = ?)',
-                (data.get('ip', ''), data.get('unifi_id', ''))
-            ).fetchone()
-            if existing:
-                c.execute('''
-                    UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, updated_at=?
-                    WHERE id=?
-                ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
-                      data.get('model',''), data.get('unifi_id',''),
-                      datetime.now().isoformat(), existing['id']))
-                return False
-            else:
-                c.execute('''
-                    INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
-                ''', (data.get('name', data.get('ip','Unknown')), data.get('ip',''),
-                      data.get('mac',''), data.get('type','unifi'),
-                      data.get('vendor','Ubiquiti'), data.get('model',''),
-                      data.get('unifi_id',''), data.get('status','unknown')))
-                return True
+        ip = str(data.get('ip', '') or '').strip()
+        if not ip:
+            return False
+        try:
+            with self.conn() as c:
+                existing = c.execute(
+                    'SELECT id FROM devices WHERE ip = ? OR (unifi_id != "" AND unifi_id = ?)',
+                    (ip, data.get('unifi_id', ''))
+                ).fetchone()
+                if existing:
+                    c.execute('''
+                        UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, updated_at=?
+                        WHERE id=?
+                    ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
+                          data.get('model',''), data.get('unifi_id',''),
+                          datetime.now().isoformat(), existing['id']))
+                    return False
+                else:
+                    c.execute('''
+                        INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
+                    ''', (data.get('name', ip), ip,
+                          data.get('mac',''), data.get('type','unifi'),
+                          data.get('vendor','Ubiquiti'), data.get('model',''),
+                          data.get('unifi_id',''), data.get('status','unknown')))
+                    return True
+        except sqlite3.IntegrityError:
+            return False
 
     # ============================================================
     # ZONES

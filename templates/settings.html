@@ -207,11 +207,12 @@
 
 {% block scripts %}
 <script>
-const zoneModal    = new bootstrap.Modal(document.getElementById('zoneModal'));
-const delZoneModal = new bootstrap.Modal(document.getElementById('delZoneModal'));
+let zoneModal, delZoneModal;
 let zones = [];
 
 document.addEventListener('DOMContentLoaded', () => {
+  zoneModal    = new bootstrap.Modal(document.getElementById('zoneModal'));
+  delZoneModal = new bootstrap.Modal(document.getElementById('delZoneModal'));
   loadSettings();
   loadZones();
   loadAbout();

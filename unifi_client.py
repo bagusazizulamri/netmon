@@ -44,6 +44,10 @@ class UniFiClient:
                     body = r.json()
                     # Classic: meta.rc == 'ok'  |  UniFiOS: no meta key
                     if body.get('meta', {}).get('rc') == 'ok' or 'data' in body or r.status_code == 200:
+                        # Extract x-csrf-token for UniFi OS compatibility
+                        csrf_token = r.headers.get('x-csrf-token')
+                        if csrf_token:
+                            self.session.headers.update({'x-csrf-token': csrf_token})
                         self.logged_in = True
                         return True
             except Exception as e:
@@ -53,12 +57,15 @@ class UniFiClient:
     def _api(self, path):
         if not self.logged_in and not self.login():
             return None
-        try:
-            r = self.session.get(f'{self.base}{path}', timeout=10)
-            if r.status_code == 200:
-                return r.json()
-        except Exception as e:
-            print(f"[UniFi] API error {path}: {e}")
+        # Try direct path (Classic) and proxy path (UniFi OS)
+        for prefix in ['', '/proxy/network']:
+            try:
+                url = f'{self.base}{prefix}{path}'
+                r = self.session.get(url, timeout=10)
+                if r.status_code == 200:
+                    return r.json()
+            except Exception as e:
+                print(f"[UniFi] API error with prefix '{prefix}' on {path}: {e}")
         return None
 
     # --------------------------------------------------------
@@ -68,7 +75,8 @@ class UniFiClient:
     def get_devices(self):
         data = self._api(f'/api/s/{self.site}/stat/device')
         if data:
-            return [self._parse_device(d) for d in data.get('data', [])]
+            devices = [self._parse_device(d) for d in data.get('data', [])]
+            return [d for d in devices if d.get('ip') and str(d.get('ip')).strip()]
         return []
 
     def get_clients(self):

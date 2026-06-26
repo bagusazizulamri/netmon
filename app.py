@@ -62,11 +62,17 @@ def get_devices():
 
 @app.route('/api/devices', methods=['POST'])
 def add_device():
+    import sqlite3
     data = request.json
-    device_id = db.add_device(data)
-    dev = db.get_device(device_id)
-    socketio.emit('device_added', dev)
-    return jsonify({'id': device_id, 'status': 'success'})
+    try:
+        device_id = db.add_device(data)
+        dev = db.get_device(device_id)
+        socketio.emit('device_added', dev)
+        return jsonify({'id': device_id, 'status': 'success'})
+    except sqlite3.IntegrityError:
+        return jsonify({'status': 'error', 'message': 'Alamat IP sudah terdaftar atau terdapat kesalahan integritas data.'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/devices/<int:device_id>', methods=['GET'])
 def get_device(device_id):
@@ -74,10 +80,16 @@ def get_device(device_id):
 
 @app.route('/api/devices/<int:device_id>', methods=['PUT'])
 def update_device(device_id):
-    db.update_device(device_id, request.json)
-    dev = db.get_device(device_id)
-    socketio.emit('device_updated', dev)
-    return jsonify({'status': 'success'})
+    import sqlite3
+    try:
+        db.update_device(device_id, request.json)
+        dev = db.get_device(device_id)
+        socketio.emit('device_updated', dev)
+        return jsonify({'status': 'success'})
+    except sqlite3.IntegrityError:
+        return jsonify({'status': 'error', 'message': 'Alamat IP sudah terdaftar atau terdapat kesalahan integritas data.'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/devices/<int:device_id>', methods=['DELETE'])
 def delete_device(device_id):
