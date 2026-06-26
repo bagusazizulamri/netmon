@@ -307,13 +307,68 @@ print_summary() {
 # MAIN
 # =============================================================
 main() {
+  local backup_db=false
+  local db_backup_path="/tmp/netmon.db.bak"
+
   banner
   check_root
+
+  # Check for existing installation
+  if [[ -d "$INSTALL_DIR" || -f "/etc/systemd/system/netmon.service" || -f "/usr/local/bin/netmon-tui" ]]; then
+    step "Existing NetMon installation detected!"
+    info "Initiating automatic uninstallation before performing a fresh install..."
+
+    # 1. Backup database
+    if [[ -f "$INSTALL_DIR/netmon.db" ]]; then
+      info "Preserving database: backing up $INSTALL_DIR/netmon.db to $db_backup_path"
+      cp "$INSTALL_DIR/netmon.db" "$db_backup_path"
+      backup_db=true
+    fi
+
+    # 2. Stop and disable service
+    if command -v systemctl &>/dev/null; then
+      if systemctl is-active --quiet netmon; then
+        info "Stopping netmon service..."
+        systemctl stop netmon || true
+      fi
+      if systemctl is-enabled --quiet netmon 2>/dev/null; then
+        info "Disabling netmon service..."
+        systemctl disable netmon || true
+      fi
+      if [[ -f /etc/systemd/system/netmon.service ]]; then
+        rm -f /etc/systemd/system/netmon.service
+        systemctl daemon-reload
+      fi
+    fi
+
+    # 3. Clean up CLI command
+    if [[ -f "/usr/local/bin/netmon-tui" ]]; then
+      rm -f "/usr/local/bin/netmon-tui"
+    fi
+
+    # 4. Delete old installation files
+    if [[ -d "$INSTALL_DIR" && "$INSTALL_DIR" != "/" ]]; then
+      info "Cleaning up old installation directory: $INSTALL_DIR"
+      rm -rf "$INSTALL_DIR"
+    fi
+
+    success "Existing installation cleaned up successfully."
+  fi
+
   check_python
   check_pip
   install_sys_packages
   create_dirs
   copy_files
+
+  # Restore database if backed up
+  if [[ "$backup_db" == "true" && -f "$db_backup_path" ]]; then
+    step "Restoring database"
+    cp "$db_backup_path" "$INSTALL_DIR/netmon.db"
+    rm -f "$db_backup_path"
+    success "Database restored to $INSTALL_DIR/netmon.db"
+  fi
+
   create_venv
   install_deps
   create_start_script
