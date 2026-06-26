@@ -320,9 +320,21 @@ main() {
 
     # 1. Backup database
     if [[ -f "$INSTALL_DIR/netmon.db" ]]; then
-      info "Preserving database: backing up $INSTALL_DIR/netmon.db to $db_backup_path"
-      cp "$INSTALL_DIR/netmon.db" "$db_backup_path"
-      backup_db=true
+      local reset_db_choice="N"
+      if [[ -t 0 ]]; then
+        echo ""
+        read -rp "  Instalasi lama terdeteksi. Apakah Anda ingin mereset database? [y/N]: " reset_db_choice
+        reset_db_choice="${reset_db_choice:-N}"
+      fi
+
+      if [[ "$reset_db_choice" =~ ^[Yy]$ ]]; then
+        info "Database akan direset (menggunakan database kosong baru)."
+        backup_db=false
+      else
+        info "Preserving database: backing up $INSTALL_DIR/netmon.db to $db_backup_path"
+        cp "$INSTALL_DIR/netmon.db" "$db_backup_path"
+        backup_db=true
+      fi
     fi
 
     # 2. Stop and disable service
