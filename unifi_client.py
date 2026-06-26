@@ -17,6 +17,34 @@ TYPE_MAP = {
 }
 
 
+def format_uptime(seconds):
+    if seconds is None or str(seconds).strip() == '':
+        return ''
+    try:
+        seconds = int(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    
+    days = seconds // 86400
+    seconds %= 86400
+    hours = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds > 0 or not parts:
+        parts.append(f"{seconds}s")
+        
+    return " ".join(parts)
+
+
 class UniFiClient:
     def __init__(self, host, username, password, port=8443, site='default'):
         self.base    = f'https://{host}:{port}'
@@ -99,33 +127,6 @@ class UniFiClient:
             return data.get('data', [])
         return []
 
-
-def format_uptime(seconds):
-    if seconds is None or str(seconds).strip() == '':
-        return ''
-    try:
-        seconds = int(seconds)
-    except (ValueError, TypeError):
-        return str(seconds)
-    
-    days = seconds // 86400
-    seconds %= 86400
-    hours = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    
-    parts = []
-    if days > 0:
-        parts.append(f"{days}d")
-    if hours > 0:
-        parts.append(f"{hours}h")
-    if minutes > 0:
-        parts.append(f"{minutes}m")
-    if seconds > 0 or not parts:
-        parts.append(f"{seconds}s")
-        
-    return " ".join(parts)
 
 
     # --------------------------------------------------------
