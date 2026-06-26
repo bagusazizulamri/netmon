@@ -46,25 +46,60 @@ class SNMPWorker:
 
     # ─── low-level helpers ───────────────────────────────────────────
 
+    async def _async_get(self, ip, community, oids, port, version, timeout):
+        c = _client(ip, version, community, port, timeout)
+        res = {}
+        for oid in oids:
+            try:
+                val = await c.get(oid)
+                # Clean up bytes to string if needed
+                if isinstance(val, bytes):
+                    try:
+                        val = val.decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
+                res[oid] = str(val)
+            except Exception:
+                pass
+        return res if res else None
+
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
         if not SNMP_OK: return None
+        import asyncio
         try:
-            c  = _client(ip, version, community, port, timeout)
-            res = {}
-            for oid in oids:
-                try:
-                    res[oid] = str(c.get(oid))
-                except Exception:
-                    pass
-            return res if res else None
+            loop = asyncio.new_event_loop()
+            coro = self._async_get(ip, community, oids, port, version, timeout)
+            res = loop.run_until_complete(coro)
+            loop.close()
+            return res
         except Exception:
             return None
 
+    async def _async_walk(self, ip, community, base_oid, port, version, timeout):
+        c = _client(ip, version, community, port, timeout)
+        res = {}
+        try:
+            async for oid, val in c.walk(base_oid):
+                # Clean up bytes to string if needed
+                if isinstance(val, bytes):
+                    try:
+                        val = val.decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
+                res[str(oid)] = str(val)
+        except Exception:
+            pass
+        return res
+
     def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2):
         if not SNMP_OK: return {}
+        import asyncio
         try:
-            c = _client(ip, version, community, port, timeout)
-            return {str(oid): str(val) for oid, val in c.walk(base_oid)}
+            loop = asyncio.new_event_loop()
+            coro = self._async_walk(ip, community, base_oid, port, version, timeout)
+            res = loop.run_until_complete(coro)
+            loop.close()
+            return res
         except Exception:
             return {}
 
