@@ -2025,6 +2025,19 @@ sudo systemctl status netmon
 
 <span class="code-comment"># Membaca log output systemd secara real-time (f = follow)</span>
 sudo journalctl -u netmon -f</code></pre>
+
+            <h3>Hapus Instalasi NetMon (Uninstall)</h3>
+            <p>Jika Anda ingin membersihkan seluruh konfigurasi NetMon secara total dari server (menghapus unit service systemd, log audit, basis data SQLite <code>netmon.db</code>, aturan port firewall 5000, serta akun pengguna <code>netmon</code>) untuk melakukan instalasi bersih dari awal (*fresh install*), gunakan skrip <a href="file:///D:/PVT/PERSONAL PROJECT/netmon/uninstall.sh">uninstall.sh</a>:</p>
+
+            <div class="code-header">
+                <span class="code-lang">Uninstall Command</span>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <pre><code><span class="code-comment"># Masuk ke folder git lokal tempat Anda mengekstrak NetMon</span>
+cd /home/kali/netmon
+
+<span class="code-comment"># Jalankan skrip uninstaller dengan hak akses root</span>
+sudo bash uninstall.sh</code></pre>
         </section>
 
         <!-- Section: Troubleshooting -->
