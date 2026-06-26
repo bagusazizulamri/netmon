@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}NetMon{% endblock %} — Network Monitor</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- ======================================================
+     SIDEBAR
+====================================================== -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <i class="bi bi-hdd-network-fill text-accent"></i>
+    <span class="logo-text">NetMon</span>
+    <div class="live-badge"><span class="pulse"></span>LIVE</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="/" class="nav-item {% if request.endpoint=='dashboard' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+    </a>
+    <a href="/floorplan" class="nav-item {% if request.endpoint=='floorplan' %}active{% endif %}">
+      <i class="bi bi-map-fill"></i><span>Floor Plan</span>
+    </a>
+    <a href="/devices" class="nav-item {% if request.endpoint=='devices_page' %}active{% endif %}">
+      <i class="bi bi-hdd-rack-fill"></i><span>Devices</span>
+    </a>
+    <a href="/logs" class="nav-item {% if request.endpoint=='logs_page' %}active{% endif %}">
+      <i class="bi bi-journal-code"></i><span>Logs</span>
+    </a>
+    <a href="/settings" class="nav-item {% if request.endpoint=='settings_page' %}active{% endif %}">
+      <i class="bi bi-gear-fill"></i><span>Settings</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-status">
+    <div class="status-row">
+      <span class="sdot up"></span>
+      <span class="slabel">Online</span>
+      <span class="sval" id="sb-up">—</span>
+    </div>
+    <div class="status-row">
+      <span class="sdot down"></span>
+      <span class="slabel">Offline</span>
+      <span class="sval" id="sb-down">—</span>
+    </div>
+    <div class="status-row">
+      <span class="sdot warn"></span>
+      <span class="slabel">Warning</span>
+      <span class="sval" id="sb-warn">—</span>
+    </div>
+    <div class="status-row">
+      <span class="sdot unknown"></span>
+      <span class="slabel">Unknown</span>
+      <span class="sval" id="sb-unk">—</span>
+    </div>
+    <div class="sidebar-time" id="sb-time"></div>
+    <div class="sidebar-conn" id="sb-conn">
+      <i class="bi bi-wifi-off text-danger"></i> Connecting…
+    </div>
+  </div>
+</aside>
+
+<!-- ======================================================
+     MAIN CONTENT
+====================================================== -->
+<main class="main-content" id="main">
+  <!-- Global alert banner -->
+  <div class="alert-banner d-none" id="alert-banner">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span id="alert-banner-text"></span>
+    <button class="btn-close-banner" onclick="dismissBanner()">✕</button>
+  </div>
+
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ======================================================
+     TOAST CONTAINER
+====================================================== -->
+<div class="toast-stack" id="toast-stack"></div>
+
+<!-- Modal scaffold -->
+<div class="modal fade" id="globalModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Title</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="/static/js/main.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

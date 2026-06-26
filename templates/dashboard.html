@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-sub">Real-time network overview</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm" onclick="refreshAll()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+    <span class="uptime-badge" id="last-refresh">Updating…</span>
+  </div>
+</div>
+
+<!-- ===== STAT CARDS ===== -->
+<div class="stat-grid" id="stat-grid">
+  <div class="stat-card up">
+    <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-up">—</div>
+      <div class="stat-lbl">Online</div>
+    </div>
+  </div>
+  <div class="stat-card down">
+    <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-down">—</div>
+      <div class="stat-lbl">Offline</div>
+    </div>
+  </div>
+  <div class="stat-card warn">
+    <div class="stat-icon"><i class="bi bi-exclamation-circle-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-warn">—</div>
+      <div class="stat-lbl">Warning</div>
+    </div>
+  </div>
+  <div class="stat-card total">
+    <div class="stat-icon"><i class="bi bi-hdd-stack-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-total">—</div>
+      <div class="stat-lbl">Total Devices</div>
+    </div>
+  </div>
+  <div class="stat-card alert">
+    <div class="stat-icon"><i class="bi bi-bell-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-alerts">—</div>
+      <div class="stat-lbl">Unack Alerts</div>
+    </div>
+  </div>
+  <div class="stat-card zone">
+    <div class="stat-icon"><i class="bi bi-diagram-3-fill"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" id="stat-zones">—</div>
+      <div class="stat-lbl">Zones</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN GRID ===== -->
+<div class="dash-grid">
+
+  <!-- LEFT: Mini alert map + device list -->
+  <div class="dash-col-main">
+
+    <!-- Device status panel -->
+    <div class="nm-panel">
+      <div class="panel-header">
+        <span><i class="bi bi-hdd-rack-fill me-2 text-accent"></i>Device Status</span>
+        <div class="d-flex gap-2 align-items-center">
+          <input class="nm-search" type="text" id="dev-search" placeholder="Search…" oninput="filterDevTable()">
+          <a href="/devices" class="btn-nm btn-sm btn-ghost">All Devices →</a>
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        <table class="nm-table" id="dev-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Name</th>
+              <th>IP</th>
+              <th>Zone</th>
+              <th>Type</th>
+              <th>Last Seen</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dev-tbody">
+            <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Alert log -->
+  <div class="dash-col-side">
+    <div class="nm-panel h-100">
+      <div class="panel-header">
+        <span><i class="bi bi-bell-fill me-2 text-accent"></i>Alert Log</span>
+        <div class="d-flex gap-2">
+          <button class="btn-nm btn-sm btn-ghost" onclick="ackAllAlerts()" title="Acknowledge all">
+            <i class="bi bi-check-all"></i>
+          </button>
+          <a href="/logs" class="btn-nm btn-sm btn-ghost">All →</a>
+        </div>
+      </div>
+      <div class="panel-body p-0" style="overflow-y:auto;max-height:600px">
+        <div id="alert-log">
+          <div class="text-center text-muted py-4">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* -------------------------------------------------------
+   Dashboard page JS
+------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // Socket events already handled in main.js
+  // Just render initial data when received
+  window.onInitData = (data) => {
+    renderStats(data.stats);
+    renderDevTable(data.devices);
+    renderAlertLog(data.alerts);
+  };
+  window.onStatsUpdate = renderStats;
+  window.onDeviceUpdate = () => {
+    fetch('/api/devices').then(r=>r.json()).then(renderDevTable);
+  };
+  window.onNewAlert = (alert) => {
+    prependAlert(alert);
+    fetch('/api/stats').then(r=>r.json()).then(renderStats);
+  };
+  refreshAll();
+});
+
+function refreshAll() {
+  Promise.all([
+    fetch('/api/stats').then(r=>r.json()),
+    fetch('/api/devices').then(r=>r.json()),
+    fetch('/api/alerts?limit=40').then(r=>r.json()),
+  ]).then(([stats, devices, alerts]) => {
+    renderStats(stats);
+    renderDevTable(devices);
+    renderAlertLog(alerts);
+    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  });
+}
+
+function renderStats(s) {
+  if (!s) return;
+  setEl('stat-up',     s.up     ?? '—');
+  setEl('stat-down',   s.down   ?? '—');
+  setEl('stat-warn',   s.warning ?? '—');
+  setEl('stat-total',  s.total  ?? '—');
+  setEl('stat-alerts', s.unacked_alerts ?? '—');
+  setEl('stat-zones',  s.zones  ?? '—');
+  // Sidebar
+  setEl('sb-up',   s.up     ?? '—');
+  setEl('sb-down', s.down   ?? '—');
+  setEl('sb-warn', s.warning ?? '—');
+  setEl('sb-unk',  s.unknown ?? '—');
+  // Alert banner
+  if (s.critical_alerts > 0) {
+    showBanner(`⚠ ${s.critical_alerts} critical alert(s) unacknowledged`);
+  }
+}
+
+function renderDevTable(devices) {
+  const tbody = document.getElementById('dev-tbody');
+  if (!devices || !devices.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No devices. <a href="/devices">Add one →</a></td></tr>';
+    return;
+  }
+  tbody.innerHTML = devices.map(d => `
+    <tr class="dev-row" data-search="${(d.name+d.ip+d.zone_name+'').toLowerCase()}">
+      <td>${statusBadge(d.status)}</td>
+      <td class="mono-sm">
+        <i class="bi bi-${iconClass(d.icon||d.type)} me-1 text-accent"></i>${esc(d.name)}
+      </td>
+      <td class="mono-sm text-muted">${esc(d.ip)}</td>
+      <td><span class="zone-pill" style="background:${d.zone_color||'#333'}">${esc(d.zone_name||'—')}</span></td>
+      <td class="text-muted text-sm">${esc(d.type||'—')}</td>
+      <td class="text-muted text-sm mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
+      <td>
+        <button class="btn-icon" title="Poll now" onclick="pollNow(${d.id})">
+          <i class="bi bi-arrow-repeat"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderAlertLog(alerts) {
+  const el = document.getElementById('alert-log');
+  if (!alerts || !alerts.length) {
+    el.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-check-circle text-success fs-4"></i><br>No alerts</div>';
+    return;
+  }
+  el.innerHTML = alerts.map(a => alertItem(a)).join('');
+}
+
+function prependAlert(a) {
+  const el = document.getElementById('alert-log');
+  const empty = el.querySelector('.text-muted');
+  if (empty) el.innerHTML = '';
+  el.insertAdjacentHTML('afterbegin', alertItem(a));
+  // Keep max 40 items
+  const items = el.querySelectorAll('.alert-item');
+  if (items.length > 40) items[items.length-1].remove();
+  playAlertSound(a.severity);
+}
+
+function alertItem(a) {
+  const sev = a.severity || 'info';
+  const icon = {critical:'x-circle-fill',warning:'exclamation-circle-fill',info:'info-circle-fill'}[sev] || 'info-circle';
+  const acked = a.acknowledged ? ' acked' : '';
+  return `<div class="alert-item ${sev}${acked}" id="alert-${a.id}">
+    <div class="alert-icon"><i class="bi bi-${icon}"></i></div>
+    <div class="alert-content">
+      <div class="alert-msg">${esc(a.message)}</div>
+      <div class="alert-meta">
+        <span class="mono-sm">${esc(a.device_ip||'')}</span>
+        <span class="sep">·</span>
+        <span>${a.created_at ? relTime(a.created_at) : ''}</span>
+      </div>
+    </div>
+    ${a.acknowledged ? '<div class="alert-ack-badge">ACK</div>' : 
+      `<button class="btn-ack" onclick="ackAlert(${a.id})" title="Acknowledge"><i class="bi bi-check2"></i></button>`}
+  </div>`;
+}
+
+function ackAlert(id) {
+  fetch(`/api/alerts/${id}/ack`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})})
+    .then(() => {
+      const el = document.getElementById(`alert-${id}`);
+      if (el) { el.classList.add('acked'); el.querySelector('.btn-ack')?.remove(); el.insertAdjacentHTML('beforeend','<div class="alert-ack-badge">ACK</div>'); }
+      fetch('/api/stats').then(r=>r.json()).then(renderStats);
+    });
+}
+
+function ackAllAlerts() {
+  fetch('/api/alerts/ack_all', {method:'POST'}).then(() => refreshAll());
+}
+
+function pollNow(id) {
+  fetch(`/api/devices/${id}/poll`, {method:'POST'}).then(() => showToast('Polling device…', 'info'));
+}
+
+function filterDevTable() {
+  const q = document.getElementById('dev-search').value.toLowerCase();
+  document.querySelectorAll('.dev-row').forEach(r => {
+    r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+// Helpers
+const playAlertSound = (severity) => {
+  if (severity === 'critical') {
+    try {
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880;
+      o.type = 'square';
+      g.gain.setValueAtTime(0.1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.3);
+    } catch(e) {}
+  }
+};
+</script>
+{% endblock %}

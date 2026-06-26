@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Devices</h1>
+    <p class="page-sub">Manage monitored network devices</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm" onclick="openScanModal()">
+      <i class="bi bi-radar"></i> Network Scan
+    </button>
+    <button class="btn-nm btn-sm" onclick="openUnifiModal()">
+      <i class="bi bi-cloud-download-fill"></i> Sync UniFi
+    </button>
+    <button class="btn-nm btn-sm btn-success" onclick="openDeviceModal()">
+      <i class="bi bi-plus-lg"></i> Add Device
+    </button>
+  </div>
+</div>
+
+<!-- Zone filter tabs -->
+<div class="zone-tabs" id="zone-tabs">
+  <button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>
+</div>
+
+<!-- Stats strip -->
+<div class="dev-stats-strip" id="dev-stats-strip"></div>
+
+<!-- Device table -->
+<div class="nm-panel">
+  <div class="panel-header">
+    <div class="d-flex align-items-center gap-3">
+      <span><i class="bi bi-hdd-rack-fill me-2 text-accent"></i>
+        <span id="dev-count">0</span> devices
+      </span>
+      <input class="nm-search" id="dev-filter" placeholder="Search IP, name, zone…" oninput="applyFilter()">
+    </div>
+    <div class="d-flex gap-2">
+      <select class="nm-select" id="status-filter" onchange="applyFilter()">
+        <option value="">All statuses</option>
+        <option value="up">Online</option>
+        <option value="down">Offline</option>
+        <option value="warning">Warning</option>
+        <option value="unknown">Unknown</option>
+      </select>
+      <button class="btn-nm btn-sm btn-ghost" onclick="pollAll()" title="Poll all SNMP devices">
+        <i class="bi bi-arrow-repeat"></i> Poll All
+      </button>
+    </div>
+  </div>
+  <div class="panel-body p-0">
+    <table class="nm-table" id="devices-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>IP Address</th>
+          <th>MAC</th>
+          <th>Type</th>
+          <th>Zone</th>
+          <th>SNMP</th>
+          <th>Last Seen</th>
+          <th>Uptime</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="devices-tbody">
+        <tr><td colspan="10" class="text-center text-muted py-5">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Device Add/Edit Modal -->
+<div class="modal fade" id="deviceModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="devModalTitle">Add Device</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="dev-id">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="nm-label">Device Name</label>
+            <input type="text" class="nm-input" id="dev-name" placeholder="e.g. Core Switch">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">IP Address <span class="text-danger">*</span></label>
+            <input type="text" class="nm-input" id="dev-ip" placeholder="192.168.1.1">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">MAC Address</label>
+            <input type="text" class="nm-input" id="dev-mac" placeholder="AA:BB:CC:DD:EE:FF">
+          </div>
+          <div class="col-md-3">
+            <label class="nm-label">Type</label>
+            <select class="nm-select w-100" id="dev-type">
+              <option value="unknown">Unknown</option>
+              <option value="router">Router</option>
+              <option value="switch">Switch</option>
+              <option value="access_point">Access Point</option>
+              <option value="server">Server</option>
+              <option value="firewall">Firewall</option>
+              <option value="printer">Printer</option>
+              <option value="camera">IP Camera</option>
+              <option value="ups">UPS</option>
+              <option value="unifi">UniFi Device</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="nm-label">Zone</label>
+            <select class="nm-select w-100" id="dev-zone"></select>
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Vendor</label>
+            <input type="text" class="nm-input" id="dev-vendor" placeholder="Cisco, Ubiquiti…">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Model</label>
+            <input type="text" class="nm-input" id="dev-model" placeholder="e.g. C9300">
+          </div>
+          <div class="col-12"><hr class="nm-divider"><span class="nm-section-lbl">SNMP Settings</span></div>
+          <div class="col-md-3">
+            <label class="nm-label">SNMP Enabled</label>
+            <div class="nm-toggle-wrap">
+              <label class="nm-toggle">
+                <input type="checkbox" id="dev-snmp-en">
+                <span class="nm-slider"></span>
+              </label>
+              <span>Enable SNMP polling</span>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="nm-label">Community String</label>
+            <input type="text" class="nm-input" id="dev-community" value="public">
+          </div>
+          <div class="col-md-3">
+            <label class="nm-label">SNMP Version</label>
+            <select class="nm-select w-100" id="dev-version">
+              <option value="1">v1</option>
+              <option value="2c" selected>v2c</option>
+              <option value="3">v3</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="nm-label">SNMP Port</label>
+            <input type="number" class="nm-input" id="dev-port" value="161">
+          </div>
+          <div class="col-12">
+            <label class="nm-label">Description / Notes</label>
+            <textarea class="nm-input" id="dev-desc" rows="2" placeholder="Optional notes"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-success" onclick="saveDevice()">
+          <i class="bi bi-save2-fill me-1"></i>Save Device
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Modal -->
+<div class="modal fade" id="scanModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-radar me-2 text-accent"></i>Network Discovery Scan</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="nm-label">Network CIDR</label>
+          <input type="text" class="nm-input" id="scan-net" value="192.168.1.0/24" placeholder="192.168.1.0/24">
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="nm-label">SNMP Community</label>
+            <input type="text" class="nm-input" id="scan-community" value="public">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">SNMP Version</label>
+            <select class="nm-select w-100" id="scan-version">
+              <option value="1">v1</option>
+              <option value="2c" selected>v2c</option>
+            </select>
+          </div>
+        </div>
+        <div class="scan-progress-wrap mt-3" id="scan-progress-wrap" style="display:none">
+          <div class="d-flex justify-content-between mb-1">
+            <small id="scan-status-text">Scanning…</small>
+            <small id="scan-pct">0%</small>
+          </div>
+          <div class="nm-progress">
+            <div class="nm-progress-bar" id="scan-bar" style="width:0%"></div>
+          </div>
+          <div class="mt-2 text-muted text-sm">
+            Current: <span class="mono-sm" id="scan-cur-ip">—</span>
+            &nbsp;·&nbsp; Found: <span id="scan-found">0</span>
+          </div>
+        </div>
+        <div id="scan-results" class="scan-results mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Close</button>
+        <button class="btn-nm btn-danger" id="btn-scan-stop" style="display:none" onclick="stopScan()">
+          <i class="bi bi-stop-fill"></i> Stop
+        </button>
+        <button class="btn-nm btn-success" id="btn-scan-start" onclick="startScan()">
+          <i class="bi bi-play-fill"></i> Start Scan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UniFi Sync Modal -->
+<div class="modal fade" id="unifiModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cloud-download-fill me-2 text-accent"></i>UniFi Controller Sync</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted text-sm mb-3">Sync devices directly from your UniFi controller. Credentials are also configurable in Settings.</p>
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="nm-label">Controller Host/IP</label>
+            <input type="text" class="nm-input" id="uf-host" placeholder="192.168.1.1">
+          </div>
+          <div class="col-md-4">
+            <label class="nm-label">Port</label>
+            <input type="number" class="nm-input" id="uf-port" value="8443">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Username</label>
+            <input type="text" class="nm-input" id="uf-user" placeholder="admin">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Password</label>
+            <input type="password" class="nm-input" id="uf-pass">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Site</label>
+            <input type="text" class="nm-input" id="uf-site" value="default">
+          </div>
+        </div>
+        <div id="uf-result" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-success" onclick="doUnifiSync()">
+          <i class="bi bi-cloud-download-fill me-1"></i>Sync Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash3-fill me-2"></i>Delete Device</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Delete <strong id="del-name"></strong>?<br>
+        <small class="text-muted">This cannot be undone.</small></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-danger" id="del-confirm-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let allDevices = [], allZones = [];
+const devModal    = new bootstrap.Modal(document.getElementById('deviceModal'));
+const scanModal   = new bootstrap.Modal(document.getElementById('scanModal'));
+const unifiModal  = new bootstrap.Modal(document.getElementById('unifiModal'));
+const delModal    = new bootstrap.Modal(document.getElementById('delModal'));
+
+document.addEventListener('DOMContentLoaded', loadAll);
+
+function loadAll() {
+  Promise.all([
+    fetch('/api/devices').then(r=>r.json()),
+    fetch('/api/zones').then(r=>r.json()),
+    fetch('/api/settings').then(r=>r.json()),
+  ]).then(([devs, zones, settings]) => {
+    allDevices = devs; allZones = zones;
+    populateZoneTabs(zones);
+    populateZoneSelect(zones);
+    renderTable(devs);
+    renderStatsStrip(devs);
+    // Pre-fill UniFi fields
+    if (settings.unifi_host) {
+      document.getElementById('uf-host').value = settings.unifi_host;
+      document.getElementById('uf-port').value = settings.unifi_port || 8443;
+      document.getElementById('uf-user').value = settings.unifi_user;
+      document.getElementById('uf-site').value = settings.unifi_site || 'default';
+    }
+  });
+}
+
+window.onInitData = (d) => { allDevices = d.devices; allZones = d.zones; populateZoneTabs(d.zones); populateZoneSelect(d.zones); renderTable(d.devices); renderStatsStrip(d.devices); };
+window.onDeviceUpdate = () => { fetch('/api/devices').then(r=>r.json()).then(d => { allDevices=d; renderTable(d); renderStatsStrip(d); }); };
+
+function renderTable(devices) {
+  document.getElementById('dev-count').textContent = devices.length;
+  const tbody = document.getElementById('devices-tbody');
+  if (!devices.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-5">
+      No devices yet. <button class="btn-nm btn-sm btn-success" onclick="openDeviceModal()">Add one</button> or run a <button class="btn-nm btn-sm" onclick="openScanModal()">Network Scan</button>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = devices.map(d => `
+    <tr class="dev-row" data-status="${d.status}" data-zone="${d.zone_id}"
+        data-search="${(d.name+d.ip+(d.zone_name||'')+(d.type||'')).toLowerCase()}">
+      <td>${statusBadge(d.status)}</td>
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-${iconClass(d.icon||d.type)} text-accent"></i>
+          <div>
+            <div class="text-sm fw-500">${esc(d.name)}</div>
+            ${d.sys_name && d.sys_name !== d.name ? `<div class="mono-sm text-muted">${esc(d.sys_name)}</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td class="mono-sm">${esc(d.ip)}</td>
+      <td class="mono-sm text-muted">${esc(d.mac||'—')}</td>
+      <td class="text-sm text-muted">${esc(d.type||'—')}</td>
+      <td><span class="zone-pill" style="background:${d.zone_color||'#333'}">${esc(d.zone_name||'Default')}</span></td>
+      <td>
+        ${d.snmp_enabled
+          ? `<span class="badge-snmp on">SNMP ON</span>`
+          : `<span class="badge-snmp off">SNMP OFF</span>`}
+      </td>
+      <td class="text-sm text-muted mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
+      <td class="text-sm text-muted mono-sm">${esc(d.uptime||'—')}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn-icon" title="Poll now" onclick="pollNow(${d.id})"><i class="bi bi-arrow-repeat"></i></button>
+          <button class="btn-icon" title="Edit" onclick="editDevice(${d.id})"><i class="bi bi-pencil-fill"></i></button>
+          <button class="btn-icon danger" title="Delete" onclick="confirmDelete(${d.id},'${esc(d.name)}')"><i class="bi bi-trash3-fill"></i></button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderStatsStrip(devices) {
+  const counts = {up:0,down:0,warning:0,unknown:0};
+  devices.forEach(d => { counts[d.status] = (counts[d.status]||0) + 1; });
+  document.getElementById('dev-stats-strip').innerHTML =
+    Object.entries(counts).map(([s,c]) =>
+      `<div class="dss-item ${s}"><span class="dss-val">${c}</span><span class="dss-lbl">${s}</span></div>`
+    ).join('');
+}
+
+function populateZoneTabs(zones) {
+  const tabs = document.getElementById('zone-tabs');
+  const current = tabs.innerHTML;
+  const zonePart = zones.map(z =>
+    `<button class="zone-tab" data-zone="${z.id}" onclick="filterZone('${z.id}',this)" style="--ztab-color:${z.color}">
+       ${esc(z.name)} <span class="zone-cnt">${z.device_count||0}</span>
+     </button>`
+  ).join('');
+  tabs.innerHTML = `<button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>` + zonePart;
+}
+
+function populateZoneSelect(zones) {
+  const sel = document.getElementById('dev-zone');
+  sel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
+}
+
+let activeZone = 'all';
+function filterZone(zone, btn) {
+  activeZone = zone;
+  document.querySelectorAll('.zone-tab').forEach(t => t.classList.toggle('active', t.dataset.zone == zone));
+  applyFilter();
+}
+
+function applyFilter() {
+  const q   = document.getElementById('dev-filter').value.toLowerCase();
+  const st  = document.getElementById('status-filter').value;
+  document.querySelectorAll('.dev-row').forEach(r => {
+    const matchZone   = activeZone === 'all' || r.dataset.zone == activeZone;
+    const matchSearch = !q  || r.dataset.search.includes(q);
+    const matchStatus = !st || r.dataset.status === st;
+    r.style.display = (matchZone && matchSearch && matchStatus) ? '' : 'none';
+  });
+}
+
+// ---- Device CRUD ----
+function openDeviceModal(device = null) {
+  document.getElementById('devModalTitle').textContent = device ? 'Edit Device' : 'Add Device';
+  document.getElementById('dev-id').value       = device?.id || '';
+  document.getElementById('dev-name').value     = device?.name || '';
+  document.getElementById('dev-ip').value       = device?.ip || '';
+  document.getElementById('dev-mac').value      = device?.mac || '';
+  document.getElementById('dev-type').value     = device?.type || 'unknown';
+  document.getElementById('dev-zone').value     = device?.zone_id || 1;
+  document.getElementById('dev-vendor').value   = device?.vendor || '';
+  document.getElementById('dev-model').value    = device?.model || '';
+  document.getElementById('dev-snmp-en').checked = !!device?.snmp_enabled;
+  document.getElementById('dev-community').value = device?.snmp_community || 'public';
+  document.getElementById('dev-version').value  = device?.snmp_version || '2c';
+  document.getElementById('dev-port').value     = device?.snmp_port || 161;
+  document.getElementById('dev-desc').value     = device?.description || '';
+  devModal.show();
+}
+
+function editDevice(id) {
+  const d = allDevices.find(x => x.id === id);
+  if (d) openDeviceModal(d);
+  else fetch(`/api/devices/${id}`).then(r=>r.json()).then(openDeviceModal);
+}
+
+function saveDevice() {
+  const id = document.getElementById('dev-id').value;
+  const ip = document.getElementById('dev-ip').value.trim();
+  if (!ip) { showToast('IP address is required', 'danger'); return; }
+  const data = {
+    name:           document.getElementById('dev-name').value.trim() || ip,
+    ip,
+    mac:            document.getElementById('dev-mac').value.trim(),
+    type:           document.getElementById('dev-type').value,
+    zone_id:        parseInt(document.getElementById('dev-zone').value),
+    vendor:         document.getElementById('dev-vendor').value.trim(),
+    model:          document.getElementById('dev-model').value.trim(),
+    snmp_enabled:   document.getElementById('dev-snmp-en').checked,
+    snmp_community: document.getElementById('dev-community').value.trim(),
+    snmp_version:   document.getElementById('dev-version').value,
+    snmp_port:      parseInt(document.getElementById('dev-port').value) || 161,
+    description:    document.getElementById('dev-desc').value.trim(),
+  };
+  const url    = id ? `/api/devices/${id}` : '/api/devices';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(() => {
+      devModal.hide();
+      showToast(id ? 'Device updated' : 'Device added', 'success');
+      loadAll();
+    }).catch(() => showToast('Error saving device', 'danger'));
+}
+
+function confirmDelete(id, name) {
+  document.getElementById('del-name').textContent = name;
+  const btn = document.getElementById('del-confirm-btn');
+  btn.onclick = () => {
+    fetch(`/api/devices/${id}`, {method:'DELETE'}).then(() => {
+      delModal.hide(); showToast('Device deleted', 'info'); loadAll();
+    });
+  };
+  delModal.show();
+}
+
+function pollNow(id) {
+  fetch(`/api/devices/${id}/poll`, {method:'POST'}).then(() => showToast('Polling…', 'info'));
+}
+
+function pollAll() {
+  const snmpDevices = allDevices.filter(d => d.snmp_enabled);
+  if (!snmpDevices.length) { showToast('No SNMP-enabled devices', 'warning'); return; }
+  snmpDevices.forEach(d => fetch(`/api/devices/${d.id}/poll`, {method:'POST'}));
+  showToast(`Polling ${snmpDevices.length} devices…`, 'info');
+}
+
+// ---- Network Scan ----
+function openScanModal() { scanModal.show(); }
+
+function startScan() {
+  const net = document.getElementById('scan-net').value.trim();
+  if (!net) { showToast('Enter a network CIDR', 'warning'); return; }
+  document.getElementById('scan-progress-wrap').style.display = '';
+  document.getElementById('btn-scan-start').style.display = 'none';
+  document.getElementById('btn-scan-stop').style.display = '';
+  document.getElementById('scan-results').innerHTML = '';
+  document.getElementById('scan-found').textContent = '0';
+  document.getElementById('scan-bar').style.width = '0%';
+  fetch('/api/scan', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      network:   net,
+      community: document.getElementById('scan-community').value.trim(),
+      version:   document.getElementById('scan-version').value,
+    })
+  }).then(r=>r.json()).then(data => {
+    if (data.status === 'already_running') showToast('Scan already running', 'warning');
+  });
+}
+
+function stopScan() {
+  fetch('/api/scan/stop', {method:'POST'});
+}
+
+window.onScanProgress = (d) => {
+  document.getElementById('scan-bar').style.width  = d.percent + '%';
+  document.getElementById('scan-cur-ip').textContent = d.current_ip;
+  document.getElementById('scan-status-text').textContent = `Scanning (${d.progress}/${d.total})`;
+  document.getElementById('scan-pct').textContent = d.percent + '%';
+};
+window.onScanComplete = (d) => {
+  document.getElementById('btn-scan-start').style.display = '';
+  document.getElementById('btn-scan-stop').style.display = 'none';
+  document.getElementById('scan-bar').style.width = '100%';
+  document.getElementById('scan-status-text').textContent = `Complete — ${d.found} device(s) found`;
+  document.getElementById('scan-found').textContent = d.found;
+  document.getElementById('scan-results').innerHTML =
+    d.found > 0
+    ? `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>${d.found} SNMP device(s) added to device list.</div>`
+    : `<div class="text-muted text-sm"><i class="bi bi-info-circle me-1"></i>No SNMP-responding devices found on that network.</div>`;
+  loadAll();
+};
+window.onDeviceFound = (d) => {
+  document.getElementById('scan-found').textContent =
+    parseInt(document.getElementById('scan-found').textContent || '0') + 1;
+};
+
+// ---- UniFi ----
+function openUnifiModal() {
+  document.getElementById('uf-result').innerHTML = '';
+  unifiModal.show();
+}
+function doUnifiSync() {
+  const data = {
+    host: document.getElementById('uf-host').value.trim(),
+    port: document.getElementById('uf-port').value,
+    username: document.getElementById('uf-user').value.trim(),
+    password: document.getElementById('uf-pass').value,
+    site: document.getElementById('uf-site').value.trim() || 'default',
+  };
+  document.getElementById('uf-result').innerHTML = '<div class="text-muted text-sm"><i class="bi bi-arrow-repeat spin me-1"></i>Connecting…</div>';
+  fetch('/api/unifi/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => {
+      if (res.status === 'success') {
+        document.getElementById('uf-result').innerHTML =
+          `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>${res.devices} devices, ${res.clients} clients synced (${res.added} new).</div>`;
+        loadAll();
+      } else {
+        document.getElementById('uf-result').innerHTML =
+          `<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>${res.message}</div>`;
+      }
+    }).catch(() => {
+      document.getElementById('uf-result').innerHTML =
+        '<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Logs</h1>
+    <p class="page-sub">Alert history and access audit trail</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm btn-ghost" onclick="exportLogs()">
+      <i class="bi bi-download me-1"></i>Export CSV
+    </button>
+    <button class="btn-nm btn-sm" onclick="loadAll()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="nm-tabs">
+  <button class="nm-tab active" id="tab-alerts" onclick="switchTab('alerts')">
+    <i class="bi bi-bell-fill me-1"></i>Alert Log
+    <span class="tab-badge" id="badge-unack">0</span>
+  </button>
+  <button class="nm-tab" id="tab-access" onclick="switchTab('access')">
+    <i class="bi bi-journal-code me-1"></i>Access Log
+  </button>
+</div>
+
+<!-- Alert Log Panel -->
+<div id="panel-alerts" class="nm-panel">
+  <div class="panel-header">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <select class="nm-select" id="alert-sev-filter" onchange="loadAlerts()">
+        <option value="">All severities</option>
+        <option value="critical">Critical</option>
+        <option value="warning">Warning</option>
+        <option value="info">Info</option>
+      </select>
+      <select class="nm-select" id="alert-ack-filter" onchange="loadAlerts()">
+        <option value="">All</option>
+        <option value="0">Unacknowledged</option>
+        <option value="1">Acknowledged</option>
+      </select>
+      <input class="nm-search" id="alert-search" placeholder="Search alerts…" oninput="filterAlertTable()">
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn-nm btn-sm btn-ghost" onclick="ackAll()">
+        <i class="bi bi-check-all me-1"></i>Ack All
+      </button>
+      <span class="text-muted text-sm align-self-center" id="alert-count">—</span>
+    </div>
+  </div>
+  <div class="panel-body p-0">
+    <table class="nm-table" id="alert-table">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Time</th>
+          <th>Device</th>
+          <th>IP</th>
+          <th>Message</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="alert-tbody">
+        <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+      </tbody>
+    </table>
+    <div class="d-flex justify-content-center py-3">
+      <button class="btn-nm btn-sm btn-ghost" id="load-more-alerts" onclick="loadMoreAlerts()" style="display:none">
+        <i class="bi bi-chevron-down me-1"></i>Load More
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Access Log Panel -->
+<div id="panel-access" class="nm-panel" style="display:none">
+  <div class="panel-header">
+    <div class="d-flex gap-2">
+      <input class="nm-search" id="access-search" placeholder="Search access logs…" oninput="filterAccessTable()">
+    </div>
+    <span class="text-muted text-sm" id="access-count">—</span>
+  </div>
+  <div class="panel-body p-0">
+    <table class="nm-table" id="access-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Source</th>
+          <th>Type</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="access-tbody">
+        <tr><td colspan="4" class="text-center text-muted py-4">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let alertOffset = 0, alertLimit = 50, allAlerts = [], allAccess = [];
+let currentTab = 'alerts';
+
+document.addEventListener('DOMContentLoaded', loadAll);
+
+function loadAll() { loadAlerts(); loadAccess(); }
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('panel-alerts').style.display = tab === 'alerts' ? '' : 'none';
+  document.getElementById('panel-access').style.display = tab === 'access' ? '' : 'none';
+  document.getElementById('tab-alerts').classList.toggle('active', tab === 'alerts');
+  document.getElementById('tab-access').classList.toggle('active', tab === 'access');
+}
+
+function loadAlerts(reset = true) {
+  if (reset) alertOffset = 0;
+  const sev  = document.getElementById('alert-sev-filter').value;
+  const url  = `/api/alerts?limit=${alertLimit}&offset=${alertOffset}` + (sev ? `&severity=${sev}` : '');
+  fetch(url).then(r=>r.json()).then(alerts => {
+    if (reset) allAlerts = alerts;
+    else allAlerts = [...allAlerts, ...alerts];
+    renderAlerts(allAlerts);
+    document.getElementById('alert-count').textContent = `${allAlerts.length} entries`;
+    document.getElementById('load-more-alerts').style.display = alerts.length === alertLimit ? '' : 'none';
+    // Unack count
+    const unack = allAlerts.filter(a => !a.acknowledged).length;
+    document.getElementById('badge-unack').textContent = unack;
+    document.getElementById('badge-unack').style.display = unack ? '' : 'none';
+  });
+}
+
+function loadMoreAlerts() {
+  alertOffset += alertLimit;
+  loadAlerts(false);
+}
+
+function renderAlerts(alerts) {
+  const tbody = document.getElementById('alert-tbody');
+  const ackFilter = document.getElementById('alert-ack-filter').value;
+  let filtered = alerts;
+  if (ackFilter === '0') filtered = alerts.filter(a => !a.acknowledged);
+  if (ackFilter === '1') filtered = alerts.filter(a =>  a.acknowledged);
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-check-circle text-success fs-4"></i><br>No alerts found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(a => `
+    <tr class="alert-row ${a.acknowledged ? 'acked' : ''}"
+        data-search="${(a.message+(a.device_name||'')+(a.device_ip||'')).toLowerCase()}">
+      <td>${sevBadge(a.severity)}</td>
+      <td class="mono-sm text-muted">${fmtTime(a.created_at)}</td>
+      <td class="text-sm">${esc(a.device_name||'—')}</td>
+      <td class="mono-sm text-muted">${esc(a.device_ip||'—')}</td>
+      <td class="text-sm">${esc(a.message)}</td>
+      <td>
+        ${a.acknowledged
+          ? `<span class="ack-badge">ACK <span class="text-muted">${a.ack_by||''}</span></span>`
+          : '<span class="unack-badge">OPEN</span>'}
+      </td>
+      <td>
+        ${a.acknowledged ? '' :
+          `<button class="btn-icon" onclick="ackOne(${a.id},this)" title="Acknowledge">
+             <i class="bi bi-check2-circle"></i>
+           </button>`}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterAlertTable() {
+  const q = document.getElementById('alert-search').value.toLowerCase();
+  document.querySelectorAll('.alert-row').forEach(r => {
+    r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+function sevBadge(sev) {
+  const map = {critical:['bg-danger','x-circle-fill'], warning:['bg-warn','exclamation-circle-fill'], info:['bg-info','info-circle-fill']};
+  const [cls, icon] = map[sev] || ['bg-secondary','circle'];
+  return `<span class="sev-badge ${cls}"><i class="bi bi-${icon} me-1"></i>${sev||'info'}</span>`;
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts.replace(' ','T'));
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+}
+
+function ackOne(id, btn) {
+  fetch(`/api/alerts/${id}/ack`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .then(() => { loadAlerts(); showToast('Alert acknowledged', 'info'); });
+}
+
+function ackAll() {
+  fetch('/api/alerts/ack_all', {method:'POST'}).then(() => { loadAlerts(); showToast('All alerts acknowledged', 'info'); });
+}
+
+// Access log
+function loadAccess() {
+  fetch('/api/access_logs?limit=200').then(r=>r.json()).then(logs => {
+    allAccess = logs;
+    renderAccess(logs);
+    document.getElementById('access-count').textContent = `${logs.length} entries`;
+  });
+}
+
+function renderAccess(logs) {
+  const tbody = document.getElementById('access-tbody');
+  if (!logs.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5">No access logs</td></tr>';
+    return;
+  }
+  const typeIcon = {access:'person-fill', scan:'radar', sync:'cloud-fill', info:'info-circle-fill'};
+  tbody.innerHTML = logs.map(l => `
+    <tr class="access-row" data-search="${(l.message+(l.source||'')).toLowerCase()}">
+      <td class="mono-sm text-muted">${fmtTime(l.created_at)}</td>
+      <td class="mono-sm">${esc(l.source||'—')}</td>
+      <td><span class="type-pill ${l.type}"><i class="bi bi-${typeIcon[l.type]||'circle'} me-1"></i>${l.type||'info'}</span></td>
+      <td class="text-sm">${esc(l.message)}</td>
+    </tr>
+  `).join('');
+}
+
+function filterAccessTable() {
+  const q = document.getElementById('access-search').value.toLowerCase();
+  document.querySelectorAll('.access-row').forEach(r => {
+    r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+// Real-time
+window.onNewAlert = (a) => { allAlerts.unshift(a); renderAlerts(allAlerts); document.getElementById('badge-unack').textContent = allAlerts.filter(x=>!x.acknowledged).length; };
+
+// Export
+function exportLogs() {
+  const tab = currentTab;
+  const data = tab === 'alerts' ? allAlerts : allAccess;
+  if (!data.length) { showToast('No data to export', 'warning'); return; }
+  const keys = Object.keys(data[0]);
+  const csv  = [keys.join(','), ...data.map(r => keys.map(k => `"${(r[k]||'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `netmon-${tab}-log-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+{% endblock %}

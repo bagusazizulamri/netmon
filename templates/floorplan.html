@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+{% block title %}Floor Plan{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Floor Plan</h1>
+    <p class="page-sub">Live network topology map</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm" onclick="FP.toggleEdit()" id="btn-edit">
+      <i class="bi bi-pencil-fill"></i> Edit Mode
+    </button>
+    <button class="btn-nm btn-sm btn-success" onclick="FP.save()" id="btn-save" style="display:none">
+      <i class="bi bi-save2-fill"></i> Save
+    </button>
+    <label class="btn-nm btn-sm" for="bg-upload" title="Upload floor plan image">
+      <i class="bi bi-image-fill"></i> Background
+    </label>
+    <input type="file" id="bg-upload" accept="image/*" style="display:none" onchange="FP.uploadBg(this)">
+    <button class="btn-nm btn-sm btn-ghost" onclick="FP.clearBg()">
+      <i class="bi bi-eraser"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="fp-legend">
+  <span class="fp-leg-item"><span class="fp-dot up"></span>Online</span>
+  <span class="fp-leg-item"><span class="fp-dot down"></span>Offline</span>
+  <span class="fp-leg-item"><span class="fp-dot warn"></span>Warning</span>
+  <span class="fp-leg-item"><span class="fp-dot unknown"></span>Unknown</span>
+  <span class="fp-leg-sep"></span>
+  <span class="fp-leg-tip" id="fp-mode-tip"><i class="bi bi-eye"></i> View mode — click Edit to reposition devices</span>
+</div>
+
+<!-- Canvas wrapper -->
+<div class="fp-container" id="fp-container">
+  <canvas id="fp-canvas"></canvas>
+  <!-- Device tooltip -->
+  <div class="fp-tooltip" id="fp-tooltip" style="display:none"></div>
+</div>
+
+<!-- Sidebar: device list for adding to map -->
+<div class="fp-sidebar" id="fp-sidebar" style="display:none">
+  <div class="fp-sb-header">
+    <span>Devices</span>
+    <small class="text-muted">Drag to map</small>
+  </div>
+  <div id="fp-dev-list"></div>
+</div>
+
+<script>
+/* =====================================================
+   FloorPlan module
+===================================================== */
+const FP = (() => {
+  const canvas  = document.getElementById('fp-canvas');
+  const ctx     = canvas.getContext('2d');
+  const tooltip = document.getElementById('fp-tooltip');
+  const ctr     = document.getElementById('fp-container');
+
+  let devices  = [];
+  let editMode = false;
+  let bgImage  = null;
+  let bgUrl    = '';
+  let dragging = null;
+  let dragOffX = 0, dragOffY = 0;
+
+  // Status colors
+  const COLOR = { up:'#00d4ff', down:'#ff4b4b', warning:'#f0883e', unknown:'#6e7681', critical:'#ff4b4b' };
+  const ICON  = {
+    router:'⬡', switch:'⬢', server:'▣', access_point:'◎',
+    firewall:'◆', printer:'◉', wifi:'◎', device:'●', unknown:'●'
+  };
+
+  function resize() {
+    const rect = ctr.getBoundingClientRect();
+    canvas.width  = rect.width  || 900;
+    canvas.height = rect.height || 600;
+    draw();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background
+    if (bgImage) {
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let x=0; x<canvas.width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+      for (let y=0; y<canvas.height; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+    }
+
+    // Draw connections (simple lines between same-zone devices)
+    drawConnections();
+
+    // Draw devices
+    devices.forEach(d => drawDevice(d));
+  }
+
+  function drawConnections() {
+    const zoneGroups = {};
+    devices.forEach(d => {
+      if (!zoneGroups[d.zone_id]) zoneGroups[d.zone_id] = [];
+      zoneGroups[d.zone_id].push(d);
+    });
+    Object.values(zoneGroups).forEach(group => {
+      if (group.length < 2) return;
+      const col = group[0].zone_color || '#00d4ff';
+      for (let i=1; i<group.length; i++) {
+        const a = group[0], b = group[i];
+        ctx.beginPath();
+        ctx.moveTo(a.pos_x, a.pos_y);
+        ctx.lineTo(b.pos_x, b.pos_y);
+        ctx.strokeStyle = col + '22';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    });
+  }
+
+  function drawDevice(d) {
+    const x = d.pos_x || 100, y = d.pos_y || 100;
+    const status = d.status || 'unknown';
+    const color  = COLOR[status] || COLOR.unknown;
+    const isDragged = dragging && dragging.id === d.id;
+
+    // Glow for critical/down
+    if (status === 'down' || status === 'critical') {
+      const pulse = Math.sin(Date.now() / 400) * 0.5 + 0.5;
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 10 + pulse * 8;
+    }
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI*2);
+    ctx.fillStyle = '#161b22';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isDragged ? 3 : 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Status dot
+    ctx.beginPath();
+    ctx.arc(x + 14, y - 14, 5, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Icon (emoji stand-in)
+    ctx.fillStyle = color;
+    ctx.font = '14px IBM Plex Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ICON[d.icon||d.type] || ICON.unknown, x, y);
+
+    // Label
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const label = d.name.length > 14 ? d.name.slice(0,13)+'…' : d.name;
+    // Label bg
+    const lw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = '#161b22cc';
+    ctx.fillRect(x - lw/2, y + 25, lw, 16);
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText(label, x, y + 27);
+
+    // IP
+    ctx.fillStyle = '#6e7681';
+    ctx.font = '10px IBM Plex Mono, monospace';
+    ctx.fillText(d.ip, x, y + 44);
+
+    // Zone color bar on top
+    if (d.zone_color) {
+      ctx.beginPath();
+      ctx.arc(x, y, 22, -Math.PI/2, Math.PI/6);
+      ctx.strokeStyle = d.zone_color;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+
+  function hitTest(mx, my) {
+    for (let i = devices.length-1; i >= 0; i--) {
+      const d = devices[i];
+      const dx = mx - d.pos_x, dy = my - d.pos_y;
+      if (dx*dx + dy*dy <= 22*22) return d;
+    }
+    return null;
+  }
+
+  // Mouse events
+  canvas.addEventListener('mousedown', e => {
+    if (!editMode) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const d = hitTest(mx, my);
+    if (d) { dragging = d; dragOffX = mx - d.pos_x; dragOffY = my - d.pos_y; canvas.style.cursor = 'grabbing'; }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (dragging) {
+      dragging.pos_x = Math.max(22, Math.min(canvas.width-22,  mx - dragOffX));
+      dragging.pos_y = Math.max(22, Math.min(canvas.height-22, my - dragOffY));
+      draw();
+    } else {
+      const d = hitTest(mx, my);
+      if (d) {
+        canvas.style.cursor = editMode ? 'grab' : 'pointer';
+        showTooltip(e.clientX, e.clientY, d);
+      } else {
+        canvas.style.cursor = 'default';
+        hideTooltip();
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if (dragging) {
+      dragging = null;
+      canvas.style.cursor = 'grab';
+      draw();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => { dragging = null; hideTooltip(); });
+
+  // Touch support
+  canvas.addEventListener('touchstart', e => {
+    if (!editMode) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+    const d = hitTest(mx, my);
+    if (d) { dragging = d; dragOffX = mx - d.pos_x; dragOffY = my - d.pos_y; }
+  }, {passive:false});
+
+  canvas.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+    dragging.pos_x = Math.max(22, Math.min(canvas.width-22,  mx - dragOffX));
+    dragging.pos_y = Math.max(22, Math.min(canvas.height-22, my - dragOffY));
+    draw();
+  }, {passive:false});
+
+  canvas.addEventListener('touchend', () => { dragging = null; });
+
+  function showTooltip(cx, cy, d) {
+    const stat = d.status || 'unknown';
+    const col  = COLOR[stat] || COLOR.unknown;
+    tooltip.innerHTML = `
+      <div class="tt-name">${esc(d.name)}</div>
+      <div class="tt-ip">${esc(d.ip)}</div>
+      <div class="tt-row"><span class="tt-dot" style="background:${col}"></span>${stat.toUpperCase()}</div>
+      ${d.uptime ? `<div class="tt-row text-muted">↑ ${esc(d.uptime)}</div>` : ''}
+      ${d.zone_name ? `<div class="tt-row text-muted">Zone: ${esc(d.zone_name)}</div>` : ''}
+    `;
+    const rect = ctr.getBoundingClientRect();
+    let tx = cx - rect.left + 12, ty = cy - rect.top - 10;
+    if (tx + 180 > rect.width)  tx = tx - 190;
+    if (ty + 120 > rect.height) ty = ty - 130;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top  = ty + 'px';
+    tooltip.style.display = 'block';
+  }
+
+  function hideTooltip() { tooltip.style.display = 'none'; }
+
+  // Animation loop
+  let animFrame;
+  function startAnim() {
+    function loop() {
+      draw();
+      animFrame = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  // Public API
+  return {
+    init(devs, fp) {
+      devices = devs.map(d => ({...d, pos_x: d.pos_x||100, pos_y: d.pos_y||100}));
+      if (fp && fp.background_url) {
+        bgUrl = fp.background_url;
+        const img = new Image();
+        img.onload = () => { bgImage = img; };
+        img.src = bgUrl;
+      }
+      resize();
+      startAnim();
+    },
+
+    updateDevices(devs) {
+      // Merge positions from existing
+      const posMap = {};
+      devices.forEach(d => { posMap[d.id] = {x: d.pos_x, y: d.pos_y}; });
+      devices = devs.map(d => ({
+        ...d,
+        pos_x: posMap[d.id]?.x ?? d.pos_x ?? 100,
+        pos_y: posMap[d.id]?.y ?? d.pos_y ?? 100,
+      }));
+    },
+
+    updateDevice(dev) {
+      const idx = devices.findIndex(d => d.id === dev.id);
+      if (idx >= 0) {
+        devices[idx] = {...dev, pos_x: devices[idx].pos_x, pos_y: devices[idx].pos_y};
+      }
+    },
+
+    toggleEdit() {
+      editMode = !editMode;
+      const btn   = document.getElementById('btn-edit');
+      const save  = document.getElementById('btn-save');
+      const tip   = document.getElementById('fp-mode-tip');
+      const side  = document.getElementById('fp-sidebar');
+      btn.innerHTML  = editMode ? '<i class="bi bi-eye-fill"></i> View Mode' : '<i class="bi bi-pencil-fill"></i> Edit Mode';
+      btn.classList.toggle('active', editMode);
+      save.style.display  = editMode ? '' : 'none';
+      side.style.display  = editMode ? 'flex' : 'none';
+      tip.innerHTML = editMode
+        ? '<i class="bi bi-pencil-fill text-accent"></i> Edit mode — drag devices to reposition'
+        : '<i class="bi bi-eye"></i> View mode — click Edit to reposition devices';
+    },
+
+    save() {
+      // Save positions back
+      const posUpdates = devices.map(d => ({id:d.id, pos_x:d.pos_x, pos_y:d.pos_y}));
+      const saves = posUpdates.map(d =>
+        fetch(`/api/devices/${d.id}`, {
+          method:'PUT', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({pos_x:d.pos_x, pos_y:d.pos_y})
+        })
+      );
+      fetch('/api/floorplan', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:'Main Floor', background_url: bgUrl})
+      });
+      Promise.all(saves).then(() => showToast('Floor plan saved', 'success'));
+    },
+
+    uploadBg(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      fetch('/api/floorplan/upload', {method:'POST', body:fd})
+        .then(r=>r.json()).then(data => {
+          if (data.url) {
+            bgUrl = data.url;
+            const img = new Image();
+            img.onload = () => { bgImage = img; };
+            img.src = data.url + '?t=' + Date.now();
+            showToast('Background uploaded', 'success');
+          }
+        });
+    },
+
+    clearBg() { bgImage = null; bgUrl = ''; },
+  };
+})();
+
+// Load and init
+document.addEventListener('DOMContentLoaded', () => {
+  Promise.all([
+    fetch('/api/devices').then(r=>r.json()),
+    fetch('/api/floorplan').then(r=>r.json()),
+  ]).then(([devs, fp]) => {
+    FP.init(devs, fp);
+    renderFpDevList(devs);
+  });
+
+  window.addEventListener('resize', () => {
+    const canvas = document.getElementById('fp-canvas');
+    const ctr = document.getElementById('fp-container');
+    const rect = ctr.getBoundingClientRect();
+    canvas.width  = rect.width  || 900;
+    canvas.height = rect.height || 600;
+  });
+
+  // Socket updates
+  window.onDeviceStatusUpdate = (dev) => { FP.updateDevice(dev); };
+  window.onInitData = (data) => {
+    FP.init(data.devices, data.floorplan);
+    renderFpDevList(data.devices);
+  };
+});
+
+function renderFpDevList(devs) {
+  const el = document.getElementById('fp-dev-list');
+  el.innerHTML = devs.map(d => `
+    <div class="fp-dev-item">
+      <span class="fp-dev-dot ${d.status}"></span>
+      <div>
+        <div class="text-sm">${esc(d.name)}</div>
+        <div class="mono-sm text-muted">${esc(d.ip)}</div>
+      </div>
+    </div>
+  `).join('') || '<div class="text-muted text-sm p-3">No devices</div>';
+}
+</script>
+{% endblock %}

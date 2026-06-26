@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Application configuration</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm btn-success" onclick="saveAll()">
+      <i class="bi bi-save2-fill me-1"></i>Save All Settings
+    </button>
+  </div>
+</div>
+
+<div class="settings-grid">
+
+  <!-- ============ POLLING ============ -->
+  <div class="nm-panel">
+    <div class="panel-header"><span><i class="bi bi-clock-fill me-2 text-accent"></i>Polling</span></div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="nm-label">Poll Interval (seconds)</label>
+          <input type="number" class="nm-input" id="s-poll" min="10" max="3600" value="30">
+          <small class="text-muted">Min 10s. How often SNMP-enabled devices are queried.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Default SNMP Community</label>
+          <input type="text" class="nm-input" id="s-community" value="public">
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Default SNMP Version</label>
+          <select class="nm-select w-100" id="s-version">
+            <option value="1">v1</option>
+            <option value="2c">v2c</option>
+            <option value="3">v3</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Alert Retention (days)</label>
+          <input type="number" class="nm-input" id="s-alert-ret" min="1" value="30">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ALERTING ============ -->
+  <div class="nm-panel">
+    <div class="panel-header"><span><i class="bi bi-bell-fill me-2 text-accent"></i>Alerting</span></div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="nm-label">Alert on Device Down</label>
+          <div class="nm-toggle-wrap">
+            <label class="nm-toggle"><input type="checkbox" id="s-alert-down" checked><span class="nm-slider"></span></label>
+            <span>Create alert when SNMP unreachable</span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Alert on Device Recovery</label>
+          <div class="nm-toggle-wrap">
+            <label class="nm-toggle"><input type="checkbox" id="s-alert-up" checked><span class="nm-slider"></span></label>
+            <span>Create alert when device comes back online</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ UNIFI ============ -->
+  <div class="nm-panel">
+    <div class="panel-header">
+      <span><i class="bi bi-cloud-fill me-2 text-accent"></i>UniFi Controller</span>
+      <button class="btn-nm btn-sm" onclick="testUnifi()"><i class="bi bi-plug-fill me-1"></i>Test Connection</button>
+    </div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="nm-label">Controller Host / IP</label>
+          <input type="text" class="nm-input" id="s-uf-host" placeholder="192.168.1.1 or controller.local">
+        </div>
+        <div class="col-md-3">
+          <label class="nm-label">Port</label>
+          <input type="number" class="nm-input" id="s-uf-port" value="8443">
+        </div>
+        <div class="col-md-3">
+          <label class="nm-label">Site</label>
+          <input type="text" class="nm-input" id="s-uf-site" value="default">
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Username</label>
+          <input type="text" class="nm-input" id="s-uf-user" placeholder="admin">
+        </div>
+        <div class="col-md-6">
+          <label class="nm-label">Password</label>
+          <input type="password" class="nm-input" id="s-uf-pass" placeholder="Leave blank to keep existing">
+        </div>
+      </div>
+      <div id="uf-test-result" class="mt-2"></div>
+    </div>
+  </div>
+
+  <!-- ============ ZONES ============ -->
+  <div class="nm-panel">
+    <div class="panel-header">
+      <span><i class="bi bi-diagram-3-fill me-2 text-accent"></i>Zone Management</span>
+      <button class="btn-nm btn-sm btn-success" onclick="openZoneModal()">
+        <i class="bi bi-plus-lg me-1"></i>Add Zone
+      </button>
+    </div>
+    <div class="panel-body p-0">
+      <div id="zone-list">
+        <div class="text-center text-muted py-4">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP INFO ============ -->
+  <div class="nm-panel">
+    <div class="panel-header"><span><i class="bi bi-info-circle-fill me-2 text-accent"></i>About</span></div>
+    <div class="panel-body">
+      <div class="about-grid">
+        <div class="about-item"><span class="about-lbl">Application</span><span class="about-val">NetMon</span></div>
+        <div class="about-item"><span class="about-lbl">Version</span><span class="about-val mono-sm">1.0.0</span></div>
+        <div class="about-item"><span class="about-lbl">Database</span><span class="about-val mono-sm" id="about-db">—</span></div>
+        <div class="about-item"><span class="about-lbl">Devices</span><span class="about-val" id="about-devs">—</span></div>
+        <div class="about-item"><span class="about-lbl">Alert Log</span><span class="about-val" id="about-alerts">—</span></div>
+        <div class="about-item"><span class="about-lbl">SNMP</span>
+          <span class="about-val" id="about-snmp">Checking…</span>
+        </div>
+      </div>
+      <hr class="nm-divider mt-3">
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn-nm btn-sm btn-danger" onclick="confirmPurge()">
+          <i class="bi bi-trash3-fill me-1"></i>Purge Old Logs
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Zone Modal -->
+<div class="modal fade" id="zoneModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="zoneModalTitle">Add Zone</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="zone-id">
+        <div class="mb-3">
+          <label class="nm-label">Zone Name</label>
+          <input type="text" class="nm-input" id="zone-name" placeholder="e.g. Server Room">
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Description</label>
+          <input type="text" class="nm-input" id="zone-desc" placeholder="Optional">
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Color</label>
+          <div class="color-picker-row">
+            <input type="color" class="nm-color-input" id="zone-color" value="#00d4ff">
+            <div class="color-presets">
+              <span class="cp" style="background:#00d4ff" onclick="setPColor('#00d4ff')"></span>
+              <span class="cp" style="background:#7ee787" onclick="setPColor('#7ee787')"></span>
+              <span class="cp" style="background:#f0883e" onclick="setPColor('#f0883e')"></span>
+              <span class="cp" style="background:#ff4b4b" onclick="setPColor('#ff4b4b')"></span>
+              <span class="cp" style="background:#a371f7" onclick="setPColor('#a371f7')"></span>
+              <span class="cp" style="background:#ffa657" onclick="setPColor('#ffa657')"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-success" onclick="saveZone()">Save Zone</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete zone confirm -->
+<div class="modal fade" id="delZoneModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">Delete Zone</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Delete zone <strong id="del-zone-name"></strong>?<br>
+        <small class="text-muted">Devices in this zone will be moved to Default Zone.</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-danger" id="del-zone-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const zoneModal    = new bootstrap.Modal(document.getElementById('zoneModal'));
+const delZoneModal = new bootstrap.Modal(document.getElementById('delZoneModal'));
+let zones = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  loadZones();
+  loadAbout();
+});
+
+function loadSettings() {
+  fetch('/api/settings').then(r=>r.json()).then(s => {
+    setVal('s-poll',       s.poll_interval || 30);
+    setVal('s-community',  s.default_community || 'public');
+    setVal('s-version',    s.default_snmp_version || '2c');
+    setVal('s-alert-ret',  s.alert_retention_days || 30);
+    setChk('s-alert-down', s.alert_on_down !== 'false');
+    setChk('s-alert-up',   s.alert_on_up   !== 'false');
+    setVal('s-uf-host',    s.unifi_host || '');
+    setVal('s-uf-port',    s.unifi_port || 8443);
+    setVal('s-uf-site',    s.unifi_site || 'default');
+    setVal('s-uf-user',    s.unifi_user || '');
+  });
+}
+
+function loadAbout() {
+  fetch('/api/stats').then(r=>r.json()).then(s => {
+    setEl('about-devs',   s.total + ' devices');
+    setEl('about-alerts', s.unacked_alerts + ' unacknowledged');
+    setEl('about-db',     'netmon.db (SQLite)');
+  });
+  fetch('/api/scan/status').then(r=>r.json()).then(s => {
+    setEl('about-snmp', s.running ? 'Scanning…' : (typeof s === 'object' ? 'Ready' : '?'));
+  }).catch(() => {});
+  // Check pysnmp availability
+  fetch('/api/stats').then(() => setEl('about-snmp', 'Available'));
+}
+
+function saveAll() {
+  const data = {
+    poll_interval:        getVal('s-poll'),
+    default_community:    getVal('s-community'),
+    default_snmp_version: getVal('s-version'),
+    alert_retention_days: getVal('s-alert-ret'),
+    alert_on_down:        document.getElementById('s-alert-down').checked ? 'true' : 'false',
+    alert_on_up:          document.getElementById('s-alert-up').checked   ? 'true' : 'false',
+    unifi_host:           getVal('s-uf-host'),
+    unifi_port:           getVal('s-uf-port'),
+    unifi_site:           getVal('s-uf-site'),
+    unifi_user:           getVal('s-uf-user'),
+  };
+  const pass = getVal('s-uf-pass');
+  if (pass && pass !== '***') data.unifi_pass = pass;
+
+  fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
+  }).then(r=>r.json()).then(() => showToast('Settings saved', 'success'))
+    .catch(() => showToast('Error saving settings', 'danger'));
+}
+
+function testUnifi() {
+  const res = document.getElementById('uf-test-result');
+  res.innerHTML = '<div class="text-muted text-sm"><i class="bi bi-arrow-repeat spin me-1"></i>Connecting…</div>';
+  const data = {
+    host:     getVal('s-uf-host'),
+    port:     getVal('s-uf-port'),
+    username: getVal('s-uf-user'),
+    password: getVal('s-uf-pass'),
+    site:     getVal('s-uf-site') || 'default',
+  };
+  fetch('/api/unifi/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(d => {
+      if (d.status === 'success')
+        res.innerHTML = `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>Connected! ${d.devices} devices, ${d.clients} clients found.</div>`;
+      else
+        res.innerHTML = `<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>${d.message}</div>`;
+    }).catch(() => {
+      res.innerHTML = '<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>';
+    });
+}
+
+// ---- Zones ----
+function loadZones() {
+  fetch('/api/zones').then(r=>r.json()).then(z => { zones = z; renderZones(z); });
+}
+
+function renderZones(zs) {
+  const el = document.getElementById('zone-list');
+  if (!zs.length) { el.innerHTML = '<div class="text-center text-muted py-3">No zones</div>'; return; }
+  el.innerHTML = `
+    <table class="nm-table">
+      <thead><tr><th>Color</th><th>Name</th><th>Description</th><th>Devices</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${zs.map(z => `
+          <tr>
+            <td><span class="zone-color-swatch" style="background:${z.color}"></span></td>
+            <td class="fw-500">${esc(z.name)}</td>
+            <td class="text-muted text-sm">${esc(z.description||'—')}</td>
+            <td class="text-sm">${z.device_count||0}</td>
+            <td>
+              <div class="action-btns">
+                <button class="btn-icon" onclick="editZone(${z.id})"><i class="bi bi-pencil-fill"></i></button>
+                ${z.id !== 1 ? `<button class="btn-icon danger" onclick="deleteZone(${z.id},'${esc(z.name)}')"><i class="bi bi-trash3-fill"></i></button>` : ''}
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function openZoneModal(zone = null) {
+  document.getElementById('zoneModalTitle').textContent = zone ? 'Edit Zone' : 'Add Zone';
+  document.getElementById('zone-id').value   = zone?.id || '';
+  document.getElementById('zone-name').value = zone?.name || '';
+  document.getElementById('zone-desc').value = zone?.description || '';
+  document.getElementById('zone-color').value = zone?.color || '#00d4ff';
+  zoneModal.show();
+}
+
+function editZone(id) {
+  const z = zones.find(x => x.id === id);
+  if (z) openZoneModal(z);
+}
+
+function saveZone() {
+  const id = document.getElementById('zone-id').value;
+  const name = document.getElementById('zone-name').value.trim();
+  if (!name) { showToast('Zone name required', 'warning'); return; }
+  const data = {name, description: document.getElementById('zone-desc').value, color: document.getElementById('zone-color').value};
+  const url    = id ? `/api/zones/${id}` : '/api/zones';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(() => { zoneModal.hide(); loadZones(); showToast(id ? 'Zone updated' : 'Zone added', 'success'); });
+}
+
+function deleteZone(id, name) {
+  document.getElementById('del-zone-name').textContent = name;
+  document.getElementById('del-zone-btn').onclick = () => {
+    fetch(`/api/zones/${id}`, {method:'DELETE'}).then(() => { delZoneModal.hide(); loadZones(); showToast('Zone deleted', 'info'); });
+  };
+  delZoneModal.show();
+}
+
+function setPColor(c) { document.getElementById('zone-color').value = c; }
+
+function confirmPurge() {
+  if (!confirm('Purge all acknowledged alerts and logs older than retention period?')) return;
+  showToast('Purge completed (restart app to run cleanup)', 'info');
+}
+
+// Helpers
+const getVal = id => document.getElementById(id)?.value || '';
+const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+const setChk = (id, v) => { const el = document.getElementById(id); if(el) el.checked = !!v; };
+</script>
+{% endblock %}

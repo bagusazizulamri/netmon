@@ -1,0 +1,2279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetMon — Panduan Dokumentasi & Implementasi Jaringan</title>
+    <meta name="description" content="Dokumentasi interaktif NetMon - Aplikasi Monitoring Jaringan Real-Time dengan SNMP Auto-Discovery, Zone Management, dan Floor Plan interaktif.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        :root {
+            /* Theme CSS Variables */
+            --bg-primary: #0b0f17;
+            --bg-secondary: #131924;
+            --bg-card: #182232;
+            --bg-card-hover: #1e2b3f;
+            --border-color: #273549;
+            --text-main: #f0f3f6;
+            --text-muted: #9ba8b9;
+            --text-dark: #6e7d91;
+            --accent-color: #00d4ff;
+            --accent-light: rgba(0, 212, 255, 0.1);
+            --accent-gradient: linear-gradient(135deg, #00d4ff 0%, #0072ff 100%);
+            
+            /* Status Colors */
+            --green: #7ee787;
+            --green-glow: rgba(126, 231, 135, 0.2);
+            --yellow: #f0883e;
+            --yellow-glow: rgba(240, 136, 62, 0.2);
+            --red: #ff4b4b;
+            --red-glow: rgba(255, 75, 75, 0.25);
+            --purple: #a371f7;
+            
+            --sidebar-w: 260px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        .light-mode {
+            --bg-primary: #f4f6f9;
+            --bg-secondary: #ffffff;
+            --bg-card: #f8fafc;
+            --bg-card-hover: #edf2f7;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --text-dark: #94a3b8;
+            --accent-color: #0072ff;
+            --accent-light: rgba(0, 114, 255, 0.08);
+            --accent-gradient: linear-gradient(135deg, #0072ff 0%, #00d4ff 100%);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.15);
+            --yellow: #f59e0b;
+            --yellow-glow: rgba(245, 158, 11, 0.15);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* --- Custom Scrollbar --- */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        /* --- Sidebar Navigation --- */
+        aside {
+            width: var(--sidebar-w);
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 24px 16px;
+            transition: var(--transition);
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo {
+            background: var(--accent-gradient);
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 10px rgba(0, 212, 255, 0.3);
+        }
+
+        .sidebar-title {
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .menu-item a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            font-size: 14.5px;
+            transition: var(--transition);
+        }
+
+        .menu-item a:hover {
+            color: var(--text-main);
+            background-color: var(--bg-card);
+        }
+
+        .menu-item.active a {
+            color: var(--bg-primary);
+            background: var(--accent-gradient);
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 114, 255, 0.2);
+        }
+
+        .menu-item a i {
+            font-size: 16px;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* --- Theme Toggle & Quick Controls --- */
+        .control-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background-color: var(--bg-card);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .control-btn:hover {
+            background-color: var(--bg-card-hover);
+            border-color: var(--accent-color);
+        }
+
+        /* --- Main Content Area --- */
+        main {
+            margin-left: var(--sidebar-w);
+            flex-grow: 1;
+            padding: 40px 60px;
+            max-width: 1200px;
+            transition: var(--transition);
+        }
+
+        @media (max-width: 992px) {
+            aside {
+                left: -260px;
+            }
+            aside.open {
+                left: 0;
+            }
+            main {
+                margin-left: 0;
+                padding: 30px 20px;
+            }
+            .mobile-header {
+                display: flex !important;
+            }
+        }
+
+        /* --- Mobile Header --- */
+        .mobile-header {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 99;
+            width: 100%;
+        }
+
+        .menu-toggle-btn {
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        /* --- Search Bar --- */
+        .search-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 15px;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        /* --- Typography & Headings --- */
+        h1, h2, h3, h4 {
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        h1 {
+            font-size: 38px;
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        h2 {
+            font-size: 26px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-top: 48px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2 i {
+            color: var(--accent-color);
+        }
+
+        h3 {
+            font-size: 18px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            font-size: 15.5px;
+            margin-bottom: 20px;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        strong {
+            color: var(--text-main);
+        }
+
+        code {
+            font-family: var(--font-mono);
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+            color: var(--accent-color);
+        }
+
+        /* --- Glassmorphic Hero Banner --- */
+        .hero-banner {
+            position: relative;
+            padding: 48px;
+            background: linear-gradient(135deg, rgba(24, 34, 50, 0.8) 0%, rgba(11, 15, 23, 0.95) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 40px;
+            box-shadow: var(--shadow);
+        }
+
+        .light-mode .hero-banner {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 244, 246, 0.95) 100%);
+        }
+
+        .hero-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: var(--accent-light);
+            border: 1px solid var(--accent-color);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-color);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .hero-badge .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(0, 212, 255, 0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+        }
+
+        .hero-banner p {
+            font-size: 17px;
+            max-width: 700px;
+            margin-bottom: 28px;
+        }
+
+        /* --- Quick stats cards --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-color);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            background-color: var(--bg-card);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: var(--accent-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* --- Feature Grid --- */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .feature-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            transition: var(--transition);
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            color: var(--accent-color);
+            margin-bottom: 16px;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            font-size: 17px;
+            margin-bottom: 8px;
+        }
+
+        /* --- System Requirement checklist --- */
+        .req-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        .req-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            background-color: var(--bg-card);
+            border-left: 4px solid var(--border-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .req-item:hover {
+            border-left-color: var(--accent-color);
+            background-color: var(--bg-card-hover);
+        }
+
+        .req-item.checked {
+            border-left-color: var(--green);
+        }
+
+        .req-item.checked .checkbox i {
+            color: var(--green);
+        }
+
+        .checkbox {
+            color: var(--text-dark);
+            font-size: 18px;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .req-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .req-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .req-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* --- Tabs --- */
+        .tab-container {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .tab-nav {
+            display: flex;
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            list-style: none;
+        }
+
+        .tab-btn {
+            padding: 14px 24px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 14.5px;
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background-color: var(--bg-card-hover);
+        }
+
+        .tab-btn.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+            background-color: var(--bg-secondary);
+        }
+
+        .tab-panel {
+            padding: 24px;
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* --- Syntax Highlight Blocks --- */
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #111827;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            padding: 8px 16px;
+            border-top-left-radius: var(--radius-sm);
+            border-top-right-radius: var(--radius-sm);
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .code-lang {
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .copy-btn {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-main);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .copy-btn:hover {
+            color: var(--accent-color);
+        }
+
+        pre {
+            background-color: #030712;
+            padding: 16px;
+            border-bottom-left-radius: var(--radius-sm);
+            border-bottom-right-radius: var(--radius-sm);
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        pre code {
+            font-family: var(--font-mono);
+            font-size: 13.5px;
+            color: #f3f4f6;
+            background: none;
+            border: none;
+            padding: 0;
+            border-radius: 0;
+            line-height: 1.5;
+            display: block;
+        }
+
+        .code-comment { color: #6b7280; font-style: italic; }
+        .code-keyword { color: #f472b6; }
+        .code-string { color: #34d399; }
+        .code-number { color: #fbbf24; }
+        .code-func { color: #60a5fa; }
+
+        /* --- Info Alert Cards --- */
+        .alert-card {
+            display: flex;
+            gap: 16px;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-color);
+            border-radius: var(--radius-md);
+            padding: 18px 24px;
+            margin-bottom: 24px;
+        }
+
+        .alert-card.warning { border-left-color: var(--yellow); }
+        .alert-card.danger { border-left-color: var(--red); }
+        .alert-card.success { border-left-color: var(--green); }
+
+        .alert-icon {
+            font-size: 22px;
+            color: var(--accent-color);
+        }
+        .alert-card.warning .alert-icon { color: var(--yellow); }
+        .alert-card.danger .alert-icon { color: var(--red); }
+        .alert-card.success .alert-icon { color: var(--green); }
+
+        .alert-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .alert-content p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* --- Interactive CSS Floor Plan Simulator --- */
+        .floorplan-sim-container {
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+
+        .sim-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .sim-status {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .sim-canvas {
+            position: relative;
+            width: 100%;
+            height: 380px;
+            background-color: var(--bg-primary);
+            border: 1px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .sim-grid-background {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.4;
+            z-index: 0;
+        }
+
+        .sim-device {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            background-color: var(--bg-card);
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-main);
+            cursor: move;
+            z-index: 2;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .sim-device:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .sim-device.active {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-color);
+        }
+
+        .device-badge-dot {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid var(--bg-primary);
+            animation: pulse-dot-key 2s infinite;
+        }
+
+        .device-badge-dot.up { background-color: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+        .device-badge-dot.down { background-color: var(--red); box-shadow: 0 0 8px var(--red-glow); }
+        .device-badge-dot.warning { background-color: var(--yellow); box-shadow: 0 0 6px var(--yellow-glow); }
+
+        @keyframes pulse-dot-key {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .sim-device i {
+            font-size: 20px;
+        }
+
+        .sim-device span {
+            font-size: 10px;
+            font-weight: 600;
+            position: absolute;
+            bottom: -22px;
+            white-space: nowrap;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            border-radius: 10px;
+            color: var(--text-main);
+        }
+
+        .sim-drawer {
+            position: absolute;
+            right: -300px;
+            top: 0;
+            bottom: 0;
+            width: 280px;
+            background-color: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            z-index: 10;
+            padding: 20px;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.2);
+        }
+
+        .sim-drawer.open {
+            right: 0;
+        }
+
+        .drawer-close {
+            align-self: flex-end;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .drawer-close:hover {
+            color: var(--text-main);
+        }
+
+        .sim-room-label {
+            position: absolute;
+            border: 1px dashed var(--border-color);
+            background-color: rgba(0, 212, 255, 0.03);
+            border-radius: var(--radius-sm);
+            color: var(--text-dark);
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* --- Directory Tree --- */
+        .tree-container {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            margin-bottom: 30px;
+            color: var(--text-main);
+        }
+
+        .tree-node {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+
+        .tree-indent {
+            width: 24px;
+            display: inline-block;
+        }
+
+        .tree-node i {
+            color: var(--accent-color);
+        }
+
+        .tree-node i.folder {
+            color: var(--yellow);
+        }
+
+        .tree-node .node-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            font-family: var(--font-main);
+            margin-left: 12px;
+        }
+
+        /* --- Database Visualizer --- */
+        .db-schema-container {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .db-relations {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .db-table {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            width: 260px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+
+        .db-table:hover {
+            border-color: var(--accent-color);
+            transform: scale(1.02);
+        }
+
+        .db-table-header {
+            background: var(--bg-card);
+            padding: 10px 14px;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .db-table-header i {
+            color: var(--accent-color);
+        }
+
+        .db-columns {
+            list-style: none;
+            padding: 8px 0;
+        }
+
+        .db-column {
+            padding: 6px 14px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .db-column.pk {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .db-column.fk {
+            color: var(--purple);
+            font-weight: 600;
+        }
+
+        .db-column span.col-type {
+            color: var(--text-dark);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .relation-arrows {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px 20px;
+            font-size: 14px;
+        }
+
+        .relation-arrows h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .relation-arrows ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .relation-arrows li {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .relation-arrows li i {
+            color: var(--purple);
+        }
+
+        /* --- API Endpoints List --- */
+        .api-search-container {
+            margin-bottom: 16px;
+        }
+
+        .api-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .api-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: var(--transition);
+        }
+
+        .api-item:hover {
+            border-color: var(--accent-color);
+        }
+
+        .api-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .api-method {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        .api-method.get { background-color: #10b981; }
+        .api-method.post { background-color: #3b82f6; }
+        .api-method.put { background-color: #f59e0b; }
+        .api-method.delete { background-color: #ef4444; }
+
+        .api-path {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+
+        .api-desc {
+            font-size: 13.5px;
+            color: var(--text-muted);
+        }
+
+        /* --- FAQ Accordion --- */
+        .faq-accordion {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .faq-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .faq-question {
+            padding: 18px 24px;
+            font-weight: 600;
+            font-size: 15.5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        .faq-question:hover {
+            background-color: var(--bg-card);
+        }
+
+        .faq-question i {
+            color: var(--text-muted);
+            transition: transform 0.25s ease;
+        }
+
+        .faq-item.open .faq-question i {
+            transform: rotate(180deg);
+            color: var(--accent-color);
+        }
+
+        .faq-answer {
+            padding: 0 24px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+            color: var(--text-muted);
+            font-size: 14.5px;
+            border-top: 1px solid transparent;
+        }
+
+        .faq-item.open .faq-answer {
+            padding: 16px 24px 24px;
+            max-height: 500px;
+            border-top-color: var(--border-color);
+        }
+
+        /* --- Dev Review Styling --- */
+        .review-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: var(--shadow);
+        }
+
+        .review-section {
+            margin-bottom: 24px;
+        }
+
+        .review-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .review-tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .review-tag.security { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; }
+        .review-tag.performance { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+        .review-tag.architecture { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid #3b82f6; }
+
+        .review-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .review-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* --- Toast Notification --- */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background-color: var(--bg-secondary);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--green);
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14.5px;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .toast i {
+            color: var(--green);
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+
+    <!-- Mobile Header -->
+    <div class="mobile-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="sidebar-logo" style="width: 30px; height: 30px; font-size: 16px;">
+                <i class="bi bi-globe"></i>
+            </div>
+            <span class="sidebar-title" style="font-size: 18px;">NetMon Doc</span>
+        </div>
+        <button class="menu-toggle-btn" id="menu-toggle">
+            <i class="bi bi-list"></i>
+        </button>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <i class="bi bi-globe"></i>
+            </div>
+            <span class="sidebar-title">NetMon Doc</span>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item active"><a href="#overview"><i class="bi bi-info-circle"></i> Ringkasan</a></li>
+            <li class="menu-item"><a href="#requirements"><i class="bi bi-cpu"></i> Persyaratan Sistem</a></li>
+            <li class="menu-item"><a href="#installation"><i class="bi bi-download"></i> Instalasi</a></li>
+            <li class="menu-item"><a href="#configuration"><i class="bi bi-sliders"></i> Konfigurasi</a></li>
+            <li class="menu-item"><a href="#usage"><i class="bi bi-laptop"></i> Penggunaan</a></li>
+            <li class="menu-item"><a href="#architecture"><i class="bi bi-diagram-3"></i> Arsitektur & DB</a></li>
+            <li class="menu-item"><a href="#api-reference"><i class="bi bi-code-slash"></i> API & WebSockets</a></li>
+            <li class="menu-item"><a href="#service-mgmt"><i class="bi bi-gear"></i> Layanan Linux</a></li>
+            <li class="menu-item"><a href="#troubleshooting"><i class="bi bi-exclamation-triangle"></i> Troubleshooting</a></li>
+            <li class="menu-item"><a href="#dev-review"><i class="bi bi-shield-check"></i> Codebase Review</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <button class="control-btn" id="theme-toggle">
+                <i class="bi bi-sun" id="theme-icon"></i>
+                <span id="theme-text">Light Mode</span>
+            </button>
+            <div style="font-size: 11px; text-align: center; color: var(--text-dark); font-weight: 500;">
+                NetMon v1.0.0
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main>
+        
+        <!-- Section: Overview -->
+        <section id="overview">
+            <div class="hero-banner">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <span class="pulse-dot"></span> Monitoring Aktif
+                    </div>
+                    <h1>NetMon</h1>
+                    <p>Sistem Pemantauan Jaringan Real-Time yang ditenagai oleh Python, Flask, Flask-SocketIO, dan SQLite. Dilengkapi dengan auto-discovery SNMP, pemetaan interaktif denah lantai (floor plan) visual, manajemen zona, sinkronisasi UniFi Controller, serta log audit yang lengkap.</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="bi bi-broadcast"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value">SNMP v1/v2c</span>
+                                <span class="stat-label">Protokol Polling</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="bi bi-lightning-charge"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value">Real-Time</span>
+                                <span class="stat-label">WebSockets (Socket.IO)</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="bi bi-map"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value">Interactive</span>
+                                <span class="stat-label">Drag &amp; Drop Floor Plan</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h2><i class="bi bi-stars"></i> Fitur Utama</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-search"></i></div>
+                    <div class="feature-title">SNMP Auto-Discovery</div>
+                    <p>Melakukan scanning rentang CIDR (subnet) untuk mengidentifikasi perangkat yang merespons SNMP secara otomatis dan memasukkannya ke database.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-clock-history"></i></div>
+                    <div class="feature-title">Polling Otomatis Berkala</div>
+                    <p>Background worker berbasis APScheduler yang melakukan query ke perangkat berkala guna memperbarui status (Up, Down, Warning) secara real-time.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-pin-map"></i></div>
+                    <div class="feature-title">Interactive Floor Plan</div>
+                    <p>Unggah denah lantai kustom dan posisikan ikon perangkat secara drag &amp; drop. Perangkat akan berdenyut (pulse) warna merah/kuning saat ada peringatan.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-cloud-arrow-down"></i></div>
+                    <div class="feature-title">UniFi Sync Integration</div>
+                    <p>Menghubungkan langsung ke UniFi Controller untuk mengimpor seluruh perangkat (Gateway, Switch, Access Point) beserta tipe dan alamat MAC-nya sekali klik.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-journal-text"></i></div>
+                    <div class="feature-title">Alert &amp; Access Logging</div>
+                    <p>Menyimpan sejarah kegagalan perangkat, alert yang butuh acknowledgment, serta audit trail dari pengguna yang mengakses dashboard.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="bi bi-grid-1x2"></i></div>
+                    <div class="feature-title">Zone Management</div>
+                    <p>Mengelompokkan perangkat berdasarkan lokasi fisik, lantai, atau segmen VLAN dengan pewarnaan yang unik pada floor plan.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Requirements -->
+        <section id="requirements">
+            <h2><i class="bi bi-cpu"></i> Persyaratan Sistem</h2>
+            <p>Pastikan server Anda memenuhi persyaratan minimum berikut untuk menjalankan NetMon dengan lancar. Anda dapat mencentang daftar di bawah ini untuk memverifikasi kesiapan lingkungan Anda:</p>
+            
+            <div class="req-list">
+                <div class="req-item" onclick="toggleCheckbox(this)">
+                    <div class="checkbox"><i class="bi bi-square"></i></div>
+                    <div class="req-content">
+                        <span class="req-title">Python 3.9 atau lebih baru</span>
+                        <span class="req-desc">Aplikasi menggunakan fitur modern Python dan library typing. Disarankan Python 3.10 / 3.11.</span>
+                    </div>
+                </div>
+                <div class="req-item" onclick="toggleCheckbox(this)">
+                    <div class="checkbox"><i class="bi bi-square"></i></div>
+                    <div class="req-content">
+                        <span class="req-title">Sistem Operasi Kompatibel</span>
+                        <span class="req-desc">Linux (Ubuntu 20.04+, Debian 11+, CentOS 8+) untuk pemasangan otomatis via systemd, atau Windows 10/11 (manual).</span>
+                    </div>
+                </div>
+                <div class="req-item" onclick="toggleCheckbox(this)">
+                    <div class="checkbox"><i class="bi bi-square"></i></div>
+                    <div class="req-content">
+                        <span class="req-title">Port Jaringan Terbuka</span>
+                        <span class="req-desc">Port TCP 5000 (untuk dashboard web) dan Port UDP 161 (outbound untuk SNMP query ke perangkat target).</span>
+                    </div>
+                </div>
+                <div class="req-item" onclick="toggleCheckbox(this)">
+                    <div class="checkbox"><i class="bi bi-square"></i></div>
+                    <div class="req-content">
+                        <span class="req-title">Akses Jaringan SNMP</span>
+                        <span class="req-desc">Perangkat target (Router, Switch, Server) harus dikonfigurasi untuk menerima request SNMP GET/WALK dari IP server NetMon.</span>
+                    </div>
+                </div>
+                <div class="req-item" onclick="toggleCheckbox(this)">
+                    <div class="checkbox"><i class="bi bi-square"></i></div>
+                    <div class="req-content">
+                        <span class="req-title">Pustaka C compiler &amp; Python Dev Header</span>
+                        <span class="req-desc">Dibutuhkan saat build dependensi Python seperti puresnmp / eventlet (terutama pada Linux server minimalis).</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert-card">
+                <div class="alert-icon"><i class="bi bi-info-circle-fill"></i></div>
+                <div class="alert-content">
+                    <span class="alert-title">Catatan Penggunaan Windows</span>
+                    <p>Di Windows, polling berbasis SNMP dan penemuan jaringan berjalan dengan normal, namun skrip installer otomatis tidak dapat dijalankan secara langsung. Gunakan petunjuk instalasi manual Windows.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Installation -->
+        <section id="installation">
+            <h2><i class="bi bi-download"></i> Petunjuk Instalasi</h2>
+            <p>Pilih tab di bawah ini yang sesuai dengan lingkungan sistem operasi server Anda:</p>
+
+            <div class="tab-container">
+                <ul class="tab-nav">
+                    <li><button class="tab-btn active" onclick="switchTab(event, 'tab-linux')"><i class="bi bi-terminal"></i> Linux / macOS (Otomatis)</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'tab-windows')"><i class="bi bi-windows"></i> Windows (Manual)</button></li>
+                </ul>
+                
+                <div id="tab-linux" class="tab-panel active">
+                    <p>Gunakan installer otomatis `install.sh` untuk melakukan konfigurasi menyeluruh termasuk pembuatan user systemd, virtual environment, dependencies, database, dan rule firewall.</p>
+                    
+                    <div class="code-header">
+                        <span class="code-lang">Bash Shell</span>
+                        <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <pre><code><span class="code-comment"># 1. Clone repositori NetMon ke server Anda</span>
+git clone https://github.com/yourorg/netmon.git
+<span class="code-keyword">cd</span> netmon
+
+<span class="code-comment"># 2. Jalankan skrip instalasi dengan hak akses root (sudo)</span>
+<span class="code-keyword">sudo</span> bash install.sh</code></pre>
+
+                    <div class="alert-card success">
+                        <div class="alert-icon"><i class="bi bi-check-circle-fill"></i></div>
+                        <div class="alert-content">
+                            <span class="alert-title">Apa saja yang dilakukan installer?</span>
+                            <p>Menginstal paket sistem dependencies (`python3-venv`, `net-tools`, `iputils-ping`), membuat user khusus `netmon` (untuk keamanan proses), membangun database SQLite, menyusun file service systemd `netmon.service`, mendaftarkannya agar berjalan otomatis saat boot, dan membuka port firewall 5000.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-windows" class="tab-panel">
+                    <p>Di lingkungan Windows, Anda perlu mengonfigurasi virtual environment secara mandiri melalui PowerShell:</p>
+
+                    <div class="code-header">
+                        <span class="code-lang">PowerShell</span>
+                        <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <pre><code><span class="code-comment"># 1. Buka PowerShell dan arahkan ke direktori project</span>
+<span class="code-keyword">cd</span> C:\netmon
+
+<span class="code-comment"># 2. Buat virtual environment python</span>
+python -m venv venv
+
+<span class="code-comment"># 3. Aktifkan virtual environment</span>
+.\venv\Scripts\Activate.ps1
+
+<span class="code-comment"># 4. Install dependencies dari requirements.txt</span>
+pip install -r requirements.txt
+
+<span class="code-comment"># 5. Jalankan aplikasi NetMon</span>
+python app.py</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Configuration -->
+        <section id="configuration">
+            <h2><i class="bi bi-sliders"></i> Konfigurasi</h2>
+            <p>NetMon dapat dikonfigurasi menggunakan <strong>Environment Variables</strong> untuk opsi server dasar, dan melalui halaman <strong>Settings</strong> di dashboard untuk perilaku fungsional monitoring.</p>
+            
+            <h3>Environment Variables</h3>
+            <table class="req-list" style="width: 100%; border-collapse: collapse; padding: 0;">
+                <thead>
+                    <tr style="border-bottom: 2px solid var(--border-color); text-align: left; background-color: var(--bg-card);">
+                        <th style="padding: 12px 16px;">Variabel</th>
+                        <th style="padding: 12px 16px;">Nilai Bawaan</th>
+                        <th style="padding: 12px 16px;">Deskripsi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px; color: var(--accent-color);">PORT</td>
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px;">5000</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 14px;">Port TCP yang digunakan oleh web server Flask.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px; color: var(--accent-color);">HOST</td>
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px;">0.0.0.0</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 14px;">IP Address binding. `0.0.0.0` artinya dapat diakses dari jaringan manapun.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px; color: var(--accent-color);">DB_PATH</td>
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px;">netmon.db</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 14px;">Nama atau path file database SQLite penyimpanan data persisten.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px; color: var(--accent-color);">SECRET_KEY</td>
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13.5px;">(Acak)</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 14px;">Session key enkripsi Flask. Disarankan diubah untuk produksi.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Konfigurasi di Dalam Aplikasi (Dashboard)</h3>
+            <p>Setelah mengakses dashboard di <code>http://&lt;ip-server&gt;:5000/settings</code>, Anda dapat mengonfigurasi:</p>
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                <div class="stat-card" style="align-items: flex-start; flex-direction: column;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px;">
+                        <i class="bi bi-stopwatch-fill" style="color: var(--accent-color);"></i> Poll Interval
+                    </div>
+                    <span style="font-size: 13.5px; color: var(--text-muted);">Menentukan seberapa sering worker background melakukan kueri SNMP ke perangkat target (Default: 30 detik, minimal: 10 detik).</span>
+                </div>
+                <div class="stat-card" style="align-items: flex-start; flex-direction: column;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px;">
+                        <i class="bi bi-shield-lock-fill" style="color: var(--accent-color);"></i> SNMP Default Community
+                    </div>
+                    <span style="font-size: 13.5px; color: var(--text-muted);">Community string bawaan (umumnya <code>public</code>) yang akan digunakan otomatis saat proses scanning penemuan jaringan baru.</span>
+                </div>
+                <div class="stat-card" style="align-items: flex-start; flex-direction: column;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px;">
+                        <i class="bi bi-cloud-check-fill" style="color: var(--accent-color);"></i> UniFi API Integration
+                    </div>
+                    <span style="font-size: 13.5px; color: var(--text-muted);">Masukkan Hostname controller, port (default 8443), username, dan sandi untuk mengimpor perangkat secara dinamis.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Usage -->
+        <section id="usage">
+            <h2><i class="bi bi-laptop"></i> Petunjuk Penggunaan</h2>
+            <p>Berikut adalah alur penggunaan fitur-fitur penting yang disediakan oleh NetMon.</p>
+            
+            <h3>1. Mengaktifkan SNMP pada Agen/Perangkat Target</h3>
+            <p>Agar NetMon dapat memantau detail perangkat, Anda harus mengaktifkan SNMP Agent terlebih dahulu pada perangkat tujuan:</p>
+
+            <div class="tab-container">
+                <ul class="tab-nav">
+                    <li><button class="tab-btn active" onclick="switchTab(event, 'snmp-cisco')">Cisco IOS</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'snmp-mikrotik')">MikroTik</button></li>
+                    <li><button class="tab-btn" onclick="switchTab(event, 'snmp-linux')">Linux (net-snmp)</button></li>
+                </ul>
+                
+                <div id="snmp-cisco" class="tab-panel active">
+                    <div class="code-header">
+                        <span class="code-lang">Cisco CLI</span>
+                        <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <pre><code><span class="code-comment">! Masuk ke konfigurasi global</span>
+configure terminal
+<span class="code-comment">! Aktifkan SNMP read-only dengan community string "public"</span>
+snmp-server community public RO
+<span class="code-comment">! Set informasi tambahan</span>
+snmp-server location "Server Room Lt.2"
+snmp-server contact "admin@perusahaan.com"
+end
+write memory</code></pre>
+                </div>
+
+                <div id="snmp-mikrotik" class="tab-panel">
+                    <div class="code-header">
+                        <span class="code-lang">RouterOS CLI</span>
+                        <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <pre><code><span class="code-comment"># Aktifkan SNMP Agent</span>
+/snmp set enabled=yes contact="admin@perusahaan.com" location="MDF Room"
+<span class="code-comment"># Konfigurasi community string</span>
+/snmp community set [ find default=yes ] name=public</code></pre>
+                </div>
+
+                <div id="snmp-linux" class="tab-panel">
+                    <div class="code-header">
+                        <span class="code-lang">Bash Shell</span>
+                        <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <pre><code><span class="code-comment"># Pasang service snmpd</span>
+sudo apt-get install -y snmpd
+<span class="code-comment"># Edit file /etc/snmp/snmpd.conf dan masukkan konfigurasi:</span>
+<span class="code-comment"># rocommunity public 192.168.1.0/24</span>
+<span class="code-comment"># Restart daemon</span>
+sudo systemctl restart snmpd</code></pre>
+                </div>
+            </div>
+
+            <h3>2. Penemuan Jaringan (Network Scan)</h3>
+            <p>Untuk menemukan perangkat secara otomatis:</p>
+            <ol style="margin-left: 20px; margin-bottom: 20px; color: var(--text-muted); font-size: 15px; display: flex; flex-direction: column; gap: 8px;">
+                <li>Masuk ke menu <strong>Devices</strong> dan pilih sub-menu <strong>Network Scan</strong>.</li>
+                <li>Masukkan subnet target dalam format CIDR, contoh: <code>192.168.1.0/24</code>.</li>
+                <li>Tuliskan SNMP Community String yang sesuai, lalu klik <strong>Start Scan</strong>.</li>
+                <li>Proses scan berjalan asinkron. Perangkat yang terdeteksi dengan SNMP aktif akan langsung dimasukkan ke daftar perangkat.</li>
+            </ol>
+
+            <h3>3. Simulasi Floor Plan Interaktif (Denah Lantai)</h3>
+            <p>Gunakan simulasi interaktif di bawah ini untuk memahami cara memetakan perangkat pada floor plan:</p>
+
+            <div class="floorplan-sim-container">
+                <div class="sim-header">
+                    <h4 style="margin: 0; font-size: 15px;"><i class="bi bi-map-fill" style="color: var(--accent-color);"></i> Simulator Denah Lantai (Drag &amp; Drop)</h4>
+                    <span class="sim-status" id="sim-status-text">Geser perangkat ke area ruangan</span>
+                </div>
+                <div class="sim-canvas" id="sim-canvas">
+                    <div class="sim-grid-background"></div>
+                    
+                    <!-- Rooms Labels -->
+                    <div class="sim-room-label" style="left: 20px; top: 20px; width: 220px; height: 140px;">Ruang Server (MDF)</div>
+                    <div class="sim-room-label" style="right: 20px; top: 20px; width: 220px; height: 140px;">Ruang Kerja Staff</div>
+                    <div class="sim-room-label" style="left: 20px; bottom: 20px; width: 480px; height: 140px;">Lobi &amp; Penerima Tamu</div>
+
+                    <!-- Devices -->
+                    <div class="sim-device" id="dev-router" style="left: 80px; top: 60px;" onmousedown="dragStart(event, 'dev-router')">
+                        <i class="bi bi-hdd-network"></i>
+                        <span class="device-name">Router-Core</span>
+                        <div class="device-badge-dot up"></div>
+                    </div>
+
+                    <div class="sim-device" id="dev-switch" style="left: 360px; top: 60px;" onmousedown="dragStart(event, 'dev-switch')">
+                        <i class="bi bi-segmented-nav"></i>
+                        <span class="device-name">Switch-Dist</span>
+                        <div class="device-badge-dot warning"></div>
+                    </div>
+
+                    <div class="sim-device" id="dev-ap" style="left: 240px; top: 200px;" onmousedown="dragStart(event, 'dev-ap')">
+                        <i class="bi bi-wifi"></i>
+                        <span class="device-name">AP-Lobby</span>
+                        <div class="device-badge-dot down"></div>
+                    </div>
+
+                    <!-- Details Drawer Inside Simulator -->
+                    <div class="sim-drawer" id="sim-drawer">
+                        <button class="drawer-close" onclick="closeDrawer()"><i class="bi bi-x-lg"></i></button>
+                        <h4 style="margin: 0; font-size: 16px;" id="drawer-title">Device Info</h4>
+                        <div style="font-size: 13.5px; display: flex; flex-direction: column; gap: 8px;">
+                            <div><strong>IP Address:</strong> <span id="drawer-ip"></span></div>
+                            <div><strong>Status:</strong> <span id="drawer-status"></span></div>
+                            <div><strong>Uptime:</strong> <span id="drawer-uptime"></span></div>
+                            <div><strong>Keterangan:</strong> <p id="drawer-desc" style="font-size: 12px; margin-top: 4px;"></p></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <button class="control-btn" style="width: auto; padding: 8px 16px;" onclick="saveSimPositions()">
+                        <i class="bi bi-floppy"></i> Simpan Posisi (Simulasi)
+                    </button>
+                    <span style="font-size: 12px; color: var(--text-dark);" id="coords-display">Pilih perangkat untuk melihat koordinat</span>
+                </div>
+            </div>
+
+            <h3>4. Mekanisme Kerja UniFi Sync Integration</h3>
+            <p>NetMon dilengkapi dengan modul integrasi UniFi Controller yang memungkinkan sinkronisasi data seluruh infrastruktur UniFi (AP, Switch, Gateway) secara otomatis ke dalam database NetMon. Berikut adalah alur proses bagaimana integrasi ini bekerja:</p>
+            
+            <div class="alert-card success" style="margin-bottom: 20px;">
+                <div class="alert-icon"><i class="bi bi-cpu-fill"></i></div>
+                <div class="alert-content">
+                    <span class="alert-title">Alur Proses Sinkronisasi UniFi</span>
+                    <p>Proses sinkronisasi dilakukan melalui interaksi antara Frontend, API Routes Flask, UniFi API Client, dan Database SQLite. Berikut adalah rincian teknis dari langkah-langkahnya:</p>
+                </div>
+            </div>
+
+            <ol style="margin-left: 20px; margin-bottom: 20px; color: var(--text-muted); font-size: 15px; display: flex; flex-direction: column; gap: 12px;">
+                <li><strong>Inisiasi Request (HTTP POST)</strong>: Sinkronisasi dimulai ketika pengguna memicu sinkronisasi (baik dari halaman Settings maupun Devices) via POST request ke endpoint <code>/api/unifi/sync</code>. Request ini mengirimkan credentials UniFi (host, port, username, password, site). Jika parameter tidak dikirimkan, sistem akan otomatis mengambil nilai <em>fallback</em> yang tersimpan di tabel <code>settings</code> database.</li>
+                <li><strong>Proses Autentikasi Dual-Path</strong>: Kelas <code>UniFiClient</code> (pada <a href="file:///D:/PVT/PERSONAL PROJECT/netmon/unifi_client.py">unifi_client.py</a>) diinisialisasi menggunakan sesi HTTP (<code>requests.Session</code>) dengan mematikan peringatan sertifikat SSL. Sistem mencoba login dengan skema <em>dual-path</em> untuk mendukung controller lama (port 8443) maupun UniFi OS modern (port 443) dengan mencoba endpoint login <code>/api/login</code> dan <code>/api/auth/login</code> secara berurutan.</li>
+                <li><strong>Pengambilan Data &amp; Pemetaan Tipe</strong>: Setelah berhasil login, klien mengirimkan GET request ke endpoint API UniFi <code>/api/s/&lt;site&gt;/stat/device</code> untuk mengambil data perangkat mentah. NetMon memetakan tipe perangkat UniFi (seperti <code>ugw/uxg/udm</code> menjadi <code>router</code>, <code>usw</code> menjadi <code>switch</code>, dan <code>uap</code> menjadi <code>access_point</code>) menggunakan kamus <code>TYPE_MAP</code> internal.</li>
+                <li><strong>Pembaruan Database Cerdas (Upsert)</strong>: Data hasil parsing dikirim ke metode <code>add_or_update_unifi_device</code> di <a href="file:///D:/PVT/PERSONAL PROJECT/netmon/database.py">database.py</a>:
+                    <ul style="margin-left: 20px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; list-style: circle;">
+                        <li><strong>Update</strong>: Jika perangkat dengan IP yang sama atau <code>unifi_id</code> yang sama ditemukan, data <code>name</code>, <code>mac</code>, <code>vendor</code>, <code>model</code>, dan <code>unifi_id</code> akan diperbarui di database.</li>
+                        <li><strong>Insert</strong>: Jika perangkat belum terdaftar, NetMon akan menambahkannya sebagai perangkat baru dengan <code>zone_id = 1</code> (Default Zone), status awal diimpor dari UniFi, dan menyetel <code>snmp_enabled = 0</code> secara default karena statusnya dipantau melalui controller.</li>
+                    </ul>
+                </li>
+                <li><strong>Broadcast Real-Time (WebSockets)</strong>: Setelah proses integrasi selesai di backend, Flask akan menulis rincian aktivitas ke dalam <code>access_logs</code> untuk audit trail. Selanjutnya, Socket.IO memancarkan event <code>unifi_sync_complete</code> secara real-time ke semua klien web yang sedang membuka dashboard guna memperbarui UI secara langsung tanpa muat ulang halaman.</li>
+            </ol>
+        </section>
+
+        <!-- Section: Architecture -->
+        <section id="architecture">
+            <h2><i class="bi bi-diagram-3"></i> Arsitektur &amp; Database</h2>
+            <p>NetMon menggunakan model database relasional SQLite sederhana yang terisolasi dengan performa tinggi berkat aktivasi opsi <code>WAL (Write-Ahead Logging)</code> pada koneksi database.</p>
+            
+            <h3>Struktur File Projek</h3>
+            <div class="tree-container">
+                <div class="tree-node"><i class="bi bi-folder2-open folder"></i> netmon/</div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-filetype-py"></i> app.py <span class="node-desc">← Inisialisasi Flask, API Routes, &amp; Penanganan Socket.IO</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-filetype-py"></i> database.py <span class="node-desc">← Manajemen database SQLite &amp; query SQL</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-filetype-py"></i> snmp_worker.py <span class="node-desc">← Pemrosesan SNMP get/walk dan scanner subnet</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-filetype-py"></i> unifi_client.py <span class="node-desc">← Komunikasi API ke UniFi controller</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-file-earmark-text"></i> requirements.txt <span class="node-desc">← Daftar dependensi modul Python</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-gear-wide-connected"></i> install.sh <span class="node-desc">← Skrip installer otomatis Linux</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-folder2 folder"></i> templates/ <span class="node-desc">← Halaman layout HTML Jinja2</span></div>
+                <div class="tree-node"><span class="tree-indent"></span><span class="tree-indent"></span><i class="bi bi-filetype-html"></i> base.html / dashboard.html / floorplan.html</div>
+                <div class="tree-node"><span class="tree-indent"></span><i class="bi bi-folder2 folder"></i> static/ <span class="node-desc">← Asset statis CSS (style.css), JS (main.js), denah lantai</span></div>
+            </div>
+
+            <h3>Visualisasi Skema Database</h3>
+            <div class="db-schema-container">
+                <div class="db-relations">
+                    
+                    <!-- Table: zones -->
+                    <div class="db-table">
+                        <div class="db-table-header">
+                            <span>zones</span> <i class="bi bi-table"></i>
+                        </div>
+                        <ul class="db-columns">
+                            <li class="db-column pk">id <span class="col-type">INTEGER PK</span></li>
+                            <li class="db-column">name <span class="col-type">TEXT</span></li>
+                            <li class="db-column">description <span class="col-type">TEXT</span></li>
+                            <li class="db-column">color <span class="col-type">TEXT</span></li>
+                            <li class="db-column">created_at <span class="col-type">TEXT</span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Table: devices -->
+                    <div class="db-table" style="width: 280px;">
+                        <div class="db-table-header">
+                            <span>devices</span> <i class="bi bi-table"></i>
+                        </div>
+                        <ul class="db-columns">
+                            <li class="db-column pk">id <span class="col-type">INTEGER PK</span></li>
+                            <li class="db-column">name <span class="col-type">TEXT</span></li>
+                            <li class="db-column">ip <span class="col-type">TEXT UNIQUE</span></li>
+                            <li class="db-column">mac <span class="col-type">TEXT</span></li>
+                            <li class="db-column">type <span class="col-type">TEXT</span></li>
+                            <li class="db-column fk">zone_id <span class="col-type">INTEGER FK</span></li>
+                            <li class="db-column">snmp_enabled <span class="col-type">INT</span></li>
+                            <li class="db-column">snmp_community <span class="col-type">TEXT</span></li>
+                            <li class="db-column">status <span class="col-type">TEXT</span></li>
+                            <li class="db-column">uptime <span class="col-type">TEXT</span></li>
+                            <li class="db-column">pos_x, pos_y <span class="col-type">REAL</span></li>
+                            <li class="db-column">icon <span class="col-type">TEXT</span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Table: alerts -->
+                    <div class="db-table">
+                        <div class="db-table-header">
+                            <span>alerts</span> <i class="bi bi-table"></i>
+                        </div>
+                        <ul class="db-columns">
+                            <li class="db-column pk">id <span class="col-type">INTEGER PK</span></li>
+                            <li class="db-column fk">device_id <span class="col-type">INTEGER FK</span></li>
+                            <li class="db-column">device_name <span class="col-type">TEXT</span></li>
+                            <li class="db-column">severity <span class="col-type">TEXT</span></li>
+                            <li class="db-column">message <span class="col-type">TEXT</span></li>
+                            <li class="db-column">acknowledged <span class="col-type">INT</span></li>
+                            <li class="db-column">created_at <span class="col-type">TEXT</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="relation-arrows">
+                    <h4><i class="bi bi-link-45deg" style="color: var(--purple);"></i> Relasi Antar Tabel</h4>
+                    <ul>
+                        <li><i class="bi bi-arrow-right-short"></i> Satu <strong>zones</strong> dapat menampung banyak <strong>devices</strong> (<code>zones.id &rarr; devices.zone_id</code>).</li>
+                        <li><i class="bi bi-arrow-right-short"></i> Satu <strong>devices</strong> dapat menghasilkan banyak catatan <strong>alerts</strong> (<code>devices.id &rarr; alerts.device_id</code>).</li>
+                        <li><i class="bi bi-arrow-right-short"></i> Data performa detail tercatat pada tabel terpisah <code>snmp_metrics</code> untuk meminimalkan beban read pada data master perangkat.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: API Reference -->
+        <section id="api-reference">
+            <h2><i class="bi bi-code-slash"></i> API &amp; WebSockets</h2>
+            <p>NetMon menyediakan REST API yang bersih untuk integrasi pihak ketiga, serta WebSocket server berbasis Socket.IO untuk pembaruan data dinamis secara real-time.</p>
+            
+            <h3>API Endpoints</h3>
+            <div class="api-search-container">
+                <input type="text" class="search-input" id="api-search" placeholder="Cari endpoint API (contoh: device, scan)..." oninput="filterApis()">
+                <i class="bi bi-search search-icon"></i>
+            </div>
+
+            <div class="api-list" id="api-list-wrapper">
+                <div class="api-item" data-endpoint="devices get">
+                    <div class="api-meta">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/devices</span>
+                    </div>
+                    <div class="api-desc">Mendapatkan daftar lengkap perangkat jaringan beserta zona dan data polling terbarunya.</div>
+                </div>
+
+                <div class="api-item" data-endpoint="devices post">
+                    <div class="api-meta">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/api/devices</span>
+                    </div>
+                    <div class="api-desc">Menambahkan perangkat baru secara manual ke database. Membutuhkan parameter JSON: <code>name</code>, <code>ip</code>, dan <code>type</code>.</div>
+                </div>
+
+                <div class="api-item" data-endpoint="devices put">
+                    <div class="api-meta">
+                        <span class="api-method put">PUT</span>
+                        <span class="api-path">/api/devices/&lt;id&gt;</span>
+                    </div>
+                    <div class="api-desc">Memperbarui informasi perangkat yang sudah ada berdasarkan ID yang dikirimkan.</div>
+                </div>
+
+                <div class="api-item" data-endpoint="devices delete">
+                    <div class="api-meta">
+                        <span class="api-method delete">DELETE</span>
+                        <span class="api-path">/api/devices/&lt;id&gt;</span>
+                    </div>
+                    <div class="api-desc">Menghapus perangkat secara permanen dari sistem pemantauan dan database.</div>
+                </div>
+
+                <div class="api-item" data-endpoint="scan post">
+                    <div class="api-meta">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/api/scan</span>
+                    </div>
+                    <div class="api-desc">Memulai scanning jaringan asinkron. Payload JSON: <code>network</code> (CIDR) dan <code>community</code> string.</div>
+                </div>
+
+                <div class="api-item" data-endpoint="scan status get">
+                    <div class="api-meta">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/scan/status</span>
+                    </div>
+                    <div class="api-desc">Memantau progress scanning subnet yang sedang berlangsung (persentase, IP aktif, jumlah perangkat ditemukan).</div>
+                </div>
+
+                <div class="api-item" data-endpoint="unifi sync post">
+                    <div class="api-meta">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/api/unifi/sync</span>
+                    </div>
+                    <div class="api-desc">Memicu sinkronisasi manual secara instan dengan UniFi Controller.</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 30px;">Event WebSocket (Socket.IO)</h3>
+            <p>Klien web mendengarkan event berikut untuk mengubah tampilan UI secara dinamis tanpa reload halaman:</p>
+            <table class="req-list" style="width: 100%; border-collapse: collapse; padding: 0;">
+                <thead>
+                    <tr style="border-bottom: 2px solid var(--border-color); text-align: left; background-color: var(--bg-card);">
+                        <th style="padding: 12px 16px;">Nama Event</th>
+                        <th style="padding: 12px 16px;">Arah (Server/Klien)</th>
+                        <th style="padding: 12px 16px;">Deskripsi Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13px; color: var(--accent-color);">init_data</td>
+                        <td style="padding: 12px 16px; font-size: 13.5px;"><span style="color: var(--yellow);">Server &rarr; Klien</span></td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 13.5px;">Dikirim pertama kali saat koneksi terbuka. Membawa payload data lengkap perangkat, zona, floor plan, dan alerts.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13px; color: var(--accent-color);">device_status_update</td>
+                        <td style="padding: 12px 16px; font-size: 13.5px;"><span style="color: var(--yellow);">Server &rarr; Klien</span></td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 13.5px;">Broadcast saat status up/down/warning perangkat berubah setelah proses polling.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13px; color: var(--accent-color);">new_alert</td>
+                        <td style="padding: 12px 16px; font-size: 13.5px;"><span style="color: var(--yellow);">Server &rarr; Klien</span></td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 13.5px;">Mengirim informasi peringatan baru ketika ada perangkat yang mati (Down) secara tiba-tiba.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 16px; font-family: var(--font-mono); font-size: 13px; color: var(--accent-color);">request_poll</td>
+                        <td style="padding: 12px 16px; font-size: 13.5px;"><span style="color: var(--green);">Klien &rarr; Server</span></td>
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-size: 13.5px;">Klien meminta server untuk melakukan kueri SNMP instan ke suatu perangkat berdasarkan <code>device_id</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section: Service Management -->
+        <section id="service-mgmt">
+            <h2><i class="bi bi-gear"></i> Layanan Linux (Systemd)</h2>
+            <p>Untuk server Linux yang dipasang menggunakan skrip installer otomatis, proses NetMon dikelola sebagai service daemon sistem:</p>
+
+            <div class="code-header">
+                <span class="code-lang">Systemctl Commands</span>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <pre><code><span class="code-comment"># Memulai service NetMon</span>
+sudo systemctl start netmon
+
+<span class="code-comment"># Menghentikan service NetMon</span>
+sudo systemctl stop netmon
+
+<span class="code-comment"># Memuat ulang/restart service (misal setelah mengubah env variables)</span>
+sudo systemctl restart netmon
+
+<span class="code-comment"># Melihat status operasional service</span>
+sudo systemctl status netmon
+
+<span class="code-comment"># Membaca log output systemd secara real-time (f = follow)</span>
+sudo journalctl -u netmon -f</code></pre>
+        </section>
+
+        <!-- Section: Troubleshooting -->
+        <section id="troubleshooting">
+            <h2><i class="bi bi-exclamation-triangle"></i> Troubleshooting</h2>
+            <p>Berikut adalah solusi atas kendala yang paling sering ditemui dalam penggunaan aplikasi NetMon:</p>
+
+            <div class="faq-accordion">
+                <div class="faq-item" onclick="toggleAccordion(this)">
+                    <div class="faq-question">
+                        <span>Pemberitahuan Status Perangkat Terbaca "Unknown" atau Selalu "Down"</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        Pastikan Anda telah mengaktifkan agen SNMP di perangkat target dengan parameter community string yang sesuai. Lakukan uji coba ping dari shell server ke IP perangkat target guna memverifikasi konektivitas jaringan. Periksa juga apakah ada firewall lokal (seperti iptables atau ufw) atau access list (ACL) perangkat yang memblokir port UDP 161.
+                    </div>
+                </div>
+
+                <div class="faq-item" onclick="toggleAccordion(this)">
+                    <div class="faq-question">
+                        <span>Sinkronisasi UniFi Controller Mengembalikan Pesan Error "SSL/TLS Failed"</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        Aplikasi NetMon secara default mengabaikan verifikasi sertifikat SSL (menyetel <code>verify=False</code>) guna mengakomodasi self-signed certificate UniFi lokal. Namun, pastikan alamat host yang diisi tidak menyertakan skema <code>https://</code> (cukup tuliskan alamat IP atau hostname domain saja seperti <code>192.168.1.10</code>). Pastikan port UniFi sudah benar (port default controller klasik adalah <code>8443</code>, sedangkan UniFi OS menggunakan port default HTTPS <code>443</code>).
+                    </div>
+                </div>
+
+                <div class="faq-item" onclick="toggleAccordion(this)">
+                    <div class="faq-question">
+                        <span>Port 5000 Sudah Digunakan (Address Already in Use)</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        Jika port 5000 telah terpakai oleh aplikasi lain (misal di macOS AirPlay), Anda dapat mengganti port binding dengan menyetel environment variable PORT sebelum menjalankan start script, contoh: <code>export PORT=5005 && ./start.sh</code> atau ubah file unit systemd service NetMon.
+                    </div>
+                </div>
+
+                <div class="faq-item" onclick="toggleAccordion(this)">
+                    <div class="faq-question">
+                        <span>Penggunaan CPU Server Sangat Tinggi</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        Hal ini biasanya terjadi jika Anda menambahkan terlalu banyak perangkat SNMP dan menyetel <strong>Poll Interval</strong> terlalu cepat (misal di bawah 15 detik). Masuk ke halaman <strong>Settings</strong> di dashboard dan naikkan interval polling menjadi 60 detik atau lebih guna memberikan ruang kerja thread backend.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Codebase Review -->
+        <section id="dev-review">
+            <h2><i class="bi bi-shield-check"></i> Codebase Review &amp; Security Notes</h2>
+            <p>Review mendalam dari arsitektur kode saat ini untuk kepentingan audit keamanan dan panduan pengembangan bagi developer di masa mendatang.</p>
+
+            <div class="review-card">
+                
+                <div class="review-section">
+                    <span class="review-tag security">Security Risk</span>
+                    <h4 class="review-title">Ketiadaan Otentikasi Bawaan (Authentication Bypass)</h4>
+                    <p class="review-desc">
+                        Aplikasi saat ini mengikat (bind) antarmuka dashboard ke alamat <code>0.0.0.0</code> tanpa dilengkapi login form/mekanisme keamanan internal.
+                        <strong>Rekomendasi:</strong> Pasang NetMon di belakang reverse proxy seperti Nginx, Apache, atau Caddy, lalu aktifkan Basic Auth atau integrasikan OAuth. Batasi akses IP server hanya untuk administrator jaringan.
+                    </p>
+                </div>
+
+                <div class="review-section" style="margin-top: 24px;">
+                    <span class="review-tag security">Security Risk</span>
+                    <h4 class="review-title">SNMP v1/v2c Community Cleartext</h4>
+                    <p class="review-desc">
+                        Protokol SNMP v1 dan v2c yang didukung saat ini mentransmisikan community string (sandi otentikasi) dalam bentuk plain-text di jaringan tanpa enkripsi.
+                        <strong>Rekomendasi:</strong> Gunakan Access Control List (ACL) pada sisi router/switch untuk membatasi kueri SNMP hanya dari IP address server monitoring. Kurangi hak akses SNMP community menjadi Read-Only saja (jangan berikan hak Write).
+                    </p>
+                </div>
+
+                <div class="review-section" style="margin-top: 24px;">
+                    <span class="review-tag performance">Performance</span>
+                    <h4 class="review-title">Skalabilitas Threading pada polling SNMP</h4>
+                    <p class="review-desc">
+                        Proses kueri SNMP saat ini menggunakan <code>threading.Thread</code> bawaan Python untuk setiap perangkat. Untuk instalasi skala besar (>150 perangkat), hal ini berisiko memicu bottlenecks.
+                        <strong>Rekomendasi:</strong> Migrasikan penanganan request asinkron menggunakan AsyncIO atau gunakan executor pool (seperti ThreadPoolExecutor) untuk mendaur ulang pekerja thread dan membatasi persaingan resource CPU.
+                    </p>
+                </div>
+
+                <div class="review-section" style="margin-top: 24px;">
+                    <span class="review-tag architecture">Architecture</span>
+                    <h4 class="review-title">Pemanfaatan SQLite WAL Mode</h4>
+                    <p class="review-desc">
+                        NetMon mengaktifkan <code>PRAGMA journal_mode=WAL</code> pada database SQLite. Ini adalah pendekatan arsitektur yang sangat tepat karena memungkinkan operasi baca (read) dari web Flask dan operasi tulis (write) dari background scheduler SNMP berjalan bersamaan secara konkuren tanpa terjadi database lock.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification Element -->
+    <div class="toast-container">
+        <div class="toast" id="sim-toast">
+            <i class="bi bi-check-circle-fill"></i>
+            <span id="toast-message">Posisi tersimpan!</span>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- Dark/Light Theme Handler ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        const body = document.body;
+
+        themeToggle.addEventListener('click', () => {
+            if (body.classList.contains('dark-mode')) {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+                themeIcon.classList.remove('bi-sun');
+                themeIcon.classList.add('bi-moon');
+                themeText.textContent = 'Dark Mode';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+                themeIcon.classList.remove('bi-moon');
+                themeIcon.classList.add('bi-sun');
+                themeText.textContent = 'Light Mode';
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+
+        // Load saved theme preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            body.classList.remove('dark-mode');
+            body.classList.add('light-mode');
+            themeIcon.classList.remove('bi-sun');
+            themeIcon.classList.add('bi-moon');
+            themeText.textContent = 'Dark Mode';
+        }
+
+        // --- Sidebar Menu Toggle (Mobile) ---
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+
+        menuToggle.addEventListener('click', (e) => {
+            sidebar.classList.toggle('open');
+            e.stopPropagation();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!sidebar.contains(e.target) && e.target !== menuToggle) {
+                sidebar.classList.remove('open');
+            }
+        });
+
+        // --- Active Menu Highlight on Scroll (ScrollSpy) ---
+        const sections = document.querySelectorAll('section');
+        const navItems = document.querySelectorAll('.menu-item');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (pageYOffset >= (sectionTop - 120)) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.querySelector('a').getAttribute('href') === `#${current}`) {
+                    item.classList.add('active');
+                }
+            });
+        });
+
+        // --- Tabs Handler ---
+        function switchTab(event, tabId) {
+            const container = event.target.closest('.tab-container');
+            
+            // Remove active from all tabs in this container
+            container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            container.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+            // Add active to current
+            event.target.classList.add('active');
+            container.querySelector(`#${tabId}`).classList.add('active');
+        }
+
+        // --- Clipboard Copy Handler ---
+        function copyCode(button) {
+            const preBlock = button.parentElement.nextElementSibling;
+            const codeBlock = preBlock.querySelector('code');
+            const originalText = button.innerHTML;
+
+            navigator.clipboard.writeText(codeBlock.innerText).then(() => {
+                button.innerHTML = '<i class="bi bi-check-lg" style="color: var(--green);"></i> Copied!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+
+        // --- Interactive Requirement List Persistent Checkboxes ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const reqItems = document.querySelectorAll('.req-item');
+            reqItems.forEach((item, index) => {
+                const isChecked = localStorage.getItem(`req-${index}`) === 'true';
+                if (isChecked) {
+                    item.classList.add('checked');
+                    item.querySelector('.checkbox i').className = 'bi bi-check-square-fill';
+                }
+            });
+        });
+
+        function toggleCheckbox(element) {
+            element.classList.toggle('checked');
+            const icon = element.querySelector('.checkbox i');
+            const reqItems = Array.from(document.querySelectorAll('.req-item'));
+            const index = reqItems.indexOf(element);
+
+            if (element.classList.contains('checked')) {
+                icon.className = 'bi bi-check-square-fill';
+                localStorage.setItem(`req-${index}`, 'true');
+                showToast('Persyaratan diverifikasi!');
+            } else {
+                icon.className = 'bi bi-square';
+                localStorage.setItem(`req-${index}`, 'false');
+            }
+        }
+
+        // --- FAQ Accordion ---
+        function toggleAccordion(element) {
+            const isOpen = element.classList.contains('open');
+            
+            // Close all first (optional, but clean)
+            document.querySelectorAll('.faq-item').forEach(item => {
+                item.classList.remove('open');
+            });
+
+            if (!isOpen) {
+                element.classList.add('open');
+            }
+        }
+
+        // --- API Search Filter ---
+        function filterApis() {
+            const query = document.getElementById('api-search').value.toLowerCase();
+            const apiItems = document.querySelectorAll('.api-item');
+
+            apiItems.forEach(item => {
+                const endpointText = item.getAttribute('data-endpoint').toLowerCase();
+                const descText = item.querySelector('.api-desc').textContent.toLowerCase();
+                const pathText = item.querySelector('.api-path').textContent.toLowerCase();
+                
+                if (endpointText.includes(query) || descText.includes(query) || pathText.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // --- Simulator: Drag & Drop floor plan logic ---
+        let dragItem = null;
+        let activeX = 0;
+        let activeY = 0;
+        let firstX = 0;
+        let firstY = 0;
+
+        const simCanvas = document.getElementById('sim-canvas');
+        const coordsDisplay = document.getElementById('coords-display');
+
+        // Mock Device Data
+        const deviceData = {
+            'dev-router': { ip: '192.168.1.1', status: 'ONLINE (Up)', uptime: '45 hari, 12 jam', desc: 'Core Gateway Router Cisco, SNMPv2c terhubung. Semua interface berjalan normal.' },
+            'dev-switch': { ip: '192.168.1.2', status: 'WARNING (Suhu Tinggi)', uptime: '12 hari, 4 jam', desc: 'Switch Distribution PoE Ubiquiti. Peringatan: Sensor suhu melebihi 78°C.' },
+            'dev-ap': { ip: '192.168.1.35', status: 'OFFLINE (Down)', uptime: '0 hari (Mati)', desc: 'Access Point Lobi Utara. Perangkat gagal merespons kueri SNMP & ping (Timeout).' }
+        };
+
+        function dragStart(e, id) {
+            dragItem = document.getElementById(id);
+            
+            // Open info drawer
+            openDrawer(id);
+
+            // Calculate current relative cursor offset
+            const rect = dragItem.getBoundingClientRect();
+            const canvasRect = simCanvas.getBoundingClientRect();
+            
+            firstX = e.clientX - rect.left;
+            firstY = e.clientY - rect.top;
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+            
+            // Highlight current device
+            document.querySelectorAll('.sim-device').forEach(d => d.classList.remove('active'));
+            dragItem.classList.add('active');
+
+            e.preventDefault();
+        }
+
+        function drag(e) {
+            if (dragItem) {
+                const canvasRect = simCanvas.getBoundingClientRect();
+                
+                // Calculate new position relative to canvas
+                let newX = e.clientX - canvasRect.left - firstX;
+                let newY = e.clientY - canvasRect.top - firstY;
+
+                // Restrict boundaries
+                const maxLeft = canvasRect.width - dragItem.offsetWidth;
+                const maxTop = canvasRect.height - dragItem.offsetHeight;
+
+                newX = Math.max(0, Math.min(newX, maxLeft));
+                newY = Math.max(0, Math.min(newY, maxTop));
+
+                dragItem.style.left = `${newX}px`;
+                dragItem.style.top = `${newY}px`;
+
+                // Update coordinate text
+                coordsDisplay.textContent = `Koordinat ${dragItem.querySelector('.device-name').textContent}: X = ${Math.round(newX)}, Y = ${Math.round(newY)}`;
+            }
+        }
+
+        function dragEnd() {
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', dragEnd);
+            dragItem = null;
+        }
+
+        // Simulation Drawer Controls
+        const drawer = document.getElementById('sim-drawer');
+        const drawerTitle = document.getElementById('drawer-title');
+        const drawerIp = document.getElementById('drawer-ip');
+        const drawerStatus = document.getElementById('drawer-status');
+        const drawerUptime = document.getElementById('drawer-uptime');
+        const drawerDesc = document.getElementById('drawer-desc');
+
+        function openDrawer(devId) {
+            const data = deviceData[devId];
+            const name = document.getElementById(devId).querySelector('.device-name').textContent;
+            
+            drawerTitle.textContent = name;
+            drawerIp.textContent = data.ip;
+            drawerStatus.textContent = data.status;
+            drawerUptime.textContent = data.uptime;
+            drawerDesc.textContent = data.desc;
+
+            // Set status color
+            if (data.status.includes('Up')) {
+                drawerStatus.style.color = 'var(--green)';
+            } else if (data.status.includes('High') || data.status.includes('Suhu')) {
+                drawerStatus.style.color = 'var(--yellow)';
+            } else {
+                drawerStatus.style.color = 'var(--red)';
+            }
+
+            drawer.classList.add('open');
+        }
+
+        function closeDrawer() {
+            drawer.classList.remove('open');
+            document.querySelectorAll('.sim-device').forEach(d => d.classList.remove('active'));
+        }
+
+        function saveSimPositions() {
+            showToast('Simulasi: Posisi perangkat berhasil disimpan ke database!');
+        }
+
+        // --- Custom Toast Trigger ---
+        function showToast(message) {
+            const toast = document.getElementById('sim-toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
