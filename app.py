@@ -194,9 +194,10 @@ def scan_network():
     network = data.get('network', '192.168.1.0/24')
     community = data.get('community', 'public')
     version = data.get('version', '2c')
+    zone_id = int(data.get('zone_id', 1))
     if snmp_worker.get_scan_status()['running']:
         return jsonify({'status': 'already_running'}), 409
-    threading.Thread(target=snmp_worker.scan_network, args=(network, community, version), daemon=True).start()
+    threading.Thread(target=snmp_worker.scan_network, args=(network, community, version, zone_id), daemon=True).start()
     db.add_access_log({'source': request.remote_addr, 'message': f'Network scan started: {network}', 'type': 'scan'})
     return jsonify({'status': 'started', 'network': network})
 

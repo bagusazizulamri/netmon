@@ -230,6 +230,14 @@ class SNMPWorker:
                 except ValueError:
                     pass
 
+            # Poll WAN traffic throughput if device type is router
+            if device.get('type') == 'router':
+                traffic_data = self._poll_router_traffic(did, ip, community, port, version)
+                if traffic_data:
+                    upd.update(traffic_data)
+                    self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
+                    self.db.save_metric(did, 'wan_out', traffic_data['wan_out'])
+
             if old_st == 'down':
                 upd['last_seen'] = now
                 self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
@@ -264,6 +272,69 @@ class SNMPWorker:
             self.socketio.emit('stats_update', self.db.get_dashboard_stats())
         return updated.get('status') if updated else 'unknown'
 
+    def _poll_router_traffic(self, did, ip, community, port, version):
+        # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
+        if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version)
+        if_st = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port, version)
+        
+        target_idx = None
+        # Look for active interface (OperStatus 1 = UP) with WAN/ether1/sfp/eth0/pppoe description
+        for oid, desc in if_desc.items():
+            idx = oid.split('.')[-1]
+            status = str(if_st.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", ""))
+            if status == '1':
+                desc_lower = str(desc).lower()
+                if 'wan' in desc_lower or 'pppoe' in desc_lower or desc_lower in ('ether1', 'sfpplus1', 'sfp1', 'eth0', 'ge0/0'):
+                    target_idx = idx
+                    break
+        
+        # Fallback to first active non-loopback interface if no 'wan' named interface is found
+        if not target_idx:
+            for oid, status in if_st.items():
+                if str(status) == '1':
+                    idx = oid.split('.')[-1]
+                    desc = if_desc.get(f"1.3.6.1.2.1.2.2.1.2.{idx}", "")
+                    desc_lower = str(desc).lower()
+                    if 'loopback' not in desc_lower and desc_lower not in ('lo', 'lo0'):
+                        target_idx = idx
+                        break
+                        
+        if not target_idx:
+            return None
+            
+        # 2. Query ifInOctets and ifOutOctets
+        traffic = self._get(ip, community, [
+            f"1.3.6.1.2.1.2.2.1.10.{target_idx}", # ifInOctets
+            f"1.3.6.1.2.1.2.2.1.16.{target_idx}"  # ifOutOctets
+        ], port, version)
+        
+        if not traffic:
+            return None
+            
+        try:
+            in_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.10.{target_idx}", 0))
+            out_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.16.{target_idx}", 0))
+            
+            now_ts = time.time()
+            if not hasattr(self, '_last_traffic'):
+                self._last_traffic = {}
+                
+            last_data = self._last_traffic.get(did)
+            self._last_traffic[did] = {"in": in_octets, "out": out_octets, "ts": now_ts}
+            
+            if last_data:
+                delta_t = now_ts - last_data["ts"]
+                if delta_t > 0:
+                    delta_in = in_octets - last_data["in"]
+                    delta_out = out_octets - last_data["out"]
+                    if delta_in >= 0 and delta_out >= 0:
+                        wan_in_bps = (delta_in * 8) / delta_t
+                        wan_out_bps = (delta_out * 8) / delta_t
+                        return {"wan_in": wan_in_bps, "wan_out": wan_out_bps}
+        except Exception:
+            pass
+        return None
+
     def _check_ifaces(self, device, ip, community, port, version):
         if_st   = self._walk(ip, community, OID['ifOperStatus'], port, version)
         if_desc = self._walk(ip, community, OID['ifDescr'],      port, version)
@@ -296,7 +367,7 @@ class SNMPWorker:
 
     # ─── network scan ────────────────────────────────────────────────
 
-    def scan_network(self, cidr, community='public', version='2c'):
+    def scan_network(self, cidr, community='public', version='2c', zone_id=1):
         if not SNMP_OK:
             self.socketio.emit('scan_error', {'error':'puresnmp not installed. Run: pip install puresnmp'})
             return
@@ -329,13 +400,14 @@ class SNMPWorker:
                              'icon':self._guess_icon(descr),'description':descr[:200],
                              'sys_name':name,'snmp_enabled':True,
                              'snmp_community':community,'snmp_version':version,
-                             'status':'up','zone_id':1}
+                             'status':'up','zone_id':zone_id}
                     try:
                         existing = self.db.get_device_by_ip(ip)
                         if existing:
                             self.db.update_device(existing['id'],
                                                   {'sys_name':name,'description':descr[:200],
-                                                   'snmp_enabled':1,'status':'up'})
+                                                   'snmp_enabled':1,'status':'up',
+                                                   'zone_id':zone_id})
                             dev['id'] = existing['id']
                         else:
                             dev['id'] = self.db.add_device(dev)

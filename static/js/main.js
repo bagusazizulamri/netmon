@@ -111,6 +111,33 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+function formatBandwidth(bps) {
+  if (bps === null || bps === undefined || isNaN(bps) || bps === '') return '—';
+  const val = parseFloat(bps);
+  if (val === 0) return '0 bps';
+  const commaFormatted = Math.round(val).toLocaleString('en-US');
+  if (val >= 1000000000) {
+    return `${(val / 1000000000).toFixed(2)} Gbps (${commaFormatted} bps)`;
+  }
+  if (val >= 1000000) {
+    return `${(val / 1000000).toFixed(2)} Mbps (${commaFormatted} bps)`;
+  }
+  if (val >= 1000) {
+    return `${(val / 1000).toFixed(2)} Kbps (${commaFormatted} bps)`;
+  }
+  return `${Math.round(val)} bps`;
+}
+
+function formatPercent(val) {
+  if (val === null || val === undefined || isNaN(val) || val === '') return '—';
+  return `${parseFloat(val).toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+}
+
+function formatTemp(val) {
+  if (val === null || val === undefined || isNaN(val) || val === '') return '—';
+  return `${parseFloat(val).toLocaleString('en-US', { maximumFractionDigits: 1 })}°C`;
+}
+
 function relTime(ts) {
   if (!ts) return '—';
   const d = new Date(ts.replace ? ts.replace(' ', 'T') : ts);

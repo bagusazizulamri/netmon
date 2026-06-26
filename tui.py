@@ -39,6 +39,25 @@ class DummySocketIO:
         # Silence events in CLI
         pass
 
+
+def format_bandwidth(bps):
+    if bps is None or str(bps).strip() == '' or float(bps) < 0:
+        return '—'
+    val = float(bps)
+    if val == 0:
+        return '0 bps'
+        
+    comma_formatted = f"{int(val):,}"
+    
+    if val >= 1000000000:
+        return f"{val / 1000000000:.2f} Gbps ({comma_formatted} bps)"
+    if val >= 1000000:
+        return f"{val / 1000000:.2f} Mbps ({comma_formatted} bps)"
+    if val >= 1000:
+        return f"{val / 1000:.2f} Kbps ({comma_formatted} bps)"
+    return f"{int(val)} bps"
+
+
 class NetMonTUI:
     def __init__(self):
         # Enable ANSI colors on Windows Console
@@ -242,12 +261,16 @@ class NetMonTUI:
             cpu_usage = dev.get('cpu_usage')
             mem_usage = dev.get('memory_usage')
             temperature = dev.get('temperature')
+            wan_in = dev.get('wan_in')
+            wan_out = dev.get('wan_out')
             
             print("-" * 50)
             print(f" {C_BOLD}METRIK REAL-TIME:{C_RESET}")
             print(f" CPU Usage:    {f'{C_CYAN}{cpu_usage}%{C_RESET}' if cpu_usage is not None else '—'}")
             print(f" RAM Usage:    {f'{C_CYAN}{mem_usage}%{C_RESET}' if mem_usage is not None else '—'}")
             print(f" Temperature:  {f'{C_RED}{temperature}°C{C_RESET}' if temperature is not None else '—'}")
+            print(f" WAN Traffic In:  {C_GREEN}{format_bandwidth(wan_in)}{C_RESET}")
+            print(f" WAN Traffic Out: {C_GREEN}{format_bandwidth(wan_out)}{C_RESET}")
             print("-" * 50)
             print(f" SNMP Status:  {'AKTIF' if dev.get('snmp_enabled') else 'MATI'}")
             if dev.get('snmp_enabled'):

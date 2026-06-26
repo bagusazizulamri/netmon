@@ -183,16 +183,20 @@
           <input type="text" class="nm-input" id="scan-net" value="192.168.1.0/24" placeholder="192.168.1.0/24">
         </div>
         <div class="row g-3">
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="nm-label">SNMP Community</label>
             <input type="text" class="nm-input" id="scan-community" value="public">
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="nm-label">SNMP Version</label>
             <select class="nm-select w-100" id="scan-version">
               <option value="1">v1</option>
               <option value="2c" selected>v2c</option>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="nm-label">Target Zone</label>
+            <select class="nm-select w-100" id="scan-zone"></select>
           </div>
         </div>
         <div class="scan-progress-wrap mt-3" id="scan-progress-wrap" style="display:none">
@@ -362,11 +366,13 @@ function renderTable(devices) {
           : `<span class="badge-snmp off">SNMP OFF</span>`}
       </td>
       <td>
-        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 2px; line-height: 1.2;">
-          ${d.cpu_usage !== null && d.cpu_usage !== undefined ? `<div><span class="text-muted">CPU:</span> <strong style="color: #00d4ff">${d.cpu_usage}%</strong></div>` : ''}
-          ${d.memory_usage !== null && d.memory_usage !== undefined ? `<div><span class="text-muted">RAM:</span> <strong style="color: #00d4ff">${d.memory_usage}%</strong></div>` : ''}
-          ${d.temperature !== null && d.temperature !== undefined ? `<div><span class="text-muted">Suhu:</span> <strong style="color: #ff4b4b">${d.temperature}°C</strong></div>` : ''}
-          ${(d.cpu_usage === null || d.cpu_usage === undefined) && (d.memory_usage === null || d.memory_usage === undefined) && (d.temperature === null || d.temperature === undefined) ? '<span class="text-muted">—</span>' : ''}
+        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 2px; line-height: 1.25;">
+          ${d.cpu_usage !== null && d.cpu_usage !== undefined ? `<div><span class="text-muted">CPU:</span> <strong style="color: #00d4ff">${formatPercent(d.cpu_usage)}</strong></div>` : ''}
+          ${d.memory_usage !== null && d.memory_usage !== undefined ? `<div><span class="text-muted">RAM:</span> <strong style="color: #00d4ff">${formatPercent(d.memory_usage)}</strong></div>` : ''}
+          ${d.temperature !== null && d.temperature !== undefined ? `<div><span class="text-muted">Suhu:</span> <strong style="color: #ff4b4b">${formatTemp(d.temperature)}</strong></div>` : ''}
+          ${d.wan_in !== null && d.wan_in !== undefined ? `<div><span class="text-muted">WAN In:</span> <strong style="color: #58a6ff; font-size:10px;">${formatBandwidth(d.wan_in)}</strong></div>` : ''}
+          ${d.wan_out !== null && d.wan_out !== undefined ? `<div><span class="text-muted">WAN Out:</span> <strong style="color: #bc8cff; font-size:10px;">${formatBandwidth(d.wan_out)}</strong></div>` : ''}
+          ${(d.cpu_usage === null || d.cpu_usage === undefined) && (d.memory_usage === null || d.memory_usage === undefined) && (d.temperature === null || d.temperature === undefined) && (d.wan_in === null || d.wan_in === undefined) && (d.wan_out === null || d.wan_out === undefined) ? '<span class="text-muted">—</span>' : ''}
         </div>
       </td>
       <td class="text-sm text-muted mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
@@ -407,6 +413,8 @@ function populateZoneSelect(zones) {
   sel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
   const ufSel = document.getElementById('uf-zone');
   if (ufSel) ufSel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
+  const scSel = document.getElementById('scan-zone');
+  if (scSel) scSel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
 }
 
 let activeZone = 'all';
@@ -520,6 +528,7 @@ function startScan() {
       network:   net,
       community: document.getElementById('scan-community').value.trim(),
       version:   document.getElementById('scan-version').value,
+      zone_id:   parseInt(document.getElementById('scan-zone').value) || 1,
     })
   }).then(r=>r.json()).then(data => {
     if (data.status === 'already_running') showToast('Scan already running', 'warning');

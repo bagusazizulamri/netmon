@@ -143,6 +143,25 @@ class UniFiClient:
         mem = sys_stats.get('mem') or system_status.get('mem')
         temp = d.get('general_temperature') or d.get('temperatures', [{}])[0].get('value')
 
+        # WAN throughput for UniFi Routers (USG/UDM/UXG)
+        wan_in = None
+        wan_out = None
+        if utype in ('ugw', 'uxg', 'udm', 'usg') or TYPE_MAP.get(utype) == 'router':
+            # Throughput is usually bytes per second (r = rate)
+            wan_stats = d.get('wan1', {}) or d.get('stat', {}).get('gw', {})
+            wan_tx = wan_stats.get('tx_bytes-r') or d.get('uplink', {}).get('tx_bytes-r')
+            wan_rx = wan_stats.get('rx_bytes-r') or d.get('uplink', {}).get('rx_bytes-r')
+            if wan_rx is not None:
+                try:
+                    wan_in = float(wan_rx) * 8 # Convert bytes/sec to bps
+                except ValueError:
+                    pass
+            if wan_tx is not None:
+                try:
+                    wan_out = float(wan_tx) * 8 # Convert bytes/sec to bps
+                except ValueError:
+                    pass
+
         return {
             'name':         d.get('name') or d.get('hostname') or d.get('ip', 'Unknown'),
             'ip':           d.get('ip', ''),
@@ -157,4 +176,6 @@ class UniFiClient:
             'cpu_usage':    float(cpu) if cpu is not None else None,
             'memory_usage': float(mem) if mem is not None else None,
             'temperature':  float(temp) if temp is not None else None,
+            'wan_in':       wan_in,
+            'wan_out':      wan_out,
         }
