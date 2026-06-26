@@ -56,17 +56,31 @@ class UniFiClient:
 
     def _api(self, path):
         if not self.logged_in and not self.login():
-            return None
+            raise RuntimeError("Login ke UniFi Controller gagal. Periksa Username/Password.")
+        
+        errors = []
         # Try direct path (Classic) and proxy path (UniFi OS)
         for prefix in ['', '/proxy/network']:
             try:
                 url = f'{self.base}{prefix}{path}'
                 r = self.session.get(url, timeout=10)
                 if r.status_code == 200:
-                    return r.json()
+                    body = r.json()
+                    # Check if UniFi returned an internal API error payload
+                    if body.get('meta', {}).get('rc') == 'error':
+                        err_msg = body.get('meta', {}).get('msg', 'Unknown error')
+                        if 'InvalidSite' in err_msg or 'NotFound' in err_msg or 'site' in err_msg.lower():
+                            err_msg = f"{err_msg} (Nama Site salah. Gunakan Site ID dari URL UniFi, bukan nama tampilan/display name. Contoh: 'default' atau string acak di URL browser)"
+                        raise RuntimeError(err_msg)
+                    return body
+                else:
+                    errors.append(f"HTTP {r.status_code} pada {prefix}{path}")
             except Exception as e:
-                print(f"[UniFi] API error with prefix '{prefix}' on {path}: {e}")
-        return None
+                if isinstance(e, RuntimeError):
+                    raise
+                errors.append(f"{prefix}{path} gagal: {e}")
+        
+        raise RuntimeError(f"Gagal memanggil API UniFi: {'; '.join(errors)}")
 
     # --------------------------------------------------------
     # Data fetchers
