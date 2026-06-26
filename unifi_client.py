@@ -85,11 +85,6 @@ class UniFiClient:
             return data.get('data', [])
         return []
 
-    def get_networks(self):
-        data = self._api(f'/api/s/{self.site}/rest/networkconf')
-        if data:
-            return data.get('data', [])
-        return []
 
     # --------------------------------------------------------
     # Parsers

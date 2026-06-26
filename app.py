@@ -286,14 +286,6 @@ def handle_connect():
         'floorplan': db.get_floorplan()
     })
 
-@socketio.on('request_poll')
-def handle_request_poll(data):
-    device_id = data.get('device_id')
-    if device_id:
-        device = db.get_device(device_id)
-        if device:
-            threading.Thread(target=snmp_worker.poll_device, args=(device,), daemon=True).start()
-
 # ============================================================
 # BACKGROUND POLLING
 # ============================================================

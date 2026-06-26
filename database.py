@@ -166,10 +166,6 @@ class Database:
             row = c.execute('SELECT * FROM devices WHERE ip = ?', (ip,)).fetchone()
             return dict(row) if row else None
 
-    def get_snmp_enabled_devices(self):
-        with self.conn() as c:
-            rows = c.execute('SELECT * FROM devices WHERE snmp_enabled = 1').fetchall()
-            return [dict(r) for r in rows]
 
     def add_device(self, data):
         with self.conn() as c:
@@ -220,10 +216,6 @@ class Database:
         with self.conn() as c:
             c.execute('DELETE FROM devices WHERE id = ?', (device_id,))
 
-    def get_old_status(self, device_id):
-        with self.conn() as c:
-            row = c.execute('SELECT status FROM devices WHERE id = ?', (device_id,)).fetchone()
-            return row['status'] if row else 'unknown'
 
     def add_or_update_unifi_device(self, data):
         ip = str(data.get('ip', '') or '').strip()
@@ -398,13 +390,6 @@ class Database:
             c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)',
                       (device_id, name, str(value)))
 
-    def get_metrics(self, device_id, name, limit=60):
-        with self.conn() as c:
-            rows = c.execute(
-                'SELECT * FROM snmp_metrics WHERE device_id=? AND metric_name=? ORDER BY timestamp DESC LIMIT ?',
-                (device_id, name, limit)
-            ).fetchall()
-            return [dict(r) for r in rows]
 
     # ============================================================
     # DASHBOARD STATS
