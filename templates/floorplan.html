@@ -2,17 +2,127 @@
 {% block title %}Floor Plan{% endblock %}
 {% block content %}
 
+<style>
+  /* Zoom controls container */
+  .fp-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10;
+  }
+  .fp-controls button {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: #161b22cc;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+  }
+  .fp-controls button:hover {
+    background: #21262d;
+    color: #00d4ff;
+    border-color: #8b949e;
+    transform: scale(1.05);
+  }
+  .fp-controls button:active {
+    transform: scale(0.95);
+  }
+
+  /* Zone detail floating card */
+  .zone-detail-card {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 290px;
+    background: #161b22ee;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 16px;
+    color: #e6edf3;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    backdrop-filter: blur(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .zone-detail-card .card-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  .zone-detail-card .card-close:hover {
+    color: #e6edf3;
+  }
+  .zone-detail-card .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    padding-right: 20px;
+  }
+  .zone-detail-card .card-subtitle {
+    font-size: 12px;
+    color: #8b949e;
+    margin-bottom: 12px;
+  }
+  .zone-detail-card .device-list {
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .zone-detail-card .device-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #21262d;
+    font-size: 12px;
+  }
+  .zone-detail-card .device-item:last-child {
+    border-bottom: none;
+  }
+  .zone-detail-card .status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .zone-detail-card .status-tag {
+    font-size: 9px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+</style>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Floor Plan</h1>
-    <p class="page-sub">Live network topology map</p>
+    <p class="page-sub">Live network zone topology map</p>
   </div>
   <div class="page-actions">
     <button class="btn-nm btn-sm" onclick="FP.toggleEdit()" id="btn-edit">
       <i class="bi bi-pencil-fill"></i> Edit Mode
     </button>
     <button class="btn-nm btn-sm btn-success" onclick="FP.save()" id="btn-save" style="display:none">
-      <i class="bi bi-save2-fill"></i> Save
+      <i class="bi bi-save2-fill"></i> Save Map
     </button>
     <label class="btn-nm btn-sm" for="bg-upload" title="Upload floor plan image">
       <i class="bi bi-image-fill"></i> Background
@@ -26,28 +136,45 @@
 
 <!-- Legend -->
 <div class="fp-legend">
-  <span class="fp-leg-item"><span class="fp-dot up"></span>Online</span>
-  <span class="fp-leg-item"><span class="fp-dot down"></span>Offline</span>
+  <span class="fp-leg-item"><span class="fp-dot up"></span>All Online</span>
+  <span class="fp-leg-item"><span class="fp-dot down"></span>Any Offline</span>
   <span class="fp-leg-item"><span class="fp-dot warn"></span>Warning</span>
-  <span class="fp-leg-item"><span class="fp-dot unknown"></span>Unknown</span>
+  <span class="fp-leg-item"><span class="fp-dot unknown"></span>No Devices</span>
   <span class="fp-leg-sep"></span>
-  <span class="fp-leg-tip" id="fp-mode-tip"><i class="bi bi-eye"></i> View mode — click Edit to reposition devices</span>
+  <span class="fp-leg-tip" id="fp-mode-tip"><i class="bi bi-eye"></i> View mode — click zone to view details, drag background to pan, scroll to zoom</span>
 </div>
 
 <!-- Canvas wrapper -->
 <div class="fp-container" id="fp-container">
   <canvas id="fp-canvas"></canvas>
+  
   <!-- Device tooltip -->
   <div class="fp-tooltip" id="fp-tooltip" style="display:none"></div>
+
+  <!-- Zoom Controls Overlay -->
+  <div class="fp-controls">
+    <button onclick="FP.zoomIn()" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
+    <button onclick="FP.zoomReset()" title="Reset View"><i class="bi bi-aspect-ratio"></i></button>
+    <button onclick="FP.zoomOut()" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
+  </div>
+
+  <!-- Zone Detail Card -->
+  <div class="zone-detail-card" id="zone-detail-card" style="display:none">
+    <button class="card-close" onclick="FP.hideZoneDetails()">✕</button>
+    <div class="card-title" id="zd-title">Zone Name</div>
+    <div class="card-subtitle" id="zd-subtitle">0 Perangkat Terdaftar</div>
+    <div id="zd-alert-container"></div>
+    <ul class="device-list" id="zd-device-list"></ul>
+  </div>
 </div>
 
-<!-- Sidebar: device list for adding to map -->
+<!-- Sidebar: zone list in Edit Mode -->
 <div class="fp-sidebar" id="fp-sidebar" style="display:none">
   <div class="fp-sb-header">
-    <span>Devices</span>
-    <small class="text-muted">Drag to map</small>
+    <span>Zones</span>
+    <small class="text-muted">Edit Positions</small>
   </div>
-  <div id="fp-dev-list"></div>
+  <div id="fp-zone-list" class="p-2"></div>
 </div>
 
 {% endblock %}
@@ -55,27 +182,33 @@
 {% block scripts %}
 <script>
 /* =====================================================
-   FloorPlan module
-===================================================== */
+   FloorPlan module (Zones with Zoom/Pan & Hints)
+   ===================================================== */
 const FP = (() => {
   const canvas  = document.getElementById('fp-canvas');
   const ctx     = canvas.getContext('2d');
   const tooltip = document.getElementById('fp-tooltip');
   const ctr     = document.getElementById('fp-container');
 
-  let devices  = [];
-  let editMode = false;
-  let bgImage  = null;
-  let bgUrl    = '';
-  let dragging = null;
-  let dragOffX = 0, dragOffY = 0;
+  let rawDevices = [];
+  let rawZones   = [];
+  let zones      = [];
+  let editMode   = false;
+  let bgImage    = null;
+  let bgUrl      = '';
+  
+  // Drag and Pan states
+  let dragging   = null;
+  let dragOffX   = 0, dragOffY = 0;
+  
+  let scale      = 1.0;
+  let offsetX    = 0;
+  let offsetY    = 0;
+  let isPanning  = false;
+  let panStartX  = 0, panStartY = 0;
 
   // Status colors
   const COLOR = { up:'#00d4ff', down:'#ff4b4b', warning:'#f0883e', unknown:'#6e7681', critical:'#ff4b4b' };
-  const ICON  = {
-    router:'⬡', switch:'⬢', server:'▣', access_point:'◎',
-    firewall:'◆', printer:'◉', wifi:'◎', device:'●', unknown:'●'
-  };
 
   function resize() {
     const rect = ctr.getBoundingClientRect();
@@ -87,7 +220,12 @@ const FP = (() => {
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
+    ctx.save();
+    // Apply Pan and Zoom
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    // Draw Background
     if (bgImage) {
       ctx.globalAlpha = 0.35;
       ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
@@ -102,130 +240,144 @@ const FP = (() => {
       for (let y=0; y<canvas.height; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
     }
 
-    // Draw connections (simple lines between same-zone devices)
+    // Draw mesh connection lines between zones
     drawConnections();
 
-    // Draw devices
-    devices.forEach(d => drawDevice(d));
+    // Draw zones
+    zones.forEach(z => drawZone(z));
+
+    ctx.restore();
   }
 
   function drawConnections() {
-    const zoneGroups = {};
-    devices.forEach(d => {
-      if (!zoneGroups[d.zone_id]) zoneGroups[d.zone_id] = [];
-      zoneGroups[d.zone_id].push(d);
-    });
-    Object.values(zoneGroups).forEach(group => {
-      if (group.length < 2) return;
-      const col = group[0].zone_color || '#00d4ff';
-      for (let i=1; i<group.length; i++) {
-        const a = group[0], b = group[i];
-        ctx.beginPath();
-        ctx.moveTo(a.pos_x, a.pos_y);
-        ctx.lineTo(b.pos_x, b.pos_y);
-        ctx.strokeStyle = col + '22';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 6]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-    });
+    if (zones.length < 2) return;
+    ctx.beginPath();
+    const centralZone = zones[0];
+    for (let i = 1; i < zones.length; i++) {
+      const z = zones[i];
+      ctx.moveTo(centralZone.pos_x, centralZone.pos_y);
+      ctx.lineTo(z.pos_x, z.pos_y);
+    }
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
-  function drawDevice(d) {
-    const x = d.pos_x || 100, y = d.pos_y || 100;
-    const status = d.status || 'unknown';
+  function drawZone(z) {
+    const x = z.pos_x || 100, y = z.pos_y || 100;
+    const status = z.status || 'unknown';
     const color  = COLOR[status] || COLOR.unknown;
-    const isDragged = dragging && dragging.id === d.id;
+    const isDragged = dragging && dragging.id === z.id;
 
-    // Glow for critical/down
-    if (status === 'down' || status === 'critical') {
-      const pulse = Math.sin(Date.now() / 400) * 0.5 + 0.5;
-      ctx.shadowColor = color;
-      ctx.shadowBlur  = 10 + pulse * 8;
+    // Glowing status ring for zones with down devices
+    if (status === 'down') {
+      const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
+      ctx.shadowColor = '#ff4b4b';
+      ctx.shadowBlur  = 12 + pulse * 8;
     }
 
-    // Outer ring
+    // Outer Circle Node
     ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI*2);
+    ctx.arc(x, y, 28, 0, Math.PI*2);
     ctx.fillStyle = '#161b22';
     ctx.fill();
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = isDragged ? '#ffffff' : color;
     ctx.lineWidth = isDragged ? 3 : 2;
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = 0; // Reset shadow
 
-    // Status dot
-    ctx.beginPath();
-    ctx.arc(x + 14, y - 14, 5, 0, Math.PI*2);
+    // Inner Text (Device Count)
     ctx.fillStyle = color;
-    ctx.fill();
-
-    // Icon (emoji stand-in)
-    ctx.fillStyle = color;
-    ctx.font = '14px IBM Plex Mono, monospace';
+    ctx.font = 'bold 11px IBM Plex Mono, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(ICON[d.icon||d.type] || ICON.unknown, x, y);
+    ctx.fillText(`${z.device_count || 0} DEV`, x, y);
 
-    // Label
+    // Zone Label
     ctx.fillStyle = '#e6edf3';
-    ctx.font = '500 11px Inter, sans-serif';
+    ctx.font = '600 12px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const label = d.name.length > 14 ? d.name.slice(0,13)+'…' : d.name;
-    // Label bg
-    const lw = ctx.measureText(label).width + 8;
+    const label = z.name.length > 16 ? z.name.slice(0,15)+'…' : z.name;
+    
+    // Label background for legibility
+    const lw = ctx.measureText(label).width + 10;
     ctx.fillStyle = '#161b22cc';
-    ctx.fillRect(x - lw/2, y + 25, lw, 16);
+    ctx.fillRect(x - lw/2, y + 33, lw, 18);
     ctx.fillStyle = '#e6edf3';
-    ctx.fillText(label, x, y + 27);
+    ctx.fillText(label, x, y + 35);
 
-    // IP
-    ctx.fillStyle = '#6e7681';
-    ctx.font = '10px IBM Plex Mono, monospace';
-    ctx.fillText(d.ip, x, y + 44);
-
-    // Zone color bar on top
-    if (d.zone_color) {
+    // Red warning badge if zone contains offline devices
+    if (z.down_count > 0) {
       ctx.beginPath();
-      ctx.arc(x, y, 22, -Math.PI/2, Math.PI/6);
-      ctx.strokeStyle = d.zone_color;
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      ctx.arc(x + 20, y - 20, 8, 0, Math.PI*2);
+      ctx.fillStyle = '#ff4b4b';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(z.down_count, x + 20, y - 20);
     }
   }
 
-  function hitTest(mx, my) {
-    for (let i = devices.length-1; i >= 0; i--) {
-      const d = devices[i];
-      const dx = mx - d.pos_x, dy = my - d.pos_y;
-      if (dx*dx + dy*dy <= 22*22) return d;
+  function hitTest(cx, cy) {
+    for (let i = zones.length-1; i >= 0; i--) {
+      const z = zones[i];
+      const dx = cx - z.pos_x, dy = cy - z.pos_y;
+      if (dx*dx + dy*dy <= 28*28) return z;
     }
     return null;
   }
 
-  // Mouse events
+  // Mouse / Wheel Event Handlers
   canvas.addEventListener('mousedown', e => {
-    if (!editMode) return;
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const d = hitTest(mx, my);
-    if (d) { dragging = d; dragOffX = mx - d.pos_x; dragOffY = my - d.pos_y; canvas.style.cursor = 'grabbing'; }
+    const cx = (mx - offsetX) / scale;
+    const cy = (my - offsetY) / scale;
+
+    const z = hitTest(cx, cy);
+    if (z) {
+      if (editMode) {
+        dragging = z;
+        dragOffX = cx - z.pos_x;
+        dragOffY = cy - z.pos_y;
+        canvas.style.cursor = 'grabbing';
+      } else {
+        showZoneDetails(z);
+      }
+    } else {
+      isPanning = true;
+      panStartX = mx - offsetX;
+      panStartY = my - offsetY;
+      canvas.style.cursor = 'move';
+      if (!editMode) {
+        hideZoneDetails();
+      }
+    }
   });
 
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const cx = (mx - offsetX) / scale;
+    const cy = (my - offsetY) / scale;
+
     if (dragging) {
-      dragging.pos_x = Math.max(22, Math.min(canvas.width-22,  mx - dragOffX));
-      dragging.pos_y = Math.max(22, Math.min(canvas.height-22, my - dragOffY));
+      dragging.pos_x = Math.max(28, Math.min(canvas.width-28,  cx - dragOffX));
+      dragging.pos_y = Math.max(28, Math.min(canvas.height-28, cy - dragOffY));
+      draw();
+    } else if (isPanning) {
+      offsetX = mx - panStartX;
+      offsetY = my - panStartY;
       draw();
     } else {
-      const d = hitTest(mx, my);
-      if (d) {
+      const z = hitTest(cx, cy);
+      if (z) {
         canvas.style.cursor = editMode ? 'grab' : 'pointer';
-        showTooltip(e.clientX, e.clientY, d);
+        showTooltip(e.clientX, e.clientY, z);
       } else {
         canvas.style.cursor = 'default';
         hideTooltip();
@@ -233,54 +385,76 @@ const FP = (() => {
     }
   });
 
-  canvas.addEventListener('mouseup', e => {
-    if (dragging) {
-      dragging = null;
-      canvas.style.cursor = 'grab';
-      draw();
-    }
+  canvas.addEventListener('mouseup', () => {
+    dragging = null;
+    isPanning = false;
+    canvas.style.cursor = 'default';
+    draw();
   });
 
-  canvas.addEventListener('mouseleave', () => { dragging = null; hideTooltip(); });
+  canvas.addEventListener('mouseleave', () => { dragging = null; isPanning = false; hideTooltip(); });
 
-  // Touch support
-  canvas.addEventListener('touchstart', e => {
-    if (!editMode) return;
+  // Zoom on Scroll Wheel
+  canvas.addEventListener('wheel', e => {
     e.preventDefault();
-    const t = e.touches[0];
     const rect = canvas.getBoundingClientRect();
-    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
-    const d = hitTest(mx, my);
-    if (d) { dragging = d; dragOffX = mx - d.pos_x; dragOffY = my - d.pos_y; }
-  }, {passive:false});
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    const newScale = Math.max(0.4, Math.min(3.0, scale * zoomFactor));
+    
+    // Zoom centered on cursor
+    offsetX = mx - (mx - offsetX) * (newScale / scale);
+    offsetY = my - (my - offsetY) * (newScale / scale);
+    scale = newScale;
+    
+    draw();
+  }, { passive: false });
+
+  // Touch support for mobile
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+      const cx = (mx - offsetX) / scale;
+      const cy = (my - offsetY) / scale;
+      const z = hitTest(cx, cy);
+      if (z && editMode) {
+        dragging = z;
+        dragOffX = cx - z.pos_x;
+        dragOffY = cy - z.pos_y;
+      }
+    }
+  }, { passive: true });
 
   canvas.addEventListener('touchmove', e => {
-    if (!dragging) return;
-    e.preventDefault();
-    const t = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
-    dragging.pos_x = Math.max(22, Math.min(canvas.width-22,  mx - dragOffX));
-    dragging.pos_y = Math.max(22, Math.min(canvas.height-22, my - dragOffY));
-    draw();
-  }, {passive:false});
+    if (dragging && e.touches.length === 1) {
+      const t = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+      const cx = (mx - offsetX) / scale;
+      const cy = (my - offsetY) / scale;
+      dragging.pos_x = Math.max(28, Math.min(canvas.width-28,  cx - dragOffX));
+      dragging.pos_y = Math.max(28, Math.min(canvas.height-28, cy - dragOffY));
+      draw();
+    }
+  }, { passive: true });
 
   canvas.addEventListener('touchend', () => { dragging = null; });
 
-  function showTooltip(cx, cy, d) {
-    const stat = d.status || 'unknown';
-    const col  = COLOR[stat] || COLOR.unknown;
+  // Tooltip & details panel UI helpers
+  function showTooltip(cx, cy, z) {
     tooltip.innerHTML = `
-      <div class="tt-name">${esc(d.name)}</div>
-      <div class="tt-ip">${esc(d.ip)}</div>
-      <div class="tt-row"><span class="tt-dot" style="background:${col}"></span>${stat.toUpperCase()}</div>
-      ${d.uptime ? `<div class="tt-row text-muted">↑ ${esc(d.uptime)}</div>` : ''}
-      ${d.zone_name ? `<div class="tt-row text-muted">Zone: ${esc(d.zone_name)}</div>` : ''}
+      <div class="tt-name">${esc(z.name)}</div>
+      <div class="tt-row text-muted">Devices: ${z.device_count || 0}</div>
+      <div class="tt-row text-muted">Offline: <span class="${z.down_count > 0 ? 'text-danger' : ''}">${z.down_count}</span></div>
     `;
     const rect = ctr.getBoundingClientRect();
     let tx = cx - rect.left + 12, ty = cy - rect.top - 10;
     if (tx + 180 > rect.width)  tx = tx - 190;
-    if (ty + 120 > rect.height) ty = ty - 130;
+    if (ty + 100 > rect.height) ty = ty - 110;
     tooltip.style.left = tx + 'px';
     tooltip.style.top  = ty + 'px';
     tooltip.style.display = 'block';
@@ -288,9 +462,72 @@ const FP = (() => {
 
   function hideTooltip() { tooltip.style.display = 'none'; }
 
-  // Animation loop
+  function showZoneDetails(z) {
+    const card = document.getElementById('zone-detail-card');
+    const title = document.getElementById('zd-title');
+    const subtitle = document.getElementById('zd-subtitle');
+    const list = document.getElementById('zd-device-list');
+    const alertBox = document.getElementById('zd-alert-container');
+    
+    title.textContent = z.name;
+    subtitle.textContent = `${z.device_count || 0} Perangkat Terdaftar`;
+    
+    // Sort devices (Offline first)
+    const sortedDevs = [...(z.devices || [])].sort((a, b) => {
+      if (a.status === 'down' && b.status !== 'down') return -1;
+      if (a.status !== 'down' && b.status === 'down') return 1;
+      return 0;
+    });
+
+    if (z.down_count > 0) {
+      alertBox.innerHTML = `
+        <div class="alert alert-danger p-2 mb-2 text-sm" style="font-size: 11px; background: rgba(255, 75, 75, 0.1); border: 1px solid rgba(255, 75, 75, 0.2); border-radius: 6px; color: #ff4b4b;">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>${z.down_count} Perangkat Offline!</strong>
+        </div>`;
+    } else if (z.device_count > 0) {
+      alertBox.innerHTML = `
+        <div class="alert alert-success p-2 mb-2 text-sm" style="font-size: 11px; background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 6px; color: #00d4ff;">
+          <i class="bi bi-check-circle-fill me-1"></i> Semua perangkat online
+        </div>`;
+    } else {
+      alertBox.innerHTML = '';
+    }
+
+    if (sortedDevs.length === 0) {
+      list.innerHTML = `<li class="p-2 text-center text-muted text-sm" style="font-size:12px;">Tidak ada perangkat di zone ini</li>`;
+    } else {
+      list.innerHTML = sortedDevs.map(d => {
+        const stat = d.status || 'unknown';
+        const col = COLOR[stat] || COLOR.unknown;
+        const badgeClass = stat === 'down' ? 'bg-danger text-white' : (stat === 'warning' ? 'bg-warning text-dark' : 'bg-success text-white');
+        return `
+          <li class="device-item">
+            <span class="d-flex align-items-center">
+              <span class="status-indicator" style="background:${col}"></span>
+              <div>
+                <strong style="color: #e6edf3;">${esc(d.name)}</strong>
+                <div class="text-muted mono-sm" style="font-size: 10px;">${esc(d.ip)}</div>
+              </div>
+            </span>
+            <span class="badge ${badgeClass} status-tag">${stat}</span>
+          </li>
+        `;
+      }).join('');
+    }
+    
+    card.style.display = 'block';
+  }
+
+  function hideZoneDetails() {
+    document.getElementById('zone-detail-card').style.display = 'none';
+  }
+
+  // Animation Loop
   let animFrame;
   function startAnim() {
+    if (animFrame) {
+      cancelAnimationFrame(animFrame);
+    }
     function loop() {
       draw();
       animFrame = requestAnimationFrame(loop);
@@ -298,10 +535,49 @@ const FP = (() => {
     loop();
   }
 
-  // Public API
+  // Public methods
   return {
-    init(devs, fp) {
-      devices = devs.map(d => ({...d, pos_x: d.pos_x||100, pos_y: d.pos_y||100}));
+    init(devs, zns, fp) {
+      rawDevices = devs;
+      rawZones = zns;
+      
+      const zoneDevices = {};
+      devs.forEach(d => {
+        if (!zoneDevices[d.zone_id]) zoneDevices[d.zone_id] = [];
+        zoneDevices[d.zone_id].push(d);
+      });
+
+      // Map Zones with status and loader coordinates
+      zones = zns.map((z, idx) => {
+        const dList = zoneDevices[z.id] || [];
+        const downCount = dList.filter(d => d.status === 'down').length;
+        const warnCount = dList.filter(d => d.status === 'warning').length;
+        const upCount = dList.filter(d => d.status === 'up').length;
+        
+        let status = 'unknown';
+        if (downCount > 0) status = 'down';
+        else if (warnCount > 0) status = 'warning';
+        else if (upCount > 0) status = 'up';
+
+        // Load position from fp JSON canvas_data
+        let px = 150 + (idx % 4) * 200;
+        let py = 150 + Math.floor(idx / 4) * 200;
+        if (fp && fp.canvas_data && fp.canvas_data.zones && fp.canvas_data.zones[z.id]) {
+          px = fp.canvas_data.zones[z.id].x || px;
+          py = fp.canvas_data.zones[z.id].y || py;
+        }
+
+        return {
+          ...z,
+          pos_x: px,
+          pos_y: py,
+          status: status,
+          device_count: dList.length,
+          down_count: downCount,
+          devices: dList
+        };
+      });
+
       if (fp && fp.background_url) {
         bgUrl = fp.background_url;
         const img = new Image();
@@ -312,23 +588,21 @@ const FP = (() => {
       startAnim();
     },
 
-    updateDevices(devs) {
-      // Merge positions from existing
-      const posMap = {};
-      devices.forEach(d => { posMap[d.id] = {x: d.pos_x, y: d.pos_y}; });
-      devices = devs.map(d => ({
-        ...d,
-        pos_x: posMap[d.id]?.x ?? d.pos_x ?? 100,
-        pos_y: posMap[d.id]?.y ?? d.pos_y ?? 100,
-      }));
+    updateDevices(devs, zns) {
+      // Re-map the devices
+      this.init(devs, zns || rawZones, {background_url: bgUrl, canvas_data: {zones: this.getZoneCoords()}});
     },
 
-    updateDevice(dev) {
-      const idx = devices.findIndex(d => d.id === dev.id);
-      if (idx >= 0) {
-        devices[idx] = {...dev, pos_x: devices[idx].pos_x, pos_y: devices[idx].pos_y};
-      }
+    getZoneCoords() {
+      const coords = {};
+      zones.forEach(z => { coords[z.id] = {x: z.pos_x, y: z.pos_y}; });
+      return coords;
     },
+
+    zoomIn() { scale = Math.min(3.0, scale + 0.15); draw(); },
+    zoomOut() { scale = Math.max(0.4, scale - 0.15); draw(); },
+    zoomReset() { scale = 1.0; offsetX = 0; offsetY = 0; draw(); },
+    hideZoneDetails,
 
     toggleEdit() {
       editMode = !editMode;
@@ -341,24 +615,26 @@ const FP = (() => {
       save.style.display  = editMode ? '' : 'none';
       side.style.display  = editMode ? 'flex' : 'none';
       tip.innerHTML = editMode
-        ? '<i class="bi bi-pencil-fill text-accent"></i> Edit mode — drag devices to reposition'
-        : '<i class="bi bi-eye"></i> View mode — click Edit to reposition devices';
+        ? '<i class="bi bi-pencil-fill text-accent"></i> Edit mode — drag zones to reposition on map'
+        : '<i class="bi bi-eye"></i> View mode — click zone to view details, drag background to pan, scroll to zoom';
     },
 
     save() {
-      // Save positions back
-      const posUpdates = devices.map(d => ({id:d.id, pos_x:d.pos_x, pos_y:d.pos_y}));
-      const saves = posUpdates.map(d =>
-        fetch(`/api/devices/${d.id}`, {
-          method:'PUT', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({pos_x:d.pos_x, pos_y:d.pos_y})
-        })
-      );
+      // Pack zone positions into canvas_data
+      const canvas_data = {
+        zones: this.getZoneCoords()
+      };
+      
       fetch('/api/floorplan', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({name:'Main Floor', background_url: bgUrl})
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:'Main Floor', background_url: bgUrl, canvas_data: canvas_data})
+      }).then(r => r.json()).then(data => {
+        if (data.status === 'success') {
+          showToast('Zone positions saved successfully', 'success');
+          this.toggleEdit();
+        }
       });
-      Promise.all(saves).then(() => showToast('Floor plan saved', 'success'));
     },
 
     uploadBg(input) {
@@ -378,7 +654,7 @@ const FP = (() => {
         });
     },
 
-    clearBg() { bgImage = null; bgUrl = ''; },
+    clearBg() { bgImage = null; bgUrl = ''; draw(); },
   };
 })();
 
@@ -386,10 +662,11 @@ const FP = (() => {
 document.addEventListener('DOMContentLoaded', () => {
   Promise.all([
     fetch('/api/devices').then(r=>r.json()),
+    fetch('/api/zones').then(r=>r.json()),
     fetch('/api/floorplan').then(r=>r.json()),
-  ]).then(([devs, fp]) => {
-    FP.init(devs, fp);
-    renderFpDevList(devs);
+  ]).then(([devs, zns, fp]) => {
+    FP.init(devs, zns, fp);
+    renderFpZoneList(zns);
   });
 
   window.addEventListener('resize', () => {
@@ -401,24 +678,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket updates
-  window.onDeviceStatusUpdate = (dev) => { FP.updateDevice(dev); };
+  window.onDeviceStatusUpdate = () => {
+    Promise.all([
+      fetch('/api/devices').then(r=>r.json()),
+      fetch('/api/zones').then(r=>r.json())
+    ]).then(([devs, zns]) => {
+      FP.updateDevices(devs, zns);
+      renderFpZoneList(zns);
+    });
+  };
+  
   window.onInitData = (data) => {
-    FP.init(data.devices, data.floorplan);
-    renderFpDevList(data.devices);
+    FP.init(data.devices, data.zones, data.floorplan);
+    renderFpZoneList(data.zones);
   };
 });
 
-function renderFpDevList(devs) {
-  const el = document.getElementById('fp-dev-list');
-  el.innerHTML = devs.map(d => `
-    <div class="fp-dev-item">
-      <span class="fp-dev-dot ${d.status}"></span>
+function renderFpZoneList(zones) {
+  const el = document.getElementById('fp-zone-list');
+  if (!el) return;
+  el.innerHTML = zones.map(z => `
+    <div class="fp-dev-item" style="border-left: 3px solid ${z.color || '#00d4ff'}">
       <div>
-        <div class="text-sm">${esc(d.name)}</div>
-        <div class="mono-sm text-muted">${esc(d.ip)}</div>
+        <div class="text-sm fw-bold">${esc(z.name)}</div>
+        <div class="text-muted" style="font-size:10px;">${esc(z.description || 'No description')}</div>
       </div>
     </div>
-  `).join('') || '<div class="text-muted text-sm p-3">No devices</div>';
+  `).join('') || '<div class="text-muted text-sm p-3">No zones</div>';
 }
 </script>
 {% endblock %}
