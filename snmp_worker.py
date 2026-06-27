@@ -162,6 +162,177 @@ class SNMPWorker:
         except Exception:
             return False
 
+    def _get_resource_metrics(self, ip, community, port, version, vendor_lower, descr_lower):
+        cpu_usage = None
+        memory_usage = None
+        temperature = None
+        
+        # 1. MikroTik
+        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+            res = self._get(ip, community, [
+                '1.3.6.1.4.1.14988.1.1.3.10.0', # CPU Load
+                '1.3.6.1.4.1.14988.1.1.3.8.0',  # Temperature
+                '1.3.6.1.4.1.14988.1.1.3.14.0', # Total RAM in bytes
+                '1.3.6.1.4.1.14988.1.1.3.17.0'  # Free RAM in bytes
+            ], port=port, version=version)
+            if res:
+                if res.get('1.3.6.1.4.1.14988.1.1.3.10.0') is not None:
+                    try:
+                        cpu_usage = float(res['1.3.6.1.4.1.14988.1.1.3.10.0'])
+                    except ValueError: pass
+                if res.get('1.3.6.1.4.1.14988.1.1.3.8.0') is not None:
+                    try:
+                        # MikroTik temperature is deci-degrees Celsius (e.g. 365 = 36.5C)
+                        temperature = float(res['1.3.6.1.4.1.14988.1.1.3.8.0']) / 10.0
+                    except ValueError: pass
+                if res.get('1.3.6.1.4.1.14988.1.1.3.14.0') and res.get('1.3.6.1.4.1.14988.1.1.3.17.0'):
+                    try:
+                        tot = float(res['1.3.6.1.4.1.14988.1.1.3.14.0'])
+                        fre = float(res['1.3.6.1.4.1.14988.1.1.3.17.0'])
+                        if tot > 0:
+                            memory_usage = ((tot - fre) / tot) * 100.0
+                    except Exception: pass
+                    
+        # 2. Ruijie / Reyee
+        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
+            res = self._get(ip, community, [
+                '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0',   # CPU utilization
+                '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0', # Memory utilization
+                '1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0'      # Temp
+            ], port=port, version=version)
+            
+            cpu_val = res.get('1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0') if res else None
+            mem_val = res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0') if res else None
+            temp_val = res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0') if res else None
+            
+            # Walks fallback if GET exact indices is unsupported
+            if cpu_val is None:
+                cpu_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.36.1.1', port=port, version=version)
+                if cpu_walk:
+                    for v in cpu_walk.values():
+                        try:
+                            float(v)
+                            cpu_val = v
+                            break
+                        except ValueError: pass
+                        
+            if mem_val is None:
+                mem_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1', port=port, version=version)
+                if mem_walk:
+                    for v in mem_walk.values():
+                        try:
+                            float(v)
+                            mem_val = v
+                            break
+                        except ValueError: pass
+                        
+            if temp_val is None:
+                temp_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.1.1', port=port, version=version)
+                if temp_walk:
+                    for v in temp_walk.values():
+                        try:
+                            float(v)
+                            temp_val = v
+                            break
+                        except ValueError: pass
+                        
+            if cpu_val is not None:
+                try: cpu_usage = float(cpu_val)
+                except ValueError: pass
+            if mem_val is not None:
+                try: memory_usage = float(mem_val)
+                except ValueError: pass
+            if temp_val is not None:
+                try:
+                    val = float(temp_val)
+                    if val > 120: val /= 10.0
+                    temperature = val
+                except ValueError: pass
+                
+        # 3. Ubiquiti / UniFi SNMP
+        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
+            res = self._get(ip, community, [
+                '1.3.6.1.4.1.41112.1.4.1.1.4.1', # CPU load percentage
+                '1.3.6.1.4.1.41112.1.4.1.1.5.1'  # Memory usage percentage
+            ], port=port, version=version)
+            if res:
+                if res.get('1.3.6.1.4.1.41112.1.4.1.1.4.1') is not None:
+                    try: cpu_usage = float(res['1.3.6.1.4.1.41112.1.4.1.1.4.1'])
+                    except ValueError: pass
+                if res.get('1.3.6.1.4.1.41112.1.4.1.1.5.1') is not None:
+                    try: memory_usage = float(res['1.3.6.1.4.1.41112.1.4.1.1.5.1'])
+                    except ValueError: pass
+                    
+        # 4. Cisco
+        elif 'cisco' in vendor_lower or 'cisco' in descr_lower:
+            res = self._get(ip, community, [
+                '1.3.6.1.4.1.9.9.109.1.1.1.1.5.1', # CPU 1-min load %
+                '1.3.6.1.4.1.9.9.48.1.1.1.5.1',    # Memory Used
+                '1.3.6.1.4.1.9.9.48.1.1.1.6.1',    # Memory Free
+                '1.3.6.1.4.1.9.9.13.1.3.1.3.1'     # Cisco Env Temp
+            ], port=port, version=version)
+            if res:
+                if res.get('1.3.6.1.4.1.9.9.109.1.1.1.1.5.1') is not None:
+                    try: cpu_usage = float(res['1.3.6.1.4.1.9.9.109.1.1.1.1.5.1'])
+                    except ValueError: pass
+                if res.get('1.3.6.1.4.1.9.9.48.1.1.1.5.1') is not None and res.get('1.3.6.1.4.1.9.9.48.1.1.1.6.1') is not None:
+                    try:
+                        used = float(res['1.3.6.1.4.1.9.9.48.1.1.1.5.1'])
+                        free = float(res['1.3.6.1.4.1.9.9.48.1.1.1.6.1'])
+                        if (used + free) > 0:
+                            memory_usage = (used / (used + free)) * 100.0
+                    except Exception: pass
+                if res.get('1.3.6.1.4.1.9.9.13.1.3.1.3.1') is not None:
+                    try: temperature = float(res['1.3.6.1.4.1.9.9.13.1.3.1.3.1'])
+                    except ValueError: pass
+                    
+        # 5. Generic HOST-RESOURCES-MIB Fallback (Linux / Windows / Generic)
+        else:
+            cpu_walk = self._walk(ip, community, '1.3.6.1.2.1.25.3.3.1.2', port=port, version=version)
+            if cpu_walk:
+                cpu_vals = [float(v) for v in cpu_walk.values() if str(v).isdigit()]
+                if cpu_vals: cpu_usage = sum(cpu_vals) / len(cpu_vals)
+                
+            storage_types = self._walk(ip, community, '1.3.6.1.2.1.25.2.3.1.2', port=port, version=version)
+            if storage_types:
+                ram_idx = None
+                for k, v in storage_types.items():
+                    if v == '1.3.6.1.2.1.25.2.1.2':
+                        ram_idx = k.split('.')[-1]
+                        break
+                if ram_idx:
+                    res_ram = self._get(ip, community, [
+                        f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}',
+                        f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}'
+                    ], port=port, version=version)
+                    if res_ram:
+                        try:
+                            tot = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}', 0))
+                            used = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}', 0))
+                            if tot > 0:
+                                memory_usage = (used / tot) * 100.0
+                        except Exception: pass
+                        
+        # Boundary validation & scaling normalization
+        if cpu_usage is not None:
+            if cpu_usage > 100.0: cpu_usage /= 10.0
+            cpu_usage = max(0.0, min(100.0, cpu_usage))
+            
+        if memory_usage is not None:
+            if memory_usage > 100.0: memory_usage /= 10.0
+            memory_usage = max(0.0, min(100.0, memory_usage))
+            
+        if temperature is not None:
+            if temperature > 150.0: temperature /= 10.0
+            if temperature < -40.0 or temperature > 120.0:
+                temperature = None
+                
+        return {
+            'cpu_usage': cpu_usage,
+            'memory_usage': memory_usage,
+            'temperature': temperature
+        }
+
     def poll_device(self, device):
         did, ip   = device['id'], device['ip']
         community = device.get('snmp_community', 'public')
@@ -174,31 +345,10 @@ class SNMPWorker:
         # Target OIDs based on vendor detection
         vendor_lower = str(device.get('vendor') or '').lower()
         descr_lower = str(device.get('description') or '').lower()
-        
-        cpu_oid = None
-        mem_oid = None
-        temp_oid = None
-        
-        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
-            cpu_oid = '1.3.6.1.4.1.14988.1.1.3.10.0' # MikroTik CPU
-            temp_oid = '1.3.6.1.4.1.14988.1.1.3.8.0' # MikroTik Temp
-        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
-            cpu_oid = '1.3.6.1.4.1.41112.1.4.1.1.4.1'
-            mem_oid = '1.3.6.1.4.1.41112.1.4.1.1.5.1'
-        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
-            cpu_oid = '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0'
-            mem_oid = '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0'
-            temp_oid = '1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0'
-        elif 'cisco' in vendor_lower or 'cisco' in descr_lower:
-            cpu_oid = '1.3.6.1.4.1.9.9.109.1.1.1.1.5.1'
 
         result = None
         if snmp_en:
-            oids_to_get = [OID['sysDescr'], OID['sysName'], OID['sysUpTime']]
-            if cpu_oid: oids_to_get.append(cpu_oid)
-            if mem_oid: oids_to_get.append(mem_oid)
-            if temp_oid: oids_to_get.append(temp_oid)
-            result = self._get(ip, community, oids_to_get, port, version)
+            result = self._get(ip, community, [OID['sysDescr'], OID['sysName'], OID['sysUpTime']], port, version)
 
         if result:
             upd = {'status':'up', 'last_polled': now}
@@ -216,38 +366,23 @@ class SNMPWorker:
                     upd['vendor'] = 'Cisco'
             if result.get(OID['sysUpTime']): upd['uptime']      = result[OID['sysUpTime']]
 
-            # Extract metrics
-            cpu_val = result.get(cpu_oid) if cpu_oid else None
-            mem_val = result.get(mem_oid) if mem_oid else None
-            temp_val = result.get(temp_oid) if temp_oid else None
+            # Fetch updated vendor name
+            current_vendor = upd.get('vendor') or device.get('vendor') or ''
+            vendor_lower = str(current_vendor).lower()
+            current_desc = upd.get('description') or device.get('description') or ''
+            descr_lower = str(current_desc).lower()
+
+            # Dynamic resource usage extraction
+            metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower)
+            upd.update(metrics)
             
-            if cpu_val is not None:
-                try:
-                    val = float(cpu_val)
-                    if val > 100:  # Scale down if in deci-percent (e.g. 360 -> 36.0)
-                        val = val / 10.0
-                    upd['cpu_usage'] = val
-                    self.db.save_metric(did, 'cpu_usage', upd['cpu_usage'])
-                except ValueError:
-                    pass
-            if mem_val is not None:
-                try:
-                    val = float(mem_val)
-                    if val > 100:  # Scale down if in deci-percent
-                        val = val / 10.0
-                    upd['memory_usage'] = val
-                    self.db.save_metric(did, 'memory_usage', upd['memory_usage'])
-                except ValueError:
-                    pass
-            if temp_val is not None:
-                try:
-                    val = float(temp_val)
-                    if val > 120:  # Scale down if in deci-degrees (e.g. 238 -> 23.8)
-                        val = val / 10.0
-                    upd['temperature'] = val
-                    self.db.save_metric(did, 'temperature', upd['temperature'])
-                except ValueError:
-                    pass
+            # Save metrics to DB timeseries
+            if metrics['cpu_usage'] is not None:
+                self.db.save_metric(did, 'cpu_usage', metrics['cpu_usage'])
+            if metrics['memory_usage'] is not None:
+                self.db.save_metric(did, 'memory_usage', metrics['memory_usage'])
+            if metrics['temperature'] is not None:
+                self.db.save_metric(did, 'temperature', metrics['temperature'])
 
             # Poll WAN traffic throughput if device type is router
             if device.get('type') == 'router':
@@ -312,108 +447,14 @@ class SNMPWorker:
             sys_name = res_sys.get('1.3.6.1.2.1.1.5.0', '')
             description = res_sys.get('1.3.6.1.2.1.1.1.0', '')
 
-        # 2. CPU / Memory / Temp based on vendor
+        # 2. CPU / Memory / Temp based on unified parser
         vendor_lower = str(device.get('vendor') or '').lower()
         descr_lower = str(description or device.get('description') or '').lower()
         
-        cpu_val = None
-        mem_val = None
-        temp_val = None
-
-        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
-            cpu_res = self._get(ip, community, ['1.3.6.1.4.1.14988.1.1.3.10.0'], port=port, version=version)
-            if cpu_res: cpu_val = cpu_res.get('1.3.6.1.4.1.14988.1.1.3.10.0')
-            temp_res = self._get(ip, community, ['1.3.6.1.4.1.14988.1.1.3.8.0'], port=port, version=version)
-            if temp_res: temp_val = temp_res.get('1.3.6.1.4.1.14988.1.1.3.8.0')
-            mem_res = self._get(ip, community, [
-                '1.3.6.1.4.1.14988.1.1.3.14.0',
-                '1.3.6.1.4.1.14988.1.1.3.17.0'
-            ], port=port, version=version)
-            if mem_res:
-                try:
-                    tot = float(mem_res.get('1.3.6.1.4.1.14988.1.1.3.14.0', 0))
-                    fre = float(mem_res.get('1.3.6.1.4.1.14988.1.1.3.17.0', 0))
-                    if tot > 0:
-                        mem_val = ((tot - fre) / tot) * 100.0
-                except Exception:
-                    pass
-        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
-            cpu_res = self._get(ip, community, [
-                '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0',
-                '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.2.0',
-            ], port=port, version=version)
-            if cpu_res:
-                cpu_val = cpu_res.get('1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0') or cpu_res.get('1.3.6.1.4.1.4881.1.1.10.2.36.1.1.2.0')
-            if not cpu_val:
-                cpu_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.36.1.1', port=port, version=version)
-                if cpu_walk:
-                    for v in cpu_walk.values():
-                        try:
-                            float(v)
-                            cpu_val = v
-                            break
-                        except ValueError:
-                            pass
-            
-            mem_res = self._get(ip, community, [
-                '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0',
-                '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.4.0',
-            ], port=port, version=version)
-            if mem_res:
-                mem_val = mem_res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0') or mem_res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.4.0')
-            if not mem_val:
-                mem_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1', port=port, version=version)
-                if mem_walk:
-                    for v in mem_walk.values():
-                        try:
-                            float(v)
-                            mem_val = v
-                            break
-                        except ValueError:
-                            pass
-            
-            temp_res = self._get(ip, community, [
-                '1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0',
-                '1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.3',
-            ], port=port, version=version)
-            if temp_res:
-                temp_val = temp_res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0') or temp_res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.3')
-        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
-            cpu_res = self._get(ip, community, ['1.3.6.1.4.1.41112.1.4.1.1.4.1'], port=port, version=version)
-            if cpu_res: cpu_val = cpu_res.get('1.3.6.1.4.1.41112.1.4.1.1.4.1')
-            mem_res = self._get(ip, community, ['1.3.6.1.4.1.41112.1.4.1.1.5.1'], port=port, version=version)
-            if mem_res: mem_val = mem_res.get('1.3.6.1.4.1.41112.1.4.1.1.5.1')
-        else:
-            cpu_walk = self._walk(ip, community, '1.3.6.1.2.1.25.3.3.1.2', port=port, version=version)
-            if cpu_walk:
-                cpu_vals = [float(v) for v in cpu_walk.values() if v.isdigit()]
-                if cpu_vals: cpu_val = sum(cpu_vals) / len(cpu_vals)
-
-        cpu_usage = None
-        memory_usage = None
-        temperature = None
-        
-        if cpu_val is not None:
-            try:
-                val = float(cpu_val)
-                if val > 100: val /= 10.0
-                cpu_usage = val
-            except ValueError:
-                pass
-        if mem_val is not None:
-            try:
-                val = float(mem_val)
-                if val > 100: val /= 10.0
-                memory_usage = val
-            except ValueError:
-                pass
-        if temp_val is not None:
-            try:
-                val = float(temp_val)
-                if val > 120: val /= 10.0
-                temperature = val
-            except ValueError:
-                pass
+        metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower)
+        cpu_usage = metrics['cpu_usage']
+        memory_usage = metrics['memory_usage']
+        temperature = metrics['temperature']
 
         # 3. Interfaces info (SNMP Walk)
         if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port=port, version=version)
