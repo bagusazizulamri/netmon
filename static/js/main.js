@@ -220,6 +220,7 @@ function dismissBanner() {
 let detailModal;
 let detailPollInterval = null;
 let activeDetailDeviceId = null;
+let activeDetailDeviceType = null;
 let trafficChartInstance = null;
 let interfaceTrafficData = {};
 let chartLabels = [];
@@ -268,12 +269,16 @@ function openDeviceDetail(id) {
   }
   
   if (dev) {
+    activeDetailDeviceType = dev.type;
     populateBasicFields(dev);
   } else {
     // Fetch device info
     fetch(`/api/devices/${id}`)
       .then(r => r.json())
-      .then(populateBasicFields)
+      .then(data => {
+        activeDetailDeviceType = data.type;
+        populateBasicFields(data);
+      })
       .catch(err => console.error("Error loading device metadata:", err));
   }
   
@@ -424,6 +429,29 @@ function fetchRealtimeStats() {
       const interfaces = res.interfaces || [];
       const select = document.getElementById('det-iface-select');
       const tbody = document.getElementById('det-interfaces-tbody');
+      const selectWrapper = document.getElementById('det-iface-select-wrapper');
+      const interfacesCard = document.getElementById('det-interfaces-card');
+      
+      const isRouterOrSwitch = (activeDetailDeviceType === 'router' || activeDetailDeviceType === 'switch');
+      
+      if (selectWrapper) {
+        selectWrapper.style.setProperty('display', isRouterOrSwitch ? 'flex' : 'none', 'important');
+      }
+      if (interfacesCard) {
+        interfacesCard.style.setProperty('display', isRouterOrSwitch ? 'block' : 'none', 'important');
+      }
+      
+      if (!isRouterOrSwitch) {
+        // Non-router/switch: sum up all traffic for global view
+        const globalIface = {
+          index: 9999,
+          name: 'Global Traffic',
+          rx_bytes: interfaces.reduce((sum, item) => sum + (item.rx_bytes || 0), 0),
+          tx_bytes: interfaces.reduce((sum, item) => sum + (item.tx_bytes || 0), 0)
+        };
+        updateChartData(globalIface);
+        return;
+      }
       
       if (!select || !tbody) return;
       

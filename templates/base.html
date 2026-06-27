@@ -176,7 +176,7 @@
                 <h6 class="text-accent m-0 d-flex align-items-center gap-2 fw-600 text-sm">
                   <i class="bi bi-activity"></i> Grafik Traffic Real-time
                 </h6>
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex gap-2 align-items-center" id="det-iface-select-wrapper">
                   <span class="text-xs text-secondary">Pilih Interface:</span>
                   <select class="nm-select py-0 px-2 text-xs bg-dark text-primary border border-secondary border-opacity-25 rounded" id="det-iface-select" onchange="onInterfaceChange()" style="min-width: 150px; height:24px;"></select>
                 </div>
@@ -201,7 +201,7 @@
             </div>
             
             <!-- Interfaces list table -->
-            <div class="nm-card p-3 shadow-md">
+            <div class="nm-card p-3 shadow-md" id="det-interfaces-card">
               <h6 class="text-accent mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
                 <i class="bi bi-ethernet"></i> Status Interface / Port
               </h6>
