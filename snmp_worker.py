@@ -40,6 +40,7 @@ class SNMPWorker:
         self._lock = threading.Lock()
         self._status = {'running':False,'progress':0,'total':0,'found':0,
                         'current_ip':'','message':'Idle','percent':0}
+        self._interfaces_cache = {}
 
     def get_scan_status(self): return dict(self._status)
     def stop_scan(self):       self._stop.set()
@@ -167,6 +168,7 @@ class SNMPWorker:
         memory_usage = None
         temperature = None
         
+        # --- VENDOR SPECIFIC QUERIES ---
         # 1. MikroTik
         if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
             res = self._get(ip, community, [
@@ -177,12 +179,10 @@ class SNMPWorker:
             ], port=port, version=version)
             if res:
                 if res.get('1.3.6.1.4.1.14988.1.1.3.10.0') is not None:
-                    try:
-                        cpu_usage = float(res['1.3.6.1.4.1.14988.1.1.3.10.0'])
+                    try: cpu_usage = float(res['1.3.6.1.4.1.14988.1.1.3.10.0'])
                     except ValueError: pass
                 if res.get('1.3.6.1.4.1.14988.1.1.3.8.0') is not None:
                     try:
-                        # MikroTik temperature is deci-degrees Celsius (e.g. 365 = 36.5C)
                         temperature = float(res['1.3.6.1.4.1.14988.1.1.3.8.0']) / 10.0
                     except ValueError: pass
                 if res.get('1.3.6.1.4.1.14988.1.1.3.14.0') and res.get('1.3.6.1.4.1.14988.1.1.3.17.0'):
@@ -205,7 +205,6 @@ class SNMPWorker:
             mem_val = res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0') if res else None
             temp_val = res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0') if res else None
             
-            # Walks fallback if GET exact indices is unsupported
             if cpu_val is None:
                 cpu_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.36.1.1', port=port, version=version)
                 if cpu_walk:
@@ -286,33 +285,59 @@ class SNMPWorker:
                     try: temperature = float(res['1.3.6.1.4.1.9.9.13.1.3.1.3.1'])
                     except ValueError: pass
                     
-        # 5. Generic HOST-RESOURCES-MIB Fallback (Linux / Windows / Generic)
-        else:
+        # --- GENERIC FALLBACKS FOR ANY VENDOR IF STILL NONE ---
+        if cpu_usage is None:
             cpu_walk = self._walk(ip, community, '1.3.6.1.2.1.25.3.3.1.2', port=port, version=version)
             if cpu_walk:
                 cpu_vals = [float(v) for v in cpu_walk.values() if str(v).isdigit()]
                 if cpu_vals: cpu_usage = sum(cpu_vals) / len(cpu_vals)
-                
+            else:
+                cpu_res = self._get(ip, community, ['1.3.6.1.2.1.25.3.3.1.2.1'], port=port, version=version)
+                if cpu_res and cpu_res.get('1.3.6.1.2.1.25.3.3.1.2.1') is not None:
+                    try: cpu_usage = float(cpu_res['1.3.6.1.2.1.25.3.3.1.2.1'])
+                    except ValueError: pass
+                    
+        if memory_usage is None:
             storage_types = self._walk(ip, community, '1.3.6.1.2.1.25.2.3.1.2', port=port, version=version)
+            ram_idx = None
             if storage_types:
-                ram_idx = None
                 for k, v in storage_types.items():
-                    if v == '1.3.6.1.2.1.25.2.1.2':
+                    if v == '1.3.6.1.2.1.25.2.1.2': # Physical RAM type
                         ram_idx = k.split('.')[-1]
                         break
-                if ram_idx:
-                    res_ram = self._get(ip, community, [
-                        f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}',
-                        f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}'
-                    ], port=port, version=version)
-                    if res_ram:
-                        try:
-                            tot = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}', 0))
-                            used = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}', 0))
-                            if tot > 0:
-                                memory_usage = (used / tot) * 100.0
-                        except Exception: pass
-                        
+            if ram_idx:
+                res_ram = self._get(ip, community, [
+                    f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}',
+                    f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}'
+                ], port=port, version=version)
+                if res_ram:
+                    try:
+                        tot = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}', 0))
+                        used = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}', 0))
+                        if tot > 0:
+                            memory_usage = (used / tot) * 100.0
+                    except Exception: pass
+                    
+            if memory_usage is None:
+                common_indices = ['65536', '1', '101', '102', '2', '3']
+                oids_to_try = []
+                for idx in common_indices:
+                    oids_to_try.append(f'1.3.6.1.2.1.25.2.3.1.5.{idx}')
+                    oids_to_try.append(f'1.3.6.1.2.1.25.2.3.1.6.{idx}')
+                res_ram = self._get(ip, community, oids_to_try, port=port, version=version)
+                if res_ram:
+                    for idx in common_indices:
+                        size_oid = f'1.3.6.1.2.1.25.2.3.1.5.{idx}'
+                        used_oid = f'1.3.6.1.2.1.25.2.3.1.6.{idx}'
+                        if res_ram.get(size_oid) and res_ram.get(used_oid):
+                            try:
+                                tot = float(res_ram[size_oid])
+                                used = float(res_ram[used_oid])
+                                if tot > 0 and used <= tot:
+                                    memory_usage = (used / tot) * 100.0
+                                    break
+                            except Exception: pass
+                            
         # Boundary validation & scaling normalization
         if cpu_usage is not None:
             if cpu_usage > 100.0: cpu_usage /= 10.0
@@ -456,19 +481,53 @@ class SNMPWorker:
         memory_usage = metrics['memory_usage']
         temperature = metrics['temperature']
 
-        # 3. Interfaces info (SNMP Walk)
-        if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port=port, version=version)
-        if_type = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.3', port=port, version=version)
-        if_speed = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port=port, version=version)
-        if_oper = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port=port, version=version)
+        # 3. Interfaces info (SNMP Walk) with cache fallback
+        cache_key = device['id']
         
-        if_hc_in = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6', port=port, version=version)
-        if_hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port=port, version=version)
+        new_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port=port, version=version)
+        new_type = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.3', port=port, version=version)
+        new_speed = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port=port, version=version)
+        new_oper = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port=port, version=version)
         
-        if_in = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port=port, version=version)
-        if_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port=port, version=version)
+        new_hc_in = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6', port=port, version=version)
+        new_hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port=port, version=version)
         
-        if_high_speed = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port=port, version=version)
+        new_in = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port=port, version=version)
+        new_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port=port, version=version)
+        
+        new_high_speed = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port=port, version=version)
+
+        if new_desc:
+            # Cache the successful SNMP walk
+            self._interfaces_cache[cache_key] = {
+                'if_desc': new_desc,
+                'if_type': new_type or {},
+                'if_speed': new_speed or {},
+                'if_oper': new_oper or {},
+                'if_hc_in': new_hc_in or {},
+                'if_hc_out': new_hc_out or {},
+                'if_in': new_in or {},
+                'if_out': new_out or {},
+                'if_high_speed': new_high_speed or {}
+            }
+            if_desc, if_type, if_speed, if_oper = new_desc, new_type, new_speed, new_oper
+            if_hc_in, if_hc_out, if_in, if_out, if_high_speed = new_hc_in, new_hc_out, new_in, new_out, new_high_speed
+        else:
+            # Momentary walk failure: use cache if available
+            cached = self._interfaces_cache.get(cache_key)
+            if cached:
+                if_desc = cached['if_desc']
+                if_type = cached['if_type']
+                if_speed = cached['if_speed']
+                if_oper = new_oper if new_oper else cached['if_oper']
+                if_hc_in = new_hc_in if new_hc_in else cached['if_hc_in']
+                if_hc_out = new_hc_out if new_hc_out else cached['if_hc_out']
+                if_in = new_in if new_in else cached['if_in']
+                if_out = new_out if new_out else cached['if_out']
+                if_high_speed = new_high_speed if new_high_speed else cached['if_high_speed']
+            else:
+                if_desc, if_type, if_speed, if_oper = {}, {}, {}, {}
+                if_hc_in, if_hc_out, if_in, if_out, if_high_speed = {}, {}, {}, {}, {}
 
         interfaces = []
         for oid, name in if_desc.items():

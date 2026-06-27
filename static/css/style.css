@@ -758,3 +758,44 @@ body {
   .dash-grid  { grid-template-columns: 1fr; }
   .fp-sidebar { display: none !important; }
 }
+
+/* ============================================================ DEVICE DETAILS MODAL (COMPACT & RESPONSIVE) */
+.detail-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.di-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-bottom: 6px;
+  font-size: 12px;
+  align-items: center;
+}
+.di-row span {
+  color: var(--text-muted);
+}
+.nm-card {
+  background: rgba(25, 30, 46, 0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.table-sm th, .table-sm td {
+  padding: 6px 10px !important;
+  font-size: 11.5px !important;
+}
+.nm-table tbody tr.table-active td {
+  background-color: rgba(0, 240, 255, 0.12) !important;
+  color: var(--accent) !important;
+}
+.border-accent-subtle {
+  border-color: rgba(0, 240, 255, 0.2) !important;
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
