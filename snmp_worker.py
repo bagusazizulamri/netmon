@@ -555,21 +555,42 @@ class SNMPWorker:
         memory_usage = metrics['memory_usage']
         temperature = metrics['temperature']
 
-        # 3. Interfaces info (SNMP Walk) with cache fallback
+        # 3. Interfaces info (Parallel SNMP Walks) with cache fallback
         cache_key = device['id']
         
-        new_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port=port, version=version)
-        new_type = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.3', port=port, version=version)
-        new_speed = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port=port, version=version)
-        new_oper = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port=port, version=version)
+        new_desc, new_type, new_speed, new_oper = {}, {}, {}, {}
+        new_hc_in, new_hc_out, new_in, new_out, new_high_speed = {}, {}, {}, {}, {}
         
-        new_hc_in = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6', port=port, version=version)
-        new_hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port=port, version=version)
-        
-        new_in = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port=port, version=version)
-        new_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port=port, version=version)
-        
-        new_high_speed = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port=port, version=version)
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def fetch_all_walks():
+                tasks = [
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.3', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=1.5),
+                    self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port, version, timeout=1.5)
+                ]
+                return await asyncio.gather(*tasks)
+                
+            results = loop.run_until_complete(fetch_all_walks())
+            if results and len(results) == 9:
+                new_desc, new_type, new_speed, new_oper = results[0], results[1], results[2], results[3]
+                new_hc_in, new_hc_out, new_in, new_out, new_high_speed = results[4], results[5], results[6], results[7], results[8]
+        except Exception as e:
+            print(f"[SNMP Detail] Parallel walks failed: {e}")
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
 
         if new_desc:
             # Cache the successful SNMP walk
