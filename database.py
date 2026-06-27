@@ -10,7 +10,9 @@ import os
 from datetime import datetime
 from contextlib import contextmanager
 
-DB_PATH = os.environ.get('DB_PATH', 'netmon.db')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DB = os.path.join(BASE_DIR, 'netmon.db')
+DB_PATH = os.environ.get('DB_PATH', DEFAULT_DB)
 
 
 class Database:
