@@ -360,8 +360,13 @@ function renderTable(devices) {
   }
   tbody.innerHTML = devices.map(d => {
     let metricsHtml = '';
-    if (d.snmp_enabled) {
-      metricsHtml += `<span class="badge-snmp on me-1">SNMP</span> `;
+    const isUnifi = d.unifi_id || String(d.vendor).toLowerCase().includes('ubiquiti') || String(d.vendor).toLowerCase().includes('unifi');
+    if (d.snmp_enabled || isUnifi) {
+      if (isUnifi) {
+        metricsHtml += `<span class="badge-snmp on me-1" style="background:#00bcd4 !important; color:#fff !important;">UniFi</span> `;
+      } else {
+        metricsHtml += `<span class="badge-snmp on me-1">SNMP</span> `;
+      }
       if (d.cpu_usage !== null && d.cpu_usage !== undefined) {
         metricsHtml += `<span class="status-dot up py-1 px-2 border-0 bg-opacity-10" style="font-size:10.5px; background:rgba(0, 230, 118, 0.08); color:var(--green); border:1px solid rgba(0, 230, 118, 0.15) !important;">CPU: ${formatPercent(d.cpu_usage)}</span> `;
       }
