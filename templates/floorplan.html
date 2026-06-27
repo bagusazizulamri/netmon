@@ -481,38 +481,37 @@ const FP = (() => {
 
     if (z.down_count > 0) {
       alertBox.innerHTML = `
-        <div class="alert alert-danger p-2 mb-2 text-sm" style="font-size: 11px; background: rgba(255, 75, 75, 0.1); border: 1px solid rgba(255, 75, 75, 0.2); border-radius: 6px; color: #ff4b4b;">
-          <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>${z.down_count} Perangkat Offline!</strong>
+        <div class="alert-banner mb-2">
+          <i class="bi bi-exclamation-triangle-fill"></i> <strong>${z.down_count} Perangkat Offline!</strong>
         </div>`;
     } else if (z.device_count > 0) {
       alertBox.innerHTML = `
-        <div class="alert alert-success p-2 mb-2 text-sm" style="font-size: 11px; background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 6px; color: #00d4ff;">
-          <i class="bi bi-check-circle-fill me-1"></i> Semua perangkat online
+        <div class="alert-banner mb-2" style="background:var(--green-dim); border-color:var(--green-dim); color:var(--green);">
+          <i class="bi bi-check-circle-fill"></i> Semua perangkat online
         </div>`;
     } else {
       alertBox.innerHTML = '';
     }
 
     if (sortedDevs.length === 0) {
-      list.innerHTML = `<li class="p-2 text-center text-muted text-sm" style="font-size:12px;">Tidak ada perangkat di zone ini</li>`;
+      list.innerHTML = `<li class="p-2 text-center text-muted text-sm">Tidak ada perangkat di zone ini</li>`;
     } else {
       list.innerHTML = sortedDevs.map(d => {
         const stat = d.status || 'unknown';
         const col = COLOR[stat] || COLOR.unknown;
-        const badgeClass = stat === 'down' ? 'bg-danger text-white' : (stat === 'warning' ? 'bg-warning text-dark' : 'bg-success text-white');
         return `
           <li class="device-item">
             <span class="d-flex align-items-center">
               <span class="status-indicator" style="background:${col}"></span>
               <div>
-                <strong style="color: #e6edf3;">${esc(d.name)}</strong>
-                <div class="text-muted mono-sm" style="font-size: 10px; line-height: 1.35;">
+                <strong style="color: var(--text-primary);">${esc(d.name)}</strong>
+                <div class="text-muted mono-sm" style="font-size: 11px; line-height: 1.35;">
                   ${esc(d.ip)}
-                  ${d.cpu_usage !== null && d.cpu_usage !== undefined ? ` | CPU: <span style="color: #00d4ff">${formatPercent(d.cpu_usage)}</span>` : ''}
-                  ${d.memory_usage !== null && d.memory_usage !== undefined ? ` | RAM: <span style="color: #00d4ff">${formatPercent(d.memory_usage)}</span>` : ''}
-                  ${d.temperature !== null && d.temperature !== undefined ? ` | Suhu: <span style="color: #ff4b4b">${formatTemp(d.temperature)}</span>` : ''}
-                  ${d.wan_in !== null && d.wan_in !== undefined ? ` | IN: <span style="color: #58a6ff">${formatBandwidth(d.wan_in)}</span>` : ''}
-                  ${d.wan_out !== null && d.wan_out !== undefined ? ` | OUT: <span style="color: #bc8cff">${formatBandwidth(d.wan_out)}</span>` : ''}
+                  ${d.cpu_usage !== null && d.cpu_usage !== undefined ? ` | CPU: <span style="color: var(--accent)">${formatPercent(d.cpu_usage)}</span>` : ''}
+                  ${d.memory_usage !== null && d.memory_usage !== undefined ? ` | RAM: <span style="color: var(--accent)">${formatPercent(d.memory_usage)}</span>` : ''}
+                  ${d.temperature !== null && d.temperature !== undefined ? ` | Suhu: <span style="color: var(--red)">${formatTemp(d.temperature)}</span>` : ''}
+                  ${d.wan_in !== null && d.wan_in !== undefined ? ` | IN: <span style="color: var(--accent)">${formatBandwidth(d.wan_in)}</span>` : ''}
+                  ${d.wan_out !== null && d.wan_out !== undefined ? ` | OUT: <span style="color: var(--purple)">${formatBandwidth(d.wan_out)}</span>` : ''}
                 </div>
               </div>
             </span>

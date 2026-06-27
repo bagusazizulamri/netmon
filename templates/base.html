@@ -112,58 +112,58 @@
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeDetailModal()"></button>
       </div>
-      <div class="modal-body p-3" style="background-color: var(--bg-base);">
+      <div class="modal-body p-3">
         <div class="row g-3">
           <!-- Left side: Device Info & Stats -->
           <div class="col-md-5 col-lg-4">
-            <div class="nm-card mb-3 p-3 shadow-md border-accent-subtle">
-              <h6 class="text-accent mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
-                <i class="bi bi-hdd-network-fill"></i> Informasi Sistem
+            <div class="nm-card mb-3 p-3">
+              <h6 class="mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
+                <i class="bi bi-hdd-network-fill"></i> System Information
               </h6>
               <div class="detail-info-grid">
-                <div class="di-row"><span>IP Address:</span> <strong id="det-ip" class="mono-sm text-primary"></strong></div>
-                <div class="di-row"><span>Vendor/Model:</span> <strong id="det-vendor-model" class="text-primary"></strong></div>
-                <div class="di-row"><span>System Name:</span> <strong id="det-sys-name" class="text-primary"></strong></div>
-                <div class="di-row"><span>Uptime:</span> <strong id="det-uptime" class="mono-sm text-primary"></strong></div>
+                <div class="di-row"><span>IP Address:</span> <strong id="det-ip" class="mono-sm"></strong></div>
+                <div class="di-row"><span>Vendor/Model:</span> <strong id="det-vendor-model"></strong></div>
+                <div class="di-row"><span>System Name:</span> <strong id="det-sys-name"></strong></div>
+                <div class="di-row"><span>Uptime:</span> <strong id="det-uptime" class="mono-sm"></strong></div>
                 <div class="di-row d-flex flex-column align-items-start gap-1 pb-1 border-0">
-                  <span class="mb-1 text-xs">Keterangan:</span> 
-                  <div id="det-desc" class="text-secondary text-xs bg-dark p-2 w-100 rounded border border-secondary border-opacity-10" style="max-height:80px; overflow-y:auto; font-size:10.5px; white-space: pre-wrap;"></div>
+                  <span class="mb-1 text-xs">Description:</span> 
+                  <div id="det-desc" class="text-secondary text-xs p-2 w-100 rounded" style="background: var(--bg-hover); max-height:80px; overflow-y:auto; white-space: pre-wrap;"></div>
                 </div>
               </div>
             </div>
             
-            <div class="nm-card p-3 shadow-md">
-              <h6 class="text-accent mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
-                <i class="bi bi-speedometer2"></i> Penggunaan Resource
+            <div class="nm-card p-3">
+              <h6 class="mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
+                <i class="bi bi-speedometer2"></i> Resource Usage
               </h6>
               <!-- CPU progress -->
               <div class="mb-2">
                 <div class="d-flex justify-content-between mb-1">
                   <span class="text-xs text-secondary">CPU Usage</span>
-                  <strong class="text-xs text-accent" id="det-cpu-val">—</strong>
+                  <strong class="text-xs" id="det-cpu-val">—</strong>
                 </div>
-                <div class="nm-progress" style="height: 6px;">
-                  <div class="nm-progress-bar bg-accent" id="det-cpu-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                <div class="nm-progress">
+                  <div class="nm-progress-bar" id="det-cpu-bar" style="width: 0%;"></div>
                 </div>
               </div>
               <!-- RAM progress -->
               <div class="mb-2">
                 <div class="d-flex justify-content-between mb-1">
                   <span class="text-xs text-secondary">Memory Usage</span>
-                  <strong class="text-xs text-accent" id="det-mem-val">—</strong>
+                  <strong class="text-xs" id="det-mem-val">—</strong>
                 </div>
-                <div class="nm-progress" style="height: 6px;">
-                  <div class="nm-progress-bar bg-accent" id="det-mem-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                <div class="nm-progress">
+                  <div class="nm-progress-bar" id="det-mem-bar" style="width: 0%;"></div>
                 </div>
               </div>
               <!-- Temperature progress -->
               <div class="mb-1">
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-xs text-secondary">Suhu Perangkat</span>
+                  <span class="text-xs text-secondary">Temperature</span>
                   <strong class="text-xs text-danger" id="det-temp-val">—</strong>
                 </div>
-                <div class="nm-progress" style="height: 6px;">
-                  <div class="nm-progress-bar bg-danger" id="det-temp-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                <div class="nm-progress">
+                  <div class="nm-progress-bar bg-danger" id="det-temp-bar" style="width: 0%;"></div>
                 </div>
               </div>
             </div>
@@ -171,52 +171,52 @@
           
           <!-- Right side: Real-time Traffic Chart & Ports -->
           <div class="col-md-7 col-lg-8">
-            <div class="nm-card p-3 mb-3 shadow-md">
+            <div class="nm-card p-3 mb-3">
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="text-accent m-0 d-flex align-items-center gap-2 fw-600 text-sm">
-                  <i class="bi bi-activity"></i> Grafik Traffic Real-time
+                <h6 class="m-0 d-flex align-items-center gap-2 fw-600 text-sm">
+                  <i class="bi bi-activity"></i> Real-time Traffic
                 </h6>
                 <div class="d-flex gap-2 align-items-center" id="det-iface-select-wrapper">
-                  <span class="text-xs text-secondary">Pilih Interface:</span>
-                  <select class="nm-select py-0 px-2 text-xs bg-dark text-primary border border-secondary border-opacity-25 rounded" id="det-iface-select" onchange="onInterfaceChange()" style="min-width: 150px; height:24px;"></select>
+                  <span class="text-xs text-secondary">Interface:</span>
+                  <select class="nm-select py-0 px-2 text-xs rounded" id="det-iface-select" onchange="onInterfaceChange()" style="min-width: 150px; height:26px;"></select>
                 </div>
               </div>
               
               <!-- Chart container -->
-              <div style="position: relative; height: 160px; width: 100%;" class="bg-dark p-1 rounded border border-secondary border-opacity-10">
+              <div style="position: relative; height: 160px; width: 100%;" class="p-1 rounded">
                 <canvas id="trafficChart"></canvas>
               </div>
               
               <!-- Live Legend -->
               <div class="d-flex gap-3 justify-content-center mt-2 flex-wrap">
-                <div class="d-flex align-items-center gap-2 bg-dark px-2 py-1 rounded border border-secondary border-opacity-10">
-                  <span style="display:inline-block; width:8px; height:8px; background:#58a6ff; border-radius:50%;"></span>
-                  <span class="text-xs text-secondary">Inbound: <strong id="det-traffic-in" class="mono-sm text-accent ms-1" style="font-size:11px;">0 bps</strong></span>
+                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded" style="background: var(--bg-hover);">
+                  <span style="display:inline-block; width:8px; height:8px; background:var(--accent); border-radius:50%;"></span>
+                  <span class="text-xs text-secondary">Inbound: <strong id="det-traffic-in" class="mono-sm text-primary ms-1">0 bps</strong></span>
                 </div>
-                <div class="d-flex align-items-center gap-2 bg-dark px-2 py-1 rounded border border-secondary border-opacity-10">
-                  <span style="display:inline-block; width:8px; height:8px; background:#bc8cff; border-radius:50%;"></span>
-                  <span class="text-xs text-secondary">Outbound: <strong id="det-traffic-out" class="mono-sm text-accent ms-1" style="font-size:11px;">0 bps</strong></span>
+                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded" style="background: var(--bg-hover);">
+                  <span style="display:inline-block; width:8px; height:8px; background:var(--purple); border-radius:50%;"></span>
+                  <span class="text-xs text-secondary">Outbound: <strong id="det-traffic-out" class="mono-sm text-primary ms-1">0 bps</strong></span>
                 </div>
               </div>
             </div>
             
             <!-- Interfaces list table -->
-            <div class="nm-card p-3 shadow-md" id="det-interfaces-card">
-              <h6 class="text-accent mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
-                <i class="bi bi-ethernet"></i> Status Interface / Port
+            <div class="nm-card p-3" id="det-interfaces-card">
+              <h6 class="mb-2 d-flex align-items-center gap-2 fw-600 text-sm">
+                <i class="bi bi-ethernet"></i> Interface Status
               </h6>
-              <div style="max-height: 140px; overflow-y: auto;" class="border border-secondary border-opacity-10 rounded">
+              <div style="max-height: 140px; overflow-y: auto;" class="rounded">
                 <table class="nm-table table-sm m-0">
-                  <thead class="sticky-top bg-dark" style="font-size:11px;">
+                  <thead class="sticky-top">
                     <tr>
                       <th class="border-0">Port Name</th>
                       <th class="border-0">Status</th>
                       <th class="border-0">Port Speed</th>
-                      <th class="border-0">Total Received (Rx)</th>
-                      <th class="border-0">Total Transmitted (Tx)</th>
+                      <th class="border-0">Received (Rx)</th>
+                      <th class="border-0">Transmitted (Tx)</th>
                     </tr>
                   </thead>
-                  <tbody id="det-interfaces-tbody" style="font-size:11px;">
+                  <tbody id="det-interfaces-tbody">
                     <tr><td colspan="5" class="text-center text-muted py-3">No interfaces found.</td></tr>
                   </tbody>
                 </table>
