@@ -263,7 +263,8 @@ def get_device_realtime_stats(device_id):
     if not device:
         return jsonify({'status': 'error', 'message': 'Device not found'}), 404
         
-    is_unifi = (device.get('type') == 'unifi') or (device.get('unifi_id') != '') or ('ubiquiti' in str(device.get('vendor')).lower())
+    unifi_id = device.get('unifi_id') or ''
+    is_unifi = (device.get('type') == 'unifi') or (unifi_id != '') or ('ubiquiti' in str(device.get('vendor') or '').lower())
     
     if is_unifi:
         try:

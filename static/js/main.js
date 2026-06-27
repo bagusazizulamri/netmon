@@ -439,7 +439,9 @@ function fetchRealtimeStats() {
       const titleText = String(document.getElementById('det-title')?.textContent || '').toLowerCase();
       const modelText = String(document.getElementById('det-vendor-model')?.textContent || '').toLowerCase();
       
-      const isRouterOrSwitch = (
+      const hasInterfaces = interfaces.length > 0;
+      
+      const showPortList = (
         typeLower === 'router' || 
         typeLower === 'switch' || 
         typeLower === 'usw' || 
@@ -448,22 +450,26 @@ function fetchRealtimeStats() {
         modelText.includes('usw')
       );
       
+      // Show interface selector only for routers/switches with multiple ports
       if (selectWrapper) {
-        selectWrapper.style.setProperty('display', isRouterOrSwitch ? 'flex' : 'none', 'important');
+        selectWrapper.style.setProperty('display', (showPortList && hasInterfaces) ? 'flex' : 'none', 'important');
       }
+      // Show interface table only for routers/switches
       if (interfacesCard) {
-        interfacesCard.style.setProperty('display', isRouterOrSwitch ? 'block' : 'none', 'important');
+        interfacesCard.style.setProperty('display', (showPortList && hasInterfaces) ? 'block' : 'none', 'important');
       }
       
-      if (!isRouterOrSwitch) {
-        // Non-router/switch: sum up all traffic for global view
-        const globalIface = {
-          index: 9999,
-          name: 'Global Traffic',
-          rx_bytes: interfaces.reduce((sum, item) => sum + (item.rx_bytes || 0), 0),
-          tx_bytes: interfaces.reduce((sum, item) => sum + (item.tx_bytes || 0), 0)
-        };
-        updateChartData(globalIface);
+      if (!showPortList || !hasInterfaces) {
+        // Non-router/switch or no interfaces: sum all traffic for global chart
+        if (hasInterfaces) {
+          const globalIface = {
+            index: 9999,
+            name: 'Global Traffic',
+            rx_bytes: interfaces.reduce((sum, item) => sum + (item.rx_bytes || 0), 0),
+            tx_bytes: interfaces.reduce((sum, item) => sum + (item.tx_bytes || 0), 0)
+          };
+          updateChartData(globalIface);
+        }
         return;
       }
       
