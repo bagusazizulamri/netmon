@@ -150,9 +150,12 @@ def detect_device_info():
     # 2. Try SNMP Query
     if snmp_worker:
         res = snmp_worker._get(ip, snmp_community, [
-            '1.3.6.1.2.1.1.1.0', # sysDescr
-            '1.3.6.1.2.1.1.2.0', # sysObjectID
-            '1.3.6.1.2.1.1.5.0'  # sysName
+            '1.3.6.1.2.1.1.1.0',           # sysDescr
+            '1.3.6.1.2.1.1.2.0',           # sysObjectID
+            '1.3.6.1.2.1.1.5.0',           # sysName
+            '1.3.6.1.4.1.14988.1.1.4.1.0',  # MikroTik Model
+            '1.3.6.1.4.1.41112.1.4.1.1.1.1', # Ubiquiti Model
+            '1.3.6.1.2.1.47.1.1.1.1.13.1'   # Cisco/Standard Model
         ], port=snmp_port, version=snmp_version, timeout=1.5)
         
         if res:
@@ -162,28 +165,65 @@ def detect_device_info():
             
             # Vendor detection
             vendor = 'Unknown'
-            if '14988' in sys_obj_id or 'mikrotik' in descr.lower() or 'routeros' in descr.lower():
+            if '14988' in sys_obj_id or 'mikrotik' in descr.lower() or 'routeros' in descr.lower() or 'routerboard' in descr.lower():
                 vendor = 'MikroTik'
             elif '4881' in sys_obj_id or 'ruijie' in descr.lower() or 'reyee' in descr.lower():
                 vendor = 'Ruijie'
-            elif '41112' in sys_obj_id or 'ubiquiti' in descr.lower() or 'unifi' in descr.lower():
+            elif '41112' in sys_obj_id or 'ubiquiti' in descr.lower() or 'unifi' in descr.lower() or 'ubnt' in descr.lower():
                 vendor = 'Ubiquiti'
             elif '9.1.' in sys_obj_id or '9.9.' in sys_obj_id or '.9.' in sys_obj_id or 'cisco' in descr.lower():
                 vendor = 'Cisco'
+            elif 'generic' in descr.lower() or 'linux' in descr.lower() or 'windows' in descr.lower():
+                vendor = 'Generic'
                 
-            # Guess Type & Icon
-            device_type = snmp_worker._guess_type(descr)
-            
-            # Guess Model from description
+            # Model extraction
             model = ""
-            if descr:
-                words = descr.split()
-                if vendor == 'MikroTik' and len(words) > 1:
-                    model = words[1]
-                elif vendor == 'Ruijie' and len(words) > 1:
-                    model = words[0]
-                else:
+            if vendor == 'MikroTik' and res.get('1.3.6.1.4.1.14988.1.1.4.1.0'):
+                model = res['1.3.6.1.4.1.14988.1.1.4.1.0'].strip()
+            elif vendor == 'Ubiquiti' and res.get('1.3.6.1.4.1.41112.1.4.1.1.1.1'):
+                model = res['1.3.6.1.4.1.41112.1.4.1.1.1.1'].strip()
+            elif res.get('1.3.6.1.2.1.47.1.1.1.1.13.1'):
+                model = res['1.3.6.1.2.1.47.1.1.1.1.13.1'].strip()
+                
+            # Regex fallback
+            if not model and descr:
+                descr_clean = descr.replace('\r', '').replace('\n', ' ')
+                if vendor == 'Ruijie':
+                    match = re.search(r'(RG-[A-Za-z0-9()\-]+)', descr_clean)
+                    if match: model = match.group(1)
+                elif vendor == 'MikroTik':
+                    match = re.search(r'(RB\w+|CCR\w+|CRS\w+|CSS\w+|hEX\w+|LDF\w+|LHG\w+|NetMetal\w+|PowerBox\w+|QRT\w+|SXT\w+|wAP\w+)', descr_clean)
+                    if match: model = match.group(1)
+                elif vendor == 'Ubiquiti':
+                    match = re.search(r'(UAP-[A-Za-z0-9\-]+|US-[A-Za-z0-9\-]+|USW-[A-Za-z0-9\-]+|EdgeRouter\s+\S+|EdgeSwitch\s+\S+|NanoStation\s+\S+)', descr_clean)
+                    if match: model = match.group(1)
+                elif vendor == 'Cisco':
+                    match = re.search(r'(WS-C[A-Za-z0-9\-]+|C[0-9]{4}[A-Za-z0-9\-]*|Catalyst\s+[A-Za-z0-9\-]+)', descr_clean)
+                    if match: model = match.group(1)
+                    
+                if not model:
                     model = descr.split('\n')[0][:30].strip()
+            
+            # Smart Type classification
+            device_type = 'unknown'
+            model_lower = model.lower()
+            descr_lower = descr.lower()
+            
+            if any(x in model_lower for x in ('nbs', 'es-', 'nps', 's29', 's37', 's57', 's53', 'crs', 'css', 'usw', 'edgeswitch')) or \
+               any(x in descr_lower for x in ('switch', 'catalyst', 'nexus', 'ethernet switch')):
+                device_type = 'switch'
+            elif any(x in model_lower for x in ('rap', 'uap', 'ap-', 'ap ')) or \
+                 any(x in descr_lower for x in ('access point', 'aironet', 'unifi ap', 'wireless ap')):
+                device_type = 'access_point'
+            elif any(x in model_lower for x in ('eg', 'rsr', 'edgerouter', 'usg', 'udm', 'uxg')) or \
+                 any(x in descr_lower for x in ('router', 'routeros', 'gateway', 'security gateway')):
+                device_type = 'router'
+            elif any(x in descr_lower for x in ('linux', 'ubuntu', 'debian', 'centos', 'redhat', 'windows', 'win32', 'freebsd')):
+                device_type = 'server'
+            elif any(x in descr_lower for x in ('firewall', 'pfsense', 'fortigate', 'fortinet', 'checkpoint', 'asa')):
+                device_type = 'firewall'
+            elif any(x in descr_lower for x in ('printer', 'laserjet', 'epson', 'canon', 'hp officejet')):
+                device_type = 'printer'
             
             return jsonify({
                 'status': 'success',
