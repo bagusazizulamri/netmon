@@ -361,8 +361,17 @@ main() {
     # 4. Delete old installation files
     if [[ -d "$INSTALL_DIR" && "$INSTALL_DIR" != "/" ]]; then
       info "Cleaning up old installation directory: $INSTALL_DIR"
+      find "$INSTALL_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+      find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
       rm -rf "$INSTALL_DIR"
     fi
+
+    # Deep Cleaning caches
+    info "Deep cleaning package build caches..."
+    rm -rf /root/.cache/pip
+    rm -rf /home/*/.cache/pip
+    rm -rf /tmp/netmon*
+    rm -rf /tmp/pip-unpack-*
 
     success "Existing installation cleaned up successfully."
   fi
@@ -373,12 +382,25 @@ main() {
   create_dirs
   copy_files
 
-  # Restore database if backed up
+  # Restore database if backed up or if a preserved database exists
   if [[ "$backup_db" == "true" && -f "$db_backup_path" ]]; then
     step "Restoring database"
     cp "$db_backup_path" "$INSTALL_DIR/netmon.db"
     rm -f "$db_backup_path"
     success "Database restored to $INSTALL_DIR/netmon.db"
+  elif [[ -f "/var/lib/netmon.db" ]]; then
+    step "Preserved database found at /var/lib/netmon.db"
+    local restore_preserved="Y"
+    if [[ -t 0 ]]; then
+      read -rp "  Apakah Anda ingin memulihkan database lama yang tersimpan? [Y/n]: " restore_preserved
+      restore_preserved="${restore_preserved:-Y}"
+    fi
+    if [[ "$restore_preserved" =~ ^[Yy]$ ]]; then
+      cp "/var/lib/netmon.db" "$INSTALL_DIR/netmon.db"
+      success "Database dipulihkan dari /var/lib/netmon.db"
+    else
+      info "Database lama di /var/lib/netmon.db diabaikan."
+    fi
   fi
 
   create_venv

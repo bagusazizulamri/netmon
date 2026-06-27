@@ -80,13 +80,51 @@ delete_files() {
   if [[ -d "$INSTALL_DIR" ]]; then
     # Double check it is not root directory before deletion
     if [[ "$INSTALL_DIR" != "/" && "$INSTALL_DIR" != "/home" ]]; then
+      
+      # Database preservation logic
+      if [[ -f "$INSTALL_DIR/netmon.db" ]]; then
+        if [[ ! "${REMOVE_DB:-N}" =~ ^[Yy]$ ]]; then
+          info "Preserving database: copying $INSTALL_DIR/netmon.db to /var/lib/netmon.db"
+          mkdir -p /var/lib
+          cp "$INSTALL_DIR/netmon.db" /var/lib/netmon.db
+          success "Database preserved at /var/lib/netmon.db"
+        fi
+      fi
+      
+      # Clean python cache inside install dir before deletion
+      find "$INSTALL_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+      find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
+      
       rm -rf "$INSTALL_DIR"
-      success "Deleted folder: $INSTALL_DIR (including database, venv, and templates)"
+      success "Deleted folder: $INSTALL_DIR (venv, code, templates, and static assets cleaned)"
     else
       error "Safety trigger: INSTALL_DIR points to root or home directory!"
     fi
   else
     info "Installation directory $INSTALL_DIR not found"
+  fi
+  
+  # Deep Cleaning remnants
+  step "Deep cleaning system caches and temporary files"
+  
+  # Clean PIP cache
+  rm -rf /root/.cache/pip
+  rm -rf /home/*/.cache/pip
+  if command -v pip &>/dev/null; then
+    pip cache purge &>/dev/null || true
+  fi
+  success "Cleared PIP installation cache"
+  
+  # Clean system temporary files
+  rm -rf /tmp/netmon*
+  rm -rf /tmp/pip-unpack-*
+  success "Cleared temporary build files"
+  
+  # Reset systemd failed logs
+  if [[ $OS == "Linux" ]] && command -v systemctl &>/dev/null; then
+    systemctl reset-failed netmon 2>/dev/null || true
+    systemctl daemon-reload
+    success "Reset systemd failed units registry"
   fi
 }
 
@@ -130,6 +168,9 @@ main() {
     echo -e "\n  ${YELLOW}Uninstallation cancelled.${NC}\n"
     exit 0
   fi
+  
+  read -rp "  Apakah Anda ingin menghapus database aplikasi (netmon.db)? [y/N]: " REMOVE_DB
+  REMOVE_DB="${REMOVE_DB:-N}"
   
   stop_service
   remove_firewall

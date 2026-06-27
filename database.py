@@ -127,10 +127,38 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_metrics_device ON snmp_metrics(device_id, metric_name);
             ''')
 
-            # Migration: Add CPU, Memory, Temperature, and WAN Bandwidth fields to devices if they don't exist
-            for col in ['cpu_usage', 'memory_usage', 'temperature', 'wan_in', 'wan_out']:
+            # Migration: Add any missing fields to devices table if they don't exist (preserving DB state)
+            columns_definitions = {
+                'mac': "TEXT DEFAULT ''",
+                'type': "TEXT DEFAULT 'unknown'",
+                'vendor': "TEXT DEFAULT ''",
+                'model': "TEXT DEFAULT ''",
+                'zone_id': "INTEGER DEFAULT 1",
+                'snmp_enabled': "INTEGER DEFAULT 0",
+                'snmp_community': "TEXT DEFAULT 'public'",
+                'snmp_version': "TEXT DEFAULT '2c'",
+                'snmp_port': "INTEGER DEFAULT 161",
+                'status': "TEXT DEFAULT 'unknown'",
+                'last_seen': "TEXT",
+                'last_polled': "TEXT",
+                'uptime': "TEXT DEFAULT ''",
+                'description': "TEXT DEFAULT ''",
+                'sys_name': "TEXT DEFAULT ''",
+                'pos_x': "REAL DEFAULT 100",
+                'pos_y': "REAL DEFAULT 100",
+                'icon': "TEXT DEFAULT 'router'",
+                'unifi_id': "TEXT DEFAULT ''",
+                'cpu_usage': "REAL DEFAULT NULL",
+                'memory_usage': "REAL DEFAULT NULL",
+                'temperature': "REAL DEFAULT NULL",
+                'wan_in': "REAL DEFAULT NULL",
+                'wan_out': "REAL DEFAULT NULL",
+                'created_at': "TEXT DEFAULT (datetime('now'))",
+                'updated_at': "TEXT DEFAULT (datetime('now'))"
+            }
+            for col, defn in columns_definitions.items():
                 try:
-                    c.execute(f"ALTER TABLE devices ADD COLUMN {col} REAL DEFAULT NULL")
+                    c.execute(f"ALTER TABLE devices ADD COLUMN {col} {defn}")
                 except sqlite3.OperationalError:
                     pass # Column already exists
 
