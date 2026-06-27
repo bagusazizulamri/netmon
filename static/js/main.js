@@ -3,7 +3,7 @@
    ============================================================ */
 
 // ---- Socket.IO setup ----
-const socket = io({ transports: ['websocket', 'polling'] });
+const socket = io({ transports: ['polling', 'websocket'] });
 
 socket.on('connect', () => {
   const el = document.getElementById('sb-conn');
