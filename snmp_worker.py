@@ -163,14 +163,21 @@ class SNMPWorker:
         except Exception:
             return False
 
-    def _get_resource_metrics(self, ip, community, port, version, vendor_lower, descr_lower):
+    def _get_resource_metrics(self, ip, community, port, version, vendor_lower, descr_lower, sys_obj_id=None):
         cpu_usage = None
         memory_usage = None
         temperature = None
         
+        sys_obj_id = str(sys_obj_id or '').lower()
+        
+        is_mikrotik = 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower or '14988' in sys_obj_id
+        is_ruijie = 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower or '4881' in sys_obj_id
+        is_ubiquiti = 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower or '41112' in sys_obj_id
+        is_cisco = 'cisco' in vendor_lower or 'cisco' in descr_lower or ('9.1.' in sys_obj_id or '9.9.' in sys_obj_id or '.9.' in sys_obj_id)
+        
         # --- VENDOR SPECIFIC QUERIES ---
         # 1. MikroTik
-        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+        if is_mikrotik:
             res = self._get(ip, community, [
                 '1.3.6.1.4.1.14988.1.1.3.10.0', # CPU Load
                 '1.3.6.1.4.1.14988.1.1.3.8.0',  # Temperature
@@ -194,7 +201,7 @@ class SNMPWorker:
                     except Exception: pass
                     
         # 2. Ruijie / Reyee
-        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
+        elif is_ruijie:
             res = self._get(ip, community, [
                 '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0',   # CPU utilization
                 '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0', # Memory utilization
@@ -249,7 +256,7 @@ class SNMPWorker:
                 except ValueError: pass
                 
         # 3. Ubiquiti / UniFi SNMP
-        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
+        elif is_ubiquiti:
             res = self._get(ip, community, [
                 '1.3.6.1.4.1.41112.1.4.1.1.4.1', # CPU load percentage
                 '1.3.6.1.4.1.41112.1.4.1.1.5.1'  # Memory usage percentage
@@ -263,7 +270,7 @@ class SNMPWorker:
                     except ValueError: pass
                     
         # 4. Cisco
-        elif 'cisco' in vendor_lower or 'cisco' in descr_lower:
+        elif is_cisco:
             res = self._get(ip, community, [
                 '1.3.6.1.4.1.9.9.109.1.1.1.1.5.1', # CPU 1-min load %
                 '1.3.6.1.4.1.9.9.48.1.1.1.5.1',    # Memory Used
@@ -289,35 +296,62 @@ class SNMPWorker:
         if cpu_usage is None:
             cpu_walk = self._walk(ip, community, '1.3.6.1.2.1.25.3.3.1.2', port=port, version=version)
             if cpu_walk:
-                cpu_vals = [float(v) for v in cpu_walk.values() if str(v).isdigit()]
+                cpu_vals = [float(v) for v in cpu_walk.values() if str(v).strip().isdigit()]
                 if cpu_vals: cpu_usage = sum(cpu_vals) / len(cpu_vals)
             else:
                 cpu_res = self._get(ip, community, ['1.3.6.1.2.1.25.3.3.1.2.1'], port=port, version=version)
                 if cpu_res and cpu_res.get('1.3.6.1.2.1.25.3.3.1.2.1') is not None:
                     try: cpu_usage = float(cpu_res['1.3.6.1.2.1.25.3.3.1.2.1'])
                     except ValueError: pass
+            
+            # Try UCD-SNMP-MIB for Linux systems
+            if cpu_usage is None:
+                cpu_res = self._get(ip, community, [
+                    '1.3.6.1.4.1.2021.11.9.0',
+                    '1.3.6.1.4.1.2021.11.10.0'
+                ], port=port, version=version)
+                if cpu_res and cpu_res.get('1.3.6.1.4.1.2021.11.9.0') is not None:
+                    try:
+                        u = float(cpu_res.get('1.3.6.1.4.1.2021.11.9.0', 0))
+                        s = float(cpu_res.get('1.3.6.1.4.1.2021.11.10.0', 0))
+                        cpu_usage = u + s
+                    except ValueError: pass
                     
         if memory_usage is None:
-            storage_types = self._walk(ip, community, '1.3.6.1.2.1.25.2.3.1.2', port=port, version=version)
-            ram_idx = None
-            if storage_types:
-                for k, v in storage_types.items():
-                    if v == '1.3.6.1.2.1.25.2.1.2': # Physical RAM type
-                        ram_idx = k.split('.')[-1]
-                        break
-            if ram_idx:
-                res_ram = self._get(ip, community, [
-                    f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}',
-                    f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}'
-                ], port=port, version=version)
-                if res_ram:
-                    try:
-                        tot = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}', 0))
-                        used = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}', 0))
-                        if tot > 0:
-                            memory_usage = (used / tot) * 100.0
-                    except Exception: pass
-                    
+            # Try UCD-SNMP-MIB for Linux first (memTotalReal .5, memAvailReal .6)
+            res_ucd = self._get(ip, community, [
+                '1.3.6.1.4.1.2021.4.5.0',
+                '1.3.6.1.4.1.2021.4.6.0'
+            ], port=port, version=version)
+            if res_ucd and res_ucd.get('1.3.6.1.4.1.2021.4.5.0') and res_ucd.get('1.3.6.1.4.1.2021.4.6.0'):
+                try:
+                    tot = float(res_ucd['1.3.6.1.4.1.2021.4.5.0'])
+                    avail = float(res_ucd['1.3.6.1.4.1.2021.4.6.0'])
+                    if tot > 0:
+                        memory_usage = ((tot - avail) / tot) * 100.0
+                except Exception: pass
+
+            if memory_usage is None:
+                storage_types = self._walk(ip, community, '1.3.6.1.2.1.25.2.3.1.2', port=port, version=version)
+                ram_idx = None
+                if storage_types:
+                    for k, v in storage_types.items():
+                        if v == '1.3.6.1.2.1.25.2.1.2': # Physical RAM type
+                            ram_idx = k.split('.')[-1]
+                            break
+                if ram_idx:
+                    res_ram = self._get(ip, community, [
+                        f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}',
+                        f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}'
+                    ], port=port, version=version)
+                    if res_ram:
+                        try:
+                            tot = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.5.{ram_idx}', 0))
+                            used = float(res_ram.get(f'1.3.6.1.2.1.25.2.3.1.6.{ram_idx}', 0))
+                            if tot > 0:
+                                memory_usage = (used / tot) * 100.0
+                        except Exception: pass
+                        
             if memory_usage is None:
                 common_indices = ['65536', '1', '101', '102', '2', '3']
                 oids_to_try = []
@@ -373,22 +407,39 @@ class SNMPWorker:
 
         result = None
         if snmp_en:
-            result = self._get(ip, community, [OID['sysDescr'], OID['sysName'], OID['sysUpTime']], port, version)
+            result = self._get(ip, community, [
+                OID['sysDescr'], 
+                '1.3.6.1.2.1.1.2.0', # sysObjectID
+                OID['sysUpTime'], 
+                OID['sysName']
+            ], port, version)
 
         if result:
             upd = {'status':'up', 'last_polled': now}
             if result.get(OID['sysName']):   upd['sys_name']    = result[OID['sysName']]
+            
+            sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
+            if '14988' in sys_obj_id:
+                upd['vendor'] = 'MikroTik'
+            elif '4881' in sys_obj_id:
+                upd['vendor'] = 'Ruijie'
+            elif '41112' in sys_obj_id:
+                upd['vendor'] = 'Ubiquiti'
+            elif '9.1.' in sys_obj_id or '9.9.' in sys_obj_id or '.9.' in sys_obj_id:
+                upd['vendor'] = 'Cisco'
+                
             if result.get(OID['sysDescr']):  
                 upd['description'] = result[OID['sysDescr']][:500]
-                desc_val = result[OID['sysDescr']].lower()
-                if 'ruijie' in desc_val or 'reyee' in desc_val:
-                    upd['vendor'] = 'Ruijie'
-                elif 'mikrotik' in desc_val or 'routeros' in desc_val:
-                    upd['vendor'] = 'MikroTik'
-                elif 'ubiquiti' in desc_val or 'ubnt' in desc_val or 'unifi' in desc_val:
-                    upd['vendor'] = 'Ubiquiti'
-                elif 'cisco' in desc_val:
-                    upd['vendor'] = 'Cisco'
+                if not upd.get('vendor'):
+                    desc_val = result[OID['sysDescr']].lower()
+                    if 'ruijie' in desc_val or 'reyee' in desc_val:
+                        upd['vendor'] = 'Ruijie'
+                    elif 'mikrotik' in desc_val or 'routeros' in desc_val:
+                        upd['vendor'] = 'MikroTik'
+                    elif 'ubiquiti' in desc_val or 'ubnt' in desc_val or 'unifi' in desc_val:
+                        upd['vendor'] = 'Ubiquiti'
+                    elif 'cisco' in desc_val:
+                        upd['vendor'] = 'Cisco'
             if result.get(OID['sysUpTime']): upd['uptime']      = result[OID['sysUpTime']]
 
             # Fetch updated vendor name
@@ -398,7 +449,7 @@ class SNMPWorker:
             descr_lower = str(current_desc).lower()
 
             # Dynamic resource usage extraction
-            metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower)
+            metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower, result.get('1.3.6.1.2.1.1.2.0', ''))
             upd.update(metrics)
             
             # Save metrics to DB timeseries
@@ -460,10 +511,12 @@ class SNMPWorker:
         # 1. Fetch system details
         res_sys = self._get(ip, community, [
             '1.3.6.1.2.1.1.1.0', # sysDescr
+            '1.3.6.1.2.1.1.2.0', # sysObjectID
             '1.3.6.1.2.1.1.3.0', # sysUpTime
             '1.3.6.1.2.1.1.5.0', # sysName
         ], port=port, version=version)
         
+        sys_obj_id = ""
         uptime = ""
         sys_name = ""
         description = ""
@@ -471,12 +524,13 @@ class SNMPWorker:
             uptime = res_sys.get('1.3.6.1.2.1.1.3.0', '')
             sys_name = res_sys.get('1.3.6.1.2.1.1.5.0', '')
             description = res_sys.get('1.3.6.1.2.1.1.1.0', '')
+            sys_obj_id = res_sys.get('1.3.6.1.2.1.1.2.0', '')
 
         # 2. CPU / Memory / Temp based on unified parser
         vendor_lower = str(device.get('vendor') or '').lower()
         descr_lower = str(description or device.get('description') or '').lower()
         
-        metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower)
+        metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower, sys_obj_id)
         cpu_usage = metrics['cpu_usage']
         memory_usage = metrics['memory_usage']
         temperature = metrics['temperature']

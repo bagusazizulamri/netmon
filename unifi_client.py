@@ -156,6 +156,19 @@ class UniFiClient:
                 'tx_bytes': tx_bytes
             })
             
+        # Fallback for devices without a port table (like APs) to show active bandwidth
+        if not interfaces:
+            rx_val = target.get('rx_bytes', 0)
+            tx_val = target.get('tx_bytes', 0)
+            interfaces.append({
+                'index': 1,
+                'name': 'Global Traffic',
+                'status': 'up',
+                'speed': 1000000000.0, # 1 Gbps virtual
+                'rx_bytes': rx_val,
+                'tx_bytes': tx_val
+            })
+            
         parsed['interfaces'] = interfaces
         return parsed
 

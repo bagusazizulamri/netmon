@@ -268,9 +268,23 @@ function openDeviceDetail(id) {
     dev = allDevices.find(x => x.id === id);
   }
   
+  if (trafficChartInstance) {
+    trafficChartInstance.destroy();
+    trafficChartInstance = null;
+  }
+
+  const startPolling = () => {
+    initChart();
+    if (detailModal) detailModal.show();
+    fetchRealtimeStats();
+    if (detailPollInterval) clearInterval(detailPollInterval);
+    detailPollInterval = setInterval(fetchRealtimeStats, 3000);
+  };
+
   if (dev) {
     activeDetailDeviceType = dev.type;
     populateBasicFields(dev);
+    startPolling();
   } else {
     // Fetch device info
     fetch(`/api/devices/${id}`)
@@ -278,21 +292,10 @@ function openDeviceDetail(id) {
       .then(data => {
         activeDetailDeviceType = data.type;
         populateBasicFields(data);
+        startPolling();
       })
       .catch(err => console.error("Error loading device metadata:", err));
   }
-  
-  if (trafficChartInstance) {
-    trafficChartInstance.destroy();
-    trafficChartInstance = null;
-  }
-  
-  initChart();
-  if (detailModal) detailModal.show();
-  fetchRealtimeStats();
-  
-  if (detailPollInterval) clearInterval(detailPollInterval);
-  detailPollInterval = setInterval(fetchRealtimeStats, 3000);
 }
 
 function populateBasicFields(dev) {
