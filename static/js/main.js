@@ -434,23 +434,53 @@ function fetchRealtimeStats() {
       }
       
       const prevSelectedIdx = select.value;
-      let optHtml = '';
-      interfaces.forEach(iface => {
-        const isSelected = (prevSelectedIdx === String(iface.index)) ? 'selected' : '';
-        const statusLabel = iface.status === 'up' ? '🟢' : '🔴';
-        optHtml += `<option value="${iface.index}" ${isSelected}>${statusLabel} ${esc(iface.name)}</option>`;
-      });
-      select.innerHTML = optHtml;
+      const existingRows = tbody.querySelectorAll('tr[data-index]');
+      const isInitialBuild = (existingRows.length !== interfaces.length);
       
-      tbody.innerHTML = interfaces.map(iface => `
-        <tr onclick="selectInterface(${iface.index})" style="cursor: pointer;" class="${prevSelectedIdx === String(iface.index) ? 'table-active' : ''}">
-          <td class="fw-500">${esc(iface.name)}</td>
-          <td>${iface.status === 'up' ? '<span class="text-success fw-600">UP</span>' : '<span class="text-danger">DOWN</span>'}</td>
-          <td class="mono-sm">${formatBandwidthSimple(iface.speed)}</td>
-          <td class="mono-sm text-muted">${(iface.rx_bytes || 0).toLocaleString()} B</td>
-          <td class="mono-sm text-muted">${(iface.tx_bytes || 0).toLocaleString()} B</td>
-        </tr>
-      `).join('');
+      if (isInitialBuild) {
+        // Build select options
+        let optHtml = '';
+        interfaces.forEach(iface => {
+          const isSelected = (prevSelectedIdx === String(iface.index)) ? 'selected' : '';
+          const statusLabel = iface.status === 'up' ? '🟢' : '🔴';
+          optHtml += `<option value="${iface.index}" ${isSelected}>${statusLabel} ${esc(iface.name)}</option>`;
+        });
+        select.innerHTML = optHtml;
+        
+        // Build table body
+        tbody.innerHTML = interfaces.map(iface => `
+          <tr data-index="${iface.index}" onclick="selectInterface(${iface.index})" style="cursor: pointer;" class="${prevSelectedIdx === String(iface.index) ? 'table-active' : ''}">
+            <td class="fw-500">${esc(iface.name)}</td>
+            <td>${iface.status === 'up' ? '<span class="text-success fw-600">UP</span>' : '<span class="text-danger">DOWN</span>'}</td>
+            <td class="mono-sm">${formatBandwidthSimple(iface.speed)}</td>
+            <td class="mono-sm text-muted">${(iface.rx_bytes || 0).toLocaleString()} B</td>
+            <td class="mono-sm text-muted">${(iface.tx_bytes || 0).toLocaleString()} B</td>
+          </tr>
+        `).join('');
+      } else {
+        // Update existing elements inline to prevent layout shifts/scroll resets
+        interfaces.forEach(iface => {
+          const row = tbody.querySelector(`tr[data-index="${iface.index}"]`);
+          if (row) {
+            // Update status text
+            const statusCell = row.cells[1];
+            const statusHtml = iface.status === 'up' ? '<span class="text-success fw-600">UP</span>' : '<span class="text-danger">DOWN</span>';
+            if (statusCell.innerHTML !== statusHtml) statusCell.innerHTML = statusHtml;
+            
+            // Update speed text
+            const speedText = formatBandwidthSimple(iface.speed);
+            if (row.cells[2].textContent !== speedText) row.cells[2].textContent = speedText;
+            
+            // Update Rx Bytes text
+            const rxText = `${(iface.rx_bytes || 0).toLocaleString()} B`;
+            if (row.cells[3].textContent !== rxText) row.cells[3].textContent = rxText;
+            
+            // Update Tx Bytes text
+            const txText = `${(iface.tx_bytes || 0).toLocaleString()} B`;
+            if (row.cells[4].textContent !== txText) row.cells[4].textContent = txText;
+          }
+        });
+      }
       
       let activeIdx = parseInt(select.value);
       if (isNaN(activeIdx) && interfaces.length > 0) {
@@ -497,16 +527,20 @@ function onInterfaceChange() {
   const activeIdx = select.value;
   
   Array.from(tbody.rows).forEach(row => {
-    const rowIdx = row.cells[0]?.textContent;
-    const optText = select.options[select.selectedIndex]?.text || '';
-    if (optText.includes(rowIdx)) {
+    const rowIdx = row.dataset.index;
+    if (rowIdx === String(activeIdx)) {
       row.classList.add('table-active');
     } else {
       row.classList.remove('table-active');
     }
   });
   
-  fetchRealtimeStats();
+  // Reset chart rolling datasets for the new interface to avoid draw lines connecting previous metrics
+  if (trafficChartInstance) {
+    chartRxData.fill(0);
+    chartTxData.fill(0);
+    trafficChartInstance.update('none');
+  }
 }
 
 function updateChartData(iface) {

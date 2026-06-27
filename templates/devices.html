@@ -20,13 +20,24 @@
   </div>
 </div>
 
-<!-- Zone filter tabs -->
-<div class="zone-tabs" id="zone-tabs">
-  <button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>
+<!-- Unified Filter and Stats Card -->
+<div class="nm-panel mb-4">
+  <div class="panel-body d-flex flex-wrap align-items-center justify-content-between gap-3 py-3" style="background: rgba(255,255,255,0.01);">
+    <!-- Left: Zone Filter Tabs -->
+    <div class="d-flex flex-column gap-2">
+      <span class="nm-section-lbl text-muted">Filter Zone</span>
+      <div class="zone-tabs m-0" id="zone-tabs">
+        <button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>
+      </div>
+    </div>
+    
+    <!-- Right: Device Stats Summary -->
+    <div class="d-flex flex-column gap-2 align-items-lg-end">
+      <span class="nm-section-lbl text-muted text-lg-end">Status Summary</span>
+      <div class="dev-stats-strip m-0" id="dev-stats-strip"></div>
+    </div>
+  </div>
 </div>
-
-<!-- Stats strip -->
-<div class="dev-stats-strip" id="dev-stats-strip"></div>
 
 <!-- Device table -->
 <div class="nm-panel">
@@ -55,20 +66,16 @@
       <thead>
         <tr>
           <th>Status</th>
-          <th>Name</th>
-          <th>IP Address</th>
-          <th>MAC</th>
-          <th>Type</th>
+          <th>Device / Type</th>
+          <th>IP & MAC Address</th>
           <th>Zone</th>
-          <th>SNMP</th>
-          <th>Metrics</th>
-          <th>Last Seen</th>
-          <th>Uptime</th>
+          <th>SNMP & Resource Metrics</th>
+          <th>Uptime & Last Seen</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="devices-tbody">
-        <tr><td colspan="11" class="text-center text-muted py-5">Loading…</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-5">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -341,45 +348,55 @@ function renderTable(devices) {
   document.getElementById('dev-count').textContent = devices.length;
   const tbody = document.getElementById('devices-tbody');
   if (!devices.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-5">
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5">
       No devices yet. <button class="btn-nm btn-sm btn-success" onclick="openDeviceModal()">Add one</button> or run a <button class="btn-nm btn-sm" onclick="openScanModal()">Network Scan</button>
     </td></tr>`;
     return;
   }
-  tbody.innerHTML = devices.map(d => `
+  tbody.innerHTML = devices.map(d => {
+    let metricsHtml = '';
+    if (d.snmp_enabled) {
+      metricsHtml += `<span class="badge-snmp on me-1">SNMP</span> `;
+      if (d.cpu_usage !== null && d.cpu_usage !== undefined) {
+        metricsHtml += `<span class="status-dot up py-1 px-2 border-0 bg-opacity-10" style="font-size:10.5px; background:rgba(0, 230, 118, 0.08); color:var(--green); border:1px solid rgba(0, 230, 118, 0.15) !important;">CPU: ${formatPercent(d.cpu_usage)}</span> `;
+      }
+      if (d.memory_usage !== null && d.memory_usage !== undefined) {
+        metricsHtml += `<span class="status-dot up py-1 px-2 border-0 bg-opacity-10" style="font-size:10.5px; background:rgba(0, 240, 255, 0.08); color:var(--accent); border:1px solid rgba(0, 240, 255, 0.15) !important;">RAM: ${formatPercent(d.memory_usage)}</span> `;
+      }
+      if (d.temperature !== null && d.temperature !== undefined) {
+        metricsHtml += `<span class="status-dot down py-1 px-2 border-0 bg-opacity-10" style="font-size:10.5px; background:rgba(255, 23, 68, 0.08); color:var(--red); border:1px solid rgba(255, 23, 68, 0.15) !important;">Temp: ${formatTemp(d.temperature)}</span> `;
+      }
+    } else {
+      metricsHtml += `<span class="badge-snmp off">SNMP OFF</span>`;
+    }
+
+    return `
     <tr class="dev-row" data-status="${d.status}" data-zone="${d.zone_id}"
         data-search="${(d.name+d.ip+(d.zone_name||'')+(d.type||'')).toLowerCase()}">
       <td>${statusBadge(d.status)}</td>
       <td>
         <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-${iconClass(d.icon||d.type)} text-accent"></i>
+          <i class="bi bi-${iconClass(d.icon||d.type)} text-accent fs-5"></i>
           <div>
-            <div class="text-sm fw-500">${esc(d.name)}</div>
-            ${d.sys_name && d.sys_name !== d.name ? `<div class="mono-sm text-muted">${esc(d.sys_name)}</div>` : ''}
+            <div class="text-sm fw-600 text-primary">${esc(d.name)}</div>
+            <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">${esc(d.type||'unknown')}</div>
           </div>
         </div>
       </td>
-      <td class="mono-sm">${esc(d.ip)}</td>
-      <td class="mono-sm text-muted">${esc(d.mac||'—')}</td>
-      <td class="text-sm text-muted">${esc(d.type||'—')}</td>
+      <td>
+        <div class="mono-sm fw-500 text-primary">${esc(d.ip)}</div>
+        <div class="mono-sm text-muted" style="font-size: 10.5px;">${esc(d.mac||'—')}</div>
+      </td>
       <td><span class="zone-pill" style="background:${d.zone_color||'#333'}">${esc(d.zone_name||'Default')}</span></td>
       <td>
-        ${d.snmp_enabled
-          ? `<span class="badge-snmp on">SNMP ON</span>`
-          : `<span class="badge-snmp off">SNMP OFF</span>`}
-      </td>
-      <td>
-        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 2px; line-height: 1.25;">
-          ${d.cpu_usage !== null && d.cpu_usage !== undefined ? `<div><span class="text-muted">CPU:</span> <strong style="color: #00d4ff">${formatPercent(d.cpu_usage)}</strong></div>` : ''}
-          ${d.memory_usage !== null && d.memory_usage !== undefined ? `<div><span class="text-muted">RAM:</span> <strong style="color: #00d4ff">${formatPercent(d.memory_usage)}</strong></div>` : ''}
-          ${d.temperature !== null && d.temperature !== undefined ? `<div><span class="text-muted">Suhu:</span> <strong style="color: #ff4b4b">${formatTemp(d.temperature)}</strong></div>` : ''}
-          ${d.wan_in !== null && d.wan_in !== undefined ? `<div><span class="text-muted">WAN In:</span> <strong style="color: #58a6ff; font-size:10px;">${formatBandwidth(d.wan_in)}</strong></div>` : ''}
-          ${d.wan_out !== null && d.wan_out !== undefined ? `<div><span class="text-muted">WAN Out:</span> <strong style="color: #bc8cff; font-size:10px;">${formatBandwidth(d.wan_out)}</strong></div>` : ''}
-          ${(d.cpu_usage === null || d.cpu_usage === undefined) && (d.memory_usage === null || d.memory_usage === undefined) && (d.temperature === null || d.temperature === undefined) && (d.wan_in === null || d.wan_in === undefined) && (d.wan_out === null || d.wan_out === undefined) ? '<span class="text-muted">—</span>' : ''}
+        <div class="d-flex flex-wrap gap-1 align-items-center">
+          ${metricsHtml}
         </div>
       </td>
-      <td class="text-sm text-muted mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
-      <td class="text-sm text-muted mono-sm">${esc(d.uptime||'—')}</td>
+      <td>
+        <div class="text-sm fw-500 text-primary">${esc(d.uptime||'—')}</div>
+        <div class="text-muted" style="font-size: 10.5px;">Seen: ${d.last_seen ? relTime(d.last_seen) : '—'}</div>
+      </td>
       <td>
         <div class="action-btns">
           <button class="btn-icon" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})"><i class="bi bi-info-circle-fill text-accent"></i></button>
@@ -389,7 +406,8 @@ function renderTable(devices) {
         </div>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function renderStatsStrip(devices) {
