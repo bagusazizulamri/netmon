@@ -105,6 +105,118 @@ def poll_device_now(device_id):
         return jsonify({'status': 'polling'})
     return jsonify({'status': 'error', 'message': 'Device not found'}), 404
 
+@app.route('/api/devices/detect', methods=['POST'])
+def detect_device_info():
+    import subprocess
+    import re
+    
+    data = request.get_json() or {}
+    ip = data.get('ip', '').strip()
+    if not ip:
+        return jsonify({'status': 'error', 'message': 'IP Address is required'}), 400
+        
+    snmp_community = data.get('snmp_community', 'public') or 'public'
+    snmp_version = data.get('snmp_version', '2c') or '2c'
+    snmp_port = int(data.get('snmp_port', 161) or 161)
+    
+    # 1. Resolve MAC address via ARP
+    mac = ""
+    try:
+        # Send a quick ping to populate ARP cache
+        ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+        subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Read ARP output
+        if os.name == 'nt':
+            res = subprocess.run(["arp", "-a", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+            out = res.stdout
+        else:
+            res = subprocess.run(["arp", "-n", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+            out = res.stdout
+            if (not out or "No ARP" in out) and os.path.exists("/proc/net/arp"):
+                with open("/proc/net/arp", "r") as f:
+                    out = f.read()
+                    
+        mac_re = re.compile(r'([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})')
+        for line in out.splitlines():
+            if ip in line:
+                match = mac_re.search(line)
+                if match:
+                    mac = match.group(0).upper().replace('-', ':')
+                    break
+    except Exception as e:
+        print(f"[Detect] ARP MAC fetch failed: {e}")
+
+    # 2. Try SNMP Query
+    if snmp_worker:
+        res = snmp_worker._get(ip, snmp_community, [
+            '1.3.6.1.2.1.1.1.0', # sysDescr
+            '1.3.6.1.2.1.1.2.0', # sysObjectID
+            '1.3.6.1.2.1.1.5.0'  # sysName
+        ], port=snmp_port, version=snmp_version, timeout=1.5)
+        
+        if res:
+            descr = res.get('1.3.6.1.2.1.1.1.0', '')
+            sys_obj_id = str(res.get('1.3.6.1.2.1.1.2.0', '')).lower()
+            name = res.get('1.3.6.1.2.1.1.5.0', '').strip() or ip
+            
+            # Vendor detection
+            vendor = 'Unknown'
+            if '14988' in sys_obj_id or 'mikrotik' in descr.lower() or 'routeros' in descr.lower():
+                vendor = 'MikroTik'
+            elif '4881' in sys_obj_id or 'ruijie' in descr.lower() or 'reyee' in descr.lower():
+                vendor = 'Ruijie'
+            elif '41112' in sys_obj_id or 'ubiquiti' in descr.lower() or 'unifi' in descr.lower():
+                vendor = 'Ubiquiti'
+            elif '9.1.' in sys_obj_id or '9.9.' in sys_obj_id or '.9.' in sys_obj_id or 'cisco' in descr.lower():
+                vendor = 'Cisco'
+                
+            # Guess Type & Icon
+            device_type = snmp_worker._guess_type(descr)
+            
+            # Guess Model from description
+            model = ""
+            if descr:
+                words = descr.split()
+                if vendor == 'MikroTik' and len(words) > 1:
+                    model = words[1]
+                elif vendor == 'Ruijie' and len(words) > 1:
+                    model = words[0]
+                else:
+                    model = descr.split('\n')[0][:30].strip()
+            
+            return jsonify({
+                'status': 'success',
+                'snmp_enabled': True,
+                'name': name,
+                'mac': mac,
+                'vendor': vendor,
+                'model': model,
+                'type': device_type
+            })
+            
+    # 3. Fallback to Ping to verify if host is reachable
+    is_alive = False
+    try:
+        ping_cmd = ["ping", "-n", "1", "-w", "800", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+        res = subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        is_alive = (res.returncode == 0)
+    except Exception:
+        pass
+        
+    if is_alive:
+        return jsonify({
+            'status': 'success',
+            'snmp_enabled': False,
+            'name': ip,
+            'mac': mac,
+            'vendor': 'Generic',
+            'model': 'Ping Only',
+            'type': 'unknown'
+        })
+        
+    return jsonify({'status': 'error', 'message': 'Device is unreachable or offline'}), 404
+
 @app.route('/api/devices/<int:device_id>/realtime_stats', methods=['GET'])
 def get_device_realtime_stats(device_id):
     device = db.get_device(device_id)

@@ -100,7 +100,12 @@
           </div>
           <div class="col-md-6">
             <label class="nm-label">IP Address <span class="text-danger">*</span></label>
-            <input type="text" class="nm-input" id="dev-ip" placeholder="192.168.1.1">
+            <div class="input-group" style="display: flex;">
+              <input type="text" class="nm-input" id="dev-ip" placeholder="192.168.1.1" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+              <button class="btn-nm btn-info px-3" type="button" id="btn-detect-device" onclick="autoDetectDevice()" style="border-top-left-radius: 0; border-bottom-left-radius: 0; font-size: 12px; height: 38px; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap;">
+                <i class="bi bi-cpu-fill" id="detect-icon"></i><span>Detect</span>
+              </button>
+            </div>
           </div>
           <div class="col-md-6">
             <label class="nm-label">MAC Address</label>
@@ -613,6 +618,66 @@ function doUnifiSync() {
       document.getElementById('uf-result').innerHTML =
         '<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>';
     });
+function autoDetectDevice() {
+  const ip = document.getElementById('dev-ip').value.trim();
+  if (!ip) {
+    showToast('Please enter an IP address first', 'warning');
+    return;
+  }
+  
+  const snmpEn = document.getElementById('dev-snmp-en').checked;
+  const community = document.getElementById('dev-community').value.trim() || 'public';
+  const version = document.getElementById('dev-version').value || '2c';
+  const port = parseInt(document.getElementById('dev-port').value) || 161;
+  
+  const btn = document.getElementById('btn-detect-device');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Detecting…';
+  }
+  
+  fetch('/api/devices/detect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ip: ip,
+      snmp_enabled: snmpEn,
+      snmp_community: community,
+      snmp_version: version,
+      snmp_port: port
+    })
+  })
+  .then(r => {
+    if (!r.ok) throw new Error('Detection failed');
+    return r.json();
+  })
+  .then(data => {
+    if (data.status === 'success') {
+      showToast('Device information auto-detected!', 'success');
+      
+      if (data.name) document.getElementById('dev-name').value = data.name;
+      if (data.mac) document.getElementById('dev-mac').value = data.mac;
+      if (data.vendor) document.getElementById('dev-vendor').value = data.vendor;
+      if (data.model) document.getElementById('dev-model').value = data.model;
+      if (data.type) document.getElementById('dev-type').value = data.type;
+      
+      if (data.snmp_enabled !== undefined) {
+        document.getElementById('dev-snmp-en').checked = data.snmp_enabled;
+      }
+    } else {
+      showToast(data.message || 'Unable to detect device details', 'danger');
+    }
+  })
+  .catch(err => {
+    showToast('Failed to connect or device is offline', 'danger');
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-cpu-fill me-1" id="detect-icon"></i><span>Detect</span>';
+    }
+  });
 }
 
 
