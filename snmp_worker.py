@@ -578,12 +578,21 @@ class SNMPWorker:
                     self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=1.5),
                     self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port, version, timeout=1.5)
                 ]
-                return await asyncio.gather(*tasks)
+                return await asyncio.gather(*tasks, return_exceptions=True)
                 
             results = loop.run_until_complete(fetch_all_walks())
             if results and len(results) == 9:
-                new_desc, new_type, new_speed, new_oper = results[0], results[1], results[2], results[3]
-                new_hc_in, new_hc_out, new_in, new_out, new_high_speed = results[4], results[5], results[6], results[7], results[8]
+                def clean_res(val):
+                    return val if isinstance(val, dict) else {}
+                new_desc = clean_res(results[0])
+                new_type = clean_res(results[1])
+                new_speed = clean_res(results[2])
+                new_oper = clean_res(results[3])
+                new_hc_in = clean_res(results[4])
+                new_hc_out = clean_res(results[5])
+                new_in = clean_res(results[6])
+                new_out = clean_res(results[7])
+                new_high_speed = clean_res(results[8])
         except Exception as e:
             print(f"[SNMP Detail] Parallel walks failed: {e}")
         finally:
