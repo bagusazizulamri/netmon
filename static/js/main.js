@@ -435,7 +435,18 @@ function fetchRealtimeStats() {
       const selectWrapper = document.getElementById('det-iface-select-wrapper');
       const interfacesCard = document.getElementById('det-interfaces-card');
       
-      const isRouterOrSwitch = (activeDetailDeviceType === 'router' || activeDetailDeviceType === 'switch');
+      const typeLower = String(activeDetailDeviceType || '').toLowerCase();
+      const titleText = String(document.getElementById('det-title')?.textContent || '').toLowerCase();
+      const modelText = String(document.getElementById('det-vendor-model')?.textContent || '').toLowerCase();
+      
+      const isRouterOrSwitch = (
+        typeLower === 'router' || 
+        typeLower === 'switch' || 
+        typeLower === 'usw' || 
+        titleText.includes('switch') || 
+        modelText.includes('switch') || 
+        modelText.includes('usw')
+      );
       
       if (selectWrapper) {
         selectWrapper.style.setProperty('display', isRouterOrSwitch ? 'flex' : 'none', 'important');
