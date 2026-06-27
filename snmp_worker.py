@@ -171,7 +171,7 @@ class SNMPWorker:
         sys_obj_id = str(sys_obj_id or '').lower()
         
         is_mikrotik = 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower or '14988' in sys_obj_id
-        is_ruijie = 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower or '4881' in sys_obj_id
+        is_ruijie = 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower or '4881' in sys_obj_id or 'rgos' in descr_lower or ('rg-' in descr_lower and 'rap' in descr_lower)
         is_ubiquiti = 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower or '41112' in sys_obj_id
         is_cisco = 'cisco' in vendor_lower or 'cisco' in descr_lower or ('9.1.' in sys_obj_id or '9.9.' in sys_obj_id or '.9.' in sys_obj_id)
         
@@ -842,25 +842,31 @@ class SNMPWorker:
             def scan_ip(ip):
                 if self._stop.is_set():
                     return None
-                result = self._get(ip, community, [OID['sysName'], OID['sysDescr']],
-                                   version=version, timeout=1)
+                oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
+                result = self._get(ip, community, oids, version=version, timeout=1.5)
+                
+                # Fallback to SNMP v1 if 2c fails
+                if not result and version == '2c':
+                    result = self._get(ip, community, oids, version='1', timeout=1.5)
+                    
                 if result:
                     name  = result.get(OID['sysName'],'').strip() or ip
                     descr = result.get(OID['sysDescr'],'').strip()
+                    sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
                     descr_lower = descr.lower()
                     vendor = 'Unknown'
-                    if 'ruijie' in descr_lower or 'reyee' in descr_lower:
+                    if '4881' in sys_obj_id or 'ruijie' in descr_lower or 'reyee' in descr_lower or 'rgos' in descr_lower:
                         vendor = 'Ruijie'
-                    elif 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+                    elif '14988' in sys_obj_id or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
                         vendor = 'MikroTik'
-                    elif 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
+                    elif '41112' in sys_obj_id or 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
                         vendor = 'Ubiquiti'
                     elif 'cisco' in descr_lower:
                         vendor = 'Cisco'
                     
-                    dev   = {'name':name,'ip':ip,'type':self._guess_type(descr),
+                    dev   = {'name':name,'ip':ip,'type':self._guess_type(descr, vendor=vendor),
                              'vendor':vendor,
-                             'icon':self._guess_icon(descr),'description':descr[:200],
+                             'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
                              'sys_name':name,'snmp_enabled':True,
                              'snmp_community':community,'snmp_version':version,
                              'status':'up','zone_id':zone_id}
@@ -915,19 +921,21 @@ class SNMPWorker:
         finally:
             self._status['running'] = False
 
-    def _guess_type(self, d):
+    def _guess_type(self, d, vendor=''):
         if not d: return 'unknown'
         d = d.lower()
+        vendor = vendor.lower()
         if any(x in d for x in ('switch','catalyst','nexus')): return 'switch'
         if any(x in d for x in ('router','routeros','mikrotik')): return 'router'
         if any(x in d for x in ('linux','ubuntu','debian','centos')): return 'server'
         if any(x in d for x in ('windows','win32')): return 'server'
-        if any(x in d for x in ('access point','aironet','unifi')): return 'access_point'
+        if any(x in d for x in ('access point','aironet','unifi','rap','rg-rap','wlan ap','wireless ap','reyee ap')): return 'access_point'
+        if vendor == 'ruijie' and ('rgos' in d or 'rg-' in d) and not any(x in d for x in ('nbs','nps','s29','s37','s57')): return 'access_point'
         if any(x in d for x in ('firewall','pfsense','fortigate','checkpoint')): return 'firewall'
         if any(x in d for x in ('printer','laserjet')): return 'printer'
         return 'unknown'
 
-    def _guess_icon(self, d):
-        t = self._guess_type(d)
+    def _guess_icon(self, d, vendor=''):
+        t = self._guess_type(d, vendor=vendor)
         return {'switch':'switch','router':'router','server':'server',
                 'access_point':'wifi','firewall':'shield','printer':'printer'}.get(t,'device')

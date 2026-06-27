@@ -149,14 +149,21 @@ def detect_device_info():
 
     # 2. Try SNMP Query
     if snmp_worker:
-        res = snmp_worker._get(ip, snmp_community, [
+        oids_to_query = [
             '1.3.6.1.2.1.1.1.0',           # sysDescr
             '1.3.6.1.2.1.1.2.0',           # sysObjectID
             '1.3.6.1.2.1.1.5.0',           # sysName
             '1.3.6.1.4.1.14988.1.1.4.1.0',  # MikroTik Model
             '1.3.6.1.4.1.41112.1.4.1.1.1.1', # Ubiquiti Model
-            '1.3.6.1.2.1.47.1.1.1.1.13.1'   # Cisco/Standard Model
-        ], port=snmp_port, version=snmp_version, timeout=1.5)
+            '1.3.6.1.2.1.47.1.1.1.1.13.1',  # Cisco/Standard Model
+            '1.3.6.1.4.1.4881.1.1.10.2.1.1.7.0', # Ruijie device model
+            '1.3.6.1.4.1.4881.1.1.10.2.1.1.9.0'  # Ruijie software version
+        ]
+        res = snmp_worker._get(ip, snmp_community, oids_to_query, port=snmp_port, version=snmp_version, timeout=1.5)
+        
+        # Fallback to SNMP v1 if 2c fails (some APs only support v1)
+        if not res and snmp_version == '2c':
+            res = snmp_worker._get(ip, snmp_community, oids_to_query, port=snmp_port, version='1', timeout=1.5)
         
         if res:
             descr = res.get('1.3.6.1.2.1.1.1.0', '')
@@ -167,7 +174,7 @@ def detect_device_info():
             vendor = 'Unknown'
             if '14988' in sys_obj_id or 'mikrotik' in descr.lower() or 'routeros' in descr.lower() or 'routerboard' in descr.lower():
                 vendor = 'MikroTik'
-            elif '4881' in sys_obj_id or 'ruijie' in descr.lower() or 'reyee' in descr.lower():
+            elif '4881' in sys_obj_id or 'ruijie' in descr.lower() or 'reyee' in descr.lower() or 'rgos' in descr.lower() or 'rg-rap' in descr.lower():
                 vendor = 'Ruijie'
             elif '41112' in sys_obj_id or 'ubiquiti' in descr.lower() or 'unifi' in descr.lower() or 'ubnt' in descr.lower():
                 vendor = 'Ubiquiti'
@@ -178,7 +185,9 @@ def detect_device_info():
                 
             # Model extraction
             model = ""
-            if vendor == 'MikroTik' and res.get('1.3.6.1.4.1.14988.1.1.4.1.0'):
+            if vendor == 'Ruijie' and res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.7.0'):
+                model = res['1.3.6.1.4.1.4881.1.1.10.2.1.1.7.0'].strip()
+            elif vendor == 'MikroTik' and res.get('1.3.6.1.4.1.14988.1.1.4.1.0'):
                 model = res['1.3.6.1.4.1.14988.1.1.4.1.0'].strip()
             elif vendor == 'Ubiquiti' and res.get('1.3.6.1.4.1.41112.1.4.1.1.1.1'):
                 model = res['1.3.6.1.4.1.41112.1.4.1.1.1.1'].strip()
@@ -189,7 +198,7 @@ def detect_device_info():
             if not model and descr:
                 descr_clean = descr.replace('\r', '').replace('\n', ' ')
                 if vendor == 'Ruijie':
-                    match = re.search(r'(RG-[A-Za-z0-9()\-]+)', descr_clean)
+                    match = re.search(r'(RG-[A-Za-z0-9().\-]+)', descr_clean)
                     if match: model = match.group(1)
                 elif vendor == 'MikroTik':
                     match = re.search(r'(RB\w+|CCR\w+|CRS\w+|CSS\w+|hEX\w+|LDF\w+|LHG\w+|NetMetal\w+|PowerBox\w+|QRT\w+|SXT\w+|wAP\w+)', descr_clean)
@@ -212,8 +221,9 @@ def detect_device_info():
             if any(x in model_lower for x in ('nbs', 'es-', 'nps', 's29', 's37', 's57', 's53', 'crs', 'css', 'usw', 'edgeswitch')) or \
                any(x in descr_lower for x in ('switch', 'catalyst', 'nexus', 'ethernet switch')):
                 device_type = 'switch'
-            elif any(x in model_lower for x in ('rap', 'uap', 'ap-', 'ap ')) or \
-                 any(x in descr_lower for x in ('access point', 'aironet', 'unifi ap', 'wireless ap')):
+            elif any(x in model_lower for x in ('rap', 'rg-rap', 'uap', 'ap-', '-ap')) or \
+                 any(x in descr_lower for x in ('access point', 'aironet', 'unifi ap', 'wireless ap', 'wlan ap', 'reyee ap', 'rgos')) or \
+                 (vendor == 'Ruijie' and 'rg-' in model_lower and not any(x in model_lower for x in ('nbs', 'nps', 's29', 's37', 's57'))):
                 device_type = 'access_point'
             elif any(x in model_lower for x in ('eg', 'rsr', 'edgerouter', 'usg', 'udm', 'uxg')) or \
                  any(x in descr_lower for x in ('router', 'routeros', 'gateway', 'security gateway')):
@@ -446,10 +456,28 @@ def sync_unifi():
             return jsonify({'status': 'error', 'message': 'UniFi credentials not configured'}), 400
 
         unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
+        
+        # Get SNMP settings from UniFi controller
+        snmp_info = unifi.get_snmp_settings() or {}
+        snmp_enabled_for_new = snmp_info.get('enabled', False)
+        snmp_community = snmp_info.get('community', settings.get('default_community', 'public'))
+        snmp_version = settings.get('default_snmp_version', '2c')
+        
         devices = unifi.get_devices()
         clients = unifi.get_clients()
         zone_id = int(data.get('zone_id', 1))
-        added = sum(1 for d in devices if db.add_or_update_unifi_device(d, zone_id=zone_id))
+        
+        added = 0
+        for d in devices:
+            if db.add_or_update_unifi_device(
+                d, 
+                zone_id=zone_id,
+                snmp_community=snmp_community,
+                snmp_version=snmp_version,
+                snmp_port=161,
+                snmp_enabled_for_new=snmp_enabled_for_new
+            ):
+                added += 1
 
         db.add_access_log({
             'source': request.remote_addr,
@@ -522,9 +550,22 @@ def background_poll():
         if host and username and password:
             from unifi_client import UniFiClient
             unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
+            
+            # Get SNMP settings from UniFi controller
+            snmp_info = unifi.get_snmp_settings() or {}
+            snmp_enabled_for_new = snmp_info.get('enabled', False)
+            snmp_community = snmp_info.get('community', settings.get('default_community', 'public'))
+            snmp_version = settings.get('default_snmp_version', '2c')
+            
             unifi_devs = unifi.get_devices()
             for ud in unifi_devs:
-                db.add_or_update_unifi_device(ud)
+                db.add_or_update_unifi_device(
+                    ud,
+                    snmp_community=snmp_community,
+                    snmp_version=snmp_version,
+                    snmp_port=161,
+                    snmp_enabled_for_new=snmp_enabled_for_new
+                )
     except Exception as e:
         print(f"[Poll] UniFi auto-poll failed: {e}")
 

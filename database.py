@@ -260,7 +260,7 @@ class Database:
         with self.conn() as c:
             c.execute('DELETE FROM devices WHERE id = ?', (device_id,))
 
-    def add_or_update_unifi_device(self, data, zone_id=1):
+    def add_or_update_unifi_device(self, data, zone_id=1, snmp_community='public', snmp_version='2c', snmp_port=161, snmp_enabled_for_new=False):
         ip = str(data.get('ip', '') or '').strip()
         if not ip:
             return False
@@ -289,16 +289,17 @@ class Database:
                 else:
                     now_str = datetime.now().isoformat()
                     c.execute('''
-                        INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, status,
+                        INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, snmp_community, snmp_version, snmp_port, status,
                                              cpu_usage, memory_usage, temperature, uptime, last_polled, last_seen,
                                              wan_in, wan_out)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
-                          data.get('unifi_id',''), zone_id, data.get('status','unknown'),
+                          data.get('unifi_id',''), zone_id, 1 if snmp_enabled_for_new else 0, snmp_community, snmp_version, snmp_port, data.get('status','unknown'),
                           data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
-                          data.get('uptime',''), now_str, now_str if data.get('status') == 'up' else None,
+                          data.get('uptime',''), now_str, 
+                          now_str if data.get('status') == 'up' else None,
                           data.get('wan_in'), data.get('wan_out')))
                     return True
         except sqlite3.IntegrityError:

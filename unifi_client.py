@@ -114,6 +114,19 @@ class UniFiClient:
     # Data fetchers
     # --------------------------------------------------------
 
+    def get_snmp_settings(self):
+        try:
+            data = self._api(f'/api/s/{self.site}/rest/setting/snmp')
+            if data and data.get('data'):
+                snmp_data = data['data'][0]
+                return {
+                    'enabled': bool(snmp_data.get('snmp_enabled', False) or snmp_data.get('snmp_v2_enabled', False)),
+                    'community': snmp_data.get('snmp_community', 'public')
+                }
+        except Exception as e:
+            print(f"[UniFi] Gagal membaca SNMP settings: {e}")
+        return None
+
     def get_devices(self):
         data = self._api(f'/api/s/{self.site}/stat/device')
         if data:
