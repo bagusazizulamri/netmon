@@ -100,8 +100,142 @@
   </div>
 </div>
 
+<!-- Device Detail Modal (Global) -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content nm-modal animate-fade-in">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border);">
+        <h5 class="modal-title d-flex align-items-center gap-2">
+          <i class="bi bi-cpu-fill text-accent fs-4"></i>
+          <span id="det-title" class="fw-600">Detail Perangkat</span>
+          <span class="badge ms-2" id="det-status-badge"></span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeDetailModal()"></button>
+      </div>
+      <div class="modal-body p-4" style="background-color: var(--bg-base);">
+        <div class="row g-4">
+          <!-- Left side: Device Info & Stats -->
+          <div class="col-lg-4">
+            <div class="nm-card mb-4 p-4 shadow-lg border-accent-subtle">
+              <h6 class="text-accent mb-3 d-flex align-items-center gap-2 fw-600">
+                <i class="bi bi-hdd-network-fill"></i> Informasi Sistem
+              </h6>
+              <div class="detail-info-grid">
+                <div class="di-row"><span>IP Address:</span> <strong id="det-ip" class="mono-sm text-primary"></strong></div>
+                <div class="di-row"><span>Vendor/Model:</span> <strong id="det-vendor-model" class="text-primary"></strong></div>
+                <div class="di-row"><span>System Name:</span> <strong id="det-sys-name" class="text-primary"></strong></div>
+                <div class="di-row"><span>Uptime:</span> <strong id="det-uptime" class="mono-sm text-primary"></strong></div>
+                <div class="di-row d-flex flex-column align-items-start gap-1 pb-2 border-0">
+                  <span class="mb-1">Keterangan:</span> 
+                  <div id="det-desc" class="text-secondary text-sm bg-dark p-2 w-100 rounded border border-secondary border-opacity-10" style="max-height:100px; overflow-y:auto; font-size:11px; white-space: pre-wrap;"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="nm-card p-4 shadow-lg">
+              <h6 class="text-accent mb-3 d-flex align-items-center gap-2 fw-600">
+                <i class="bi bi-speedometer2"></i> Penggunaan Resource
+              </h6>
+              <!-- CPU progress -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-sm text-secondary">CPU Usage</span>
+                  <strong class="text-sm text-accent" id="det-cpu-val">—</strong>
+                </div>
+                <div class="nm-progress" style="height: 8px;">
+                  <div class="nm-progress-bar bg-accent" id="det-cpu-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+              <!-- RAM progress -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-sm text-secondary">Memory Usage</span>
+                  <strong class="text-sm text-accent" id="det-mem-val">—</strong>
+                </div>
+                <div class="nm-progress" style="height: 8px;">
+                  <div class="nm-progress-bar bg-accent" id="det-mem-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+              <!-- Temperature progress -->
+              <div class="mb-1">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-sm text-secondary">Suhu Perangkat</span>
+                  <strong class="text-sm text-danger" id="det-temp-val">—</strong>
+                </div>
+                <div class="nm-progress" style="height: 8px;">
+                  <div class="nm-progress-bar bg-danger" id="det-temp-bar" style="width: 0%; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Right side: Real-time Traffic Chart & Ports -->
+          <div class="col-lg-8">
+            <div class="nm-card p-4 mb-4 shadow-lg">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                <h6 class="text-accent m-0 d-flex align-items-center gap-2 fw-600">
+                  <i class="bi bi-activity"></i> Grafik Traffic Real-time
+                </h6>
+                <div class="d-flex gap-2 align-items-center">
+                  <span class="text-sm text-secondary">Pilih Interface:</span>
+                  <select class="nm-select py-1 text-sm bg-dark text-primary border border-secondary border-opacity-25 rounded" id="det-iface-select" onchange="onInterfaceChange()" style="min-width: 180px;"></select>
+                </div>
+              </div>
+              
+              <!-- Chart container -->
+              <div style="position: relative; height: 260px; width: 100%;" class="bg-dark p-2 rounded border border-secondary border-opacity-10">
+                <canvas id="trafficChart"></canvas>
+              </div>
+              
+              <!-- Live Legend -->
+              <div class="d-flex gap-4 justify-content-center mt-3 flex-wrap">
+                <div class="d-flex align-items-center gap-2 bg-dark px-3 py-2 rounded border border-secondary border-opacity-10">
+                  <span style="display:inline-block; width:10px; height:10px; background:#58a6ff; border-radius:50%;"></span>
+                  <span class="text-sm text-secondary">Inbound (Download): <strong id="det-traffic-in" class="mono-sm text-accent ms-1">0 bps</strong></span>
+                </div>
+                <div class="d-flex align-items-center gap-2 bg-dark px-3 py-2 rounded border border-secondary border-opacity-10">
+                  <span style="display:inline-block; width:10px; height:10px; background:#bc8cff; border-radius:50%;"></span>
+                  <span class="text-sm text-secondary">Outbound (Upload): <strong id="det-traffic-out" class="mono-sm text-accent ms-1">0 bps</strong></span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Interfaces list table -->
+            <div class="nm-card p-4 shadow-lg">
+              <h6 class="text-accent mb-3 d-flex align-items-center gap-2 fw-600">
+                <i class="bi bi-ethernet"></i> Status Interface / Port
+              </h6>
+              <div style="max-height: 250px; overflow-y: auto;" class="border border-secondary border-opacity-10 rounded">
+                <table class="nm-table table-sm m-0">
+                  <thead class="sticky-top bg-dark">
+                    <tr>
+                      <th class="border-0">Port Name</th>
+                      <th class="border-0">Status</th>
+                      <th class="border-0">Port Speed</th>
+                      <th class="border-0">Total Received (Rx)</th>
+                      <th class="border-0">Total Transmitted (Tx)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="det-interfaces-tbody">
+                    <tr><td colspan="5" class="text-center text-muted py-4">No interfaces found.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top: 1px solid var(--border);">
+        <span class="text-muted text-sm me-auto"><i class="bi bi-clock me-1"></i>Update otomatis setiap 3 detik</span>
+        <button class="btn-nm btn-secondary" data-bs-dismiss="modal" onclick="closeDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/static/js/main.js"></script>
 {% block scripts %}{% endblock %}
 </body>

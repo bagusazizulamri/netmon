@@ -121,6 +121,44 @@ class UniFiClient:
             return [d for d in devices if d.get('ip') and str(d.get('ip')).strip()]
         return []
 
+    def get_device_details(self, ip_or_mac):
+        data = self._api(f'/api/s/{self.site}/stat/device')
+        if not data:
+            return None
+        
+        target = None
+        for d in data.get('data', []):
+            if d.get('ip') == ip_or_mac or d.get('mac') == ip_or_mac or d.get('_id') == ip_or_mac:
+                target = d
+                break
+                
+        if not target:
+            return None
+            
+        parsed = self._parse_device(target)
+        
+        interfaces = []
+        port_table = target.get('port_table', [])
+        for p in port_table:
+            idx = p.get('port_idx', 1)
+            name = p.get('name') or f"Port {idx}"
+            speed_mbps = p.get('speed', 0)
+            status = 'up' if p.get('up') else 'down'
+            rx_bytes = p.get('rx_bytes', 0) or p.get('rx_bytes-r', 0)
+            tx_bytes = p.get('tx_bytes', 0) or p.get('tx_bytes-r', 0)
+            
+            interfaces.append({
+                'index': idx,
+                'name': name,
+                'status': status,
+                'speed': float(speed_mbps) * 1000000,
+                'rx_bytes': rx_bytes,
+                'tx_bytes': tx_bytes
+            })
+            
+        parsed['interfaces'] = interfaces
+        return parsed
+
     def get_clients(self):
         data = self._api(f'/api/s/{self.site}/stat/sta')
         if data:

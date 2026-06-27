@@ -213,3 +213,351 @@ function dismissBanner() {
   const el = document.getElementById('alert-banner');
   if (el) el.classList.add('d-none');
 }
+
+// ============================================================
+// Global Device Details Real-time Polling & Charting
+// ============================================================
+let detailModal;
+let detailPollInterval = null;
+let activeDetailDeviceId = null;
+let trafficChartInstance = null;
+let interfaceTrafficData = {};
+let chartLabels = [];
+let chartRxData = [];
+let chartTxData = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const modalEl = document.getElementById('detailModal');
+  if (modalEl) {
+    detailModal = new bootstrap.Modal(modalEl);
+  }
+});
+
+function openDeviceDetail(id) {
+  activeDetailDeviceId = id;
+  interfaceTrafficData = {};
+  chartLabels = [];
+  chartRxData = [];
+  chartTxData = [];
+  
+  const select = document.getElementById('det-iface-select');
+  if (select) select.innerHTML = '<option value="">Loading ports…</option>';
+  
+  const cpuBar = document.getElementById('det-cpu-bar');
+  if (cpuBar) cpuBar.style.width = '0%';
+  const cpuVal = document.getElementById('det-cpu-val');
+  if (cpuVal) cpuVal.textContent = '—';
+  
+  const memBar = document.getElementById('det-mem-bar');
+  if (memBar) memBar.style.width = '0%';
+  const memVal = document.getElementById('det-mem-val');
+  if (memVal) memVal.textContent = '—';
+  
+  const tempBar = document.getElementById('det-temp-bar');
+  if (tempBar) tempBar.style.width = '0%';
+  const tempVal = document.getElementById('det-temp-val');
+  if (tempVal) tempVal.textContent = '—';
+  
+  const tbody = document.getElementById('det-interfaces-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-arrow-repeat spin me-1"></i>Loading interface data…</td></tr>';
+  
+  // Try to find the device locally first
+  let dev = null;
+  if (typeof allDevices !== 'undefined' && Array.isArray(allDevices)) {
+    dev = allDevices.find(x => x.id === id);
+  }
+  
+  if (dev) {
+    populateBasicFields(dev);
+  } else {
+    // Fetch device info
+    fetch(`/api/devices/${id}`)
+      .then(r => r.json())
+      .then(populateBasicFields)
+      .catch(err => console.error("Error loading device metadata:", err));
+  }
+  
+  if (trafficChartInstance) {
+    trafficChartInstance.destroy();
+    trafficChartInstance = null;
+  }
+  
+  initChart();
+  if (detailModal) detailModal.show();
+  fetchRealtimeStats();
+  
+  if (detailPollInterval) clearInterval(detailPollInterval);
+  detailPollInterval = setInterval(fetchRealtimeStats, 3000);
+}
+
+function populateBasicFields(dev) {
+  if (!dev) return;
+  const title = document.getElementById('det-title');
+  if (title) title.textContent = dev.name;
+  
+  const statusBadgeEl = document.getElementById('det-status-badge');
+  if (statusBadgeEl) {
+    statusBadgeEl.className = `badge bg-${dev.status === 'up' ? 'success' : 'danger'}`;
+    statusBadgeEl.textContent = dev.status === 'up' ? 'ONLINE' : 'OFFLINE';
+  }
+  
+  const ipEl = document.getElementById('det-ip');
+  if (ipEl) ipEl.textContent = dev.ip;
+  
+  const vendorModelEl = document.getElementById('det-vendor-model');
+  if (vendorModelEl) vendorModelEl.textContent = `${dev.vendor || 'Unknown'} ${dev.model || '—'}`;
+  
+  const sysNameEl = document.getElementById('det-sys-name');
+  if (sysNameEl) sysNameEl.textContent = dev.sys_name || '—';
+  
+  const uptimeEl = document.getElementById('det-uptime');
+  if (uptimeEl) uptimeEl.textContent = dev.uptime || '—';
+  
+  const descEl = document.getElementById('det-desc');
+  if (descEl) descEl.textContent = dev.description || '—';
+}
+
+function closeDetailModal() {
+  if (detailPollInterval) {
+    clearInterval(detailPollInterval);
+    detailPollInterval = null;
+  }
+  activeDetailDeviceId = null;
+}
+
+function initChart() {
+  const chartCanvas = document.getElementById('trafficChart');
+  if (!chartCanvas) return;
+  
+  const ctx = chartCanvas.getContext('2d');
+  const now = new Date();
+  for (let i = 9; i >= 0; i--) {
+    const t = new Date(now.getTime() - i * 3000);
+    chartLabels.push(t.toLocaleTimeString());
+    chartRxData.push(0);
+    chartTxData.push(0);
+  }
+  
+  trafficChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: 'Inbound (Download)',
+          data: chartRxData,
+          borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88, 166, 255, 0.1)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2
+        },
+        {
+          label: 'Outbound (Upload)',
+          data: chartTxData,
+          borderColor: '#bc8cff',
+          backgroundColor: 'rgba(188, 140, 255, 0.1)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#8b949e', font: { size: 10 } }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#8b949e',
+            font: { size: 10 },
+            callback: function(value) {
+              return formatBandwidthSimple(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function formatBandwidthSimple(bps) {
+  if (bps === 0) return '0 bps';
+  const val = parseFloat(bps);
+  if (val >= 1000000000) return `${(val / 1000000000).toFixed(1)} Gbps`;
+  if (val >= 1000000) return `${(val / 1000000).toFixed(1)} Mbps`;
+  if (val >= 1000) return `${(val / 1000).toFixed(1)} Kbps`;
+  return `${val.toFixed(0)} bps`;
+}
+
+function fetchRealtimeStats() {
+  if (!activeDetailDeviceId) return;
+  
+  fetch(`/api/devices/${activeDetailDeviceId}/realtime_stats`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.status !== 'success' || !activeDetailDeviceId) return;
+      
+      const uptimeEl = document.getElementById('det-uptime');
+      if (uptimeEl && res.uptime) uptimeEl.textContent = res.uptime;
+      
+      const titleEl = document.getElementById('det-title');
+      if (titleEl && res.sys_name) titleEl.textContent = res.sys_name;
+      
+      const descEl = document.getElementById('det-desc');
+      if (descEl && res.description) descEl.textContent = res.description;
+      
+      updateResourceProgress('det-cpu-bar', 'det-cpu-val', res.cpu_usage, '%');
+      updateResourceProgress('det-mem-bar', 'det-mem-val', res.memory_usage, '%');
+      updateResourceProgress('det-temp-bar', 'det-temp-val', res.temperature, '°C');
+      
+      const interfaces = res.interfaces || [];
+      const select = document.getElementById('det-iface-select');
+      const tbody = document.getElementById('det-interfaces-tbody');
+      
+      if (!select || !tbody) return;
+      
+      if (interfaces.length === 0) {
+        select.innerHTML = '<option value="">No interfaces</option>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No ports found on this device. Make sure SNMP is enabled and working.</td></tr>';
+        return;
+      }
+      
+      const prevSelectedIdx = select.value;
+      let optHtml = '';
+      interfaces.forEach(iface => {
+        const isSelected = (prevSelectedIdx === String(iface.index)) ? 'selected' : '';
+        const statusLabel = iface.status === 'up' ? '🟢' : '🔴';
+        optHtml += `<option value="${iface.index}" ${isSelected}>${statusLabel} ${esc(iface.name)}</option>`;
+      });
+      select.innerHTML = optHtml;
+      
+      tbody.innerHTML = interfaces.map(iface => `
+        <tr onclick="selectInterface(${iface.index})" style="cursor: pointer;" class="${prevSelectedIdx === String(iface.index) ? 'table-active' : ''}">
+          <td class="fw-500">${esc(iface.name)}</td>
+          <td>${iface.status === 'up' ? '<span class="text-success fw-600">UP</span>' : '<span class="text-danger">DOWN</span>'}</td>
+          <td class="mono-sm">${formatBandwidthSimple(iface.speed)}</td>
+          <td class="mono-sm text-muted">${(iface.rx_bytes || 0).toLocaleString()} B</td>
+          <td class="mono-sm text-muted">${(iface.tx_bytes || 0).toLocaleString()} B</td>
+        </tr>
+      `).join('');
+      
+      let activeIdx = parseInt(select.value);
+      if (isNaN(activeIdx) && interfaces.length > 0) {
+        activeIdx = interfaces[0].index;
+        select.value = activeIdx;
+      }
+      
+      const activeIface = interfaces.find(x => x.index === activeIdx);
+      if (activeIface) {
+        updateChartData(activeIface);
+      }
+    })
+    .catch(err => console.error("Error fetching realtime stats:", err));
+}
+
+function updateResourceProgress(barId, valId, val, unit) {
+  const bar = document.getElementById(barId);
+  const text = document.getElementById(valId);
+  if (!bar || !text) return;
+  
+  if (val !== null && val !== undefined) {
+    const fVal = parseFloat(val);
+    bar.style.width = `${Math.min(100, Math.max(0, fVal))}%`;
+    text.textContent = `${fVal.toFixed(1)}${unit}`;
+  } else {
+    bar.style.width = '0%';
+    text.textContent = '—';
+  }
+}
+
+function selectInterface(idx) {
+  const select = document.getElementById('det-iface-select');
+  if (select) {
+    select.value = idx;
+    onInterfaceChange();
+  }
+}
+
+function onInterfaceChange() {
+  const select = document.getElementById('det-iface-select');
+  const tbody = document.getElementById('det-interfaces-tbody');
+  if (!select || !tbody) return;
+  
+  const activeIdx = select.value;
+  
+  Array.from(tbody.rows).forEach(row => {
+    const rowIdx = row.cells[0]?.textContent;
+    const optText = select.options[select.selectedIndex]?.text || '';
+    if (optText.includes(rowIdx)) {
+      row.classList.add('table-active');
+    } else {
+      row.classList.remove('table-active');
+    }
+  });
+  
+  fetchRealtimeStats();
+}
+
+function updateChartData(iface) {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString();
+  const currentTimestamp = now.getTime();
+  
+  let rxSpeed = 0;
+  let txSpeed = 0;
+  
+  const ifName = iface.name;
+  const history = interfaceTrafficData[ifName];
+  
+  if (history) {
+    const dt = (currentTimestamp - history.time) / 1000.0;
+    if (dt > 0) {
+      let diffRx = iface.rx_bytes - history.rx;
+      let diffTx = iface.tx_bytes - history.tx;
+      
+      if (diffRx < 0) diffRx += Math.pow(2, 32);
+      if (diffTx < 0) diffTx += Math.pow(2, 32);
+      
+      if (diffRx >= 0 && diffTx >= 0) {
+        rxSpeed = (diffRx * 8) / dt;
+        txSpeed = (diffTx * 8) / dt;
+      }
+    }
+  }
+  
+  interfaceTrafficData[ifName] = {
+    rx: iface.rx_bytes,
+    tx: iface.tx_bytes,
+    time: currentTimestamp
+  };
+  
+  const txIn = document.getElementById('det-traffic-in');
+  if (txIn) txIn.textContent = formatBandwidth(rxSpeed);
+  const txOut = document.getElementById('det-traffic-out');
+  if (txOut) txOut.textContent = formatBandwidth(txSpeed);
+  
+  if (trafficChartInstance) {
+    chartLabels.push(timeStr);
+    chartRxData.push(rxSpeed);
+    chartTxData.push(txSpeed);
+    
+    if (chartLabels.length > 10) {
+      chartLabels.shift();
+      chartRxData.shift();
+      chartTxData.shift();
+    }
+    
+    trafficChartInstance.update('none');
+  }
+}

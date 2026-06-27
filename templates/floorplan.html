@@ -516,7 +516,12 @@ const FP = (() => {
                 </div>
               </div>
             </span>
-            <span class="badge ${badgeClass} status-tag">${stat}</span>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn-icon" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})">
+                <i class="bi bi-info-circle-fill text-accent"></i>
+              </button>
+              <span class="badge ${badgeClass} status-tag">${stat}</span>
+            </div>
           </li>
         `;
       }).join('');

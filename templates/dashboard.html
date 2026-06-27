@@ -194,9 +194,14 @@ function renderDevTable(devices) {
       <td class="text-muted text-sm">${esc(d.type||'—')}</td>
       <td class="text-muted text-sm mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
       <td>
-        <button class="btn-icon" title="Poll now" onclick="pollNow(${d.id})">
-          <i class="bi bi-arrow-repeat"></i>
-        </button>
+        <div class="action-btns">
+          <button class="btn-icon" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})">
+            <i class="bi bi-info-circle-fill text-accent"></i>
+          </button>
+          <button class="btn-icon" title="Poll now" onclick="pollNow(${d.id})">
+            <i class="bi bi-arrow-repeat"></i>
+          </button>
+        </div>
       </td>
     </tr>
   `).join('');

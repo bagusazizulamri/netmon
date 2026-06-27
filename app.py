@@ -105,6 +105,70 @@ def poll_device_now(device_id):
         return jsonify({'status': 'polling'})
     return jsonify({'status': 'error', 'message': 'Device not found'}), 404
 
+@app.route('/api/devices/<int:device_id>/realtime_stats', methods=['GET'])
+def get_device_realtime_stats(device_id):
+    device = db.get_device(device_id)
+    if not device:
+        return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        
+    is_unifi = (device.get('type') == 'unifi') or (device.get('unifi_id') != '') or ('ubiquiti' in str(device.get('vendor')).lower())
+    
+    if is_unifi:
+        try:
+            settings = db.get_settings()
+            host = settings.get('unifi_host', '')
+            username = settings.get('unifi_user', '')
+            password = settings.get('unifi_pass', '')
+            port = int(settings.get('unifi_port', 8443) or 8443)
+            site = settings.get('unifi_site', 'default') or 'default'
+            
+            if host and username and password:
+                unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
+                details = unifi.get_device_details(device.get('ip') or device.get('mac') or device.get('unifi_id'))
+                if details:
+                    return jsonify({
+                        'status': 'success',
+                        'source': 'unifi',
+                        'sys_name': details.get('name'),
+                        'description': f"UniFi {details.get('model')} Device",
+                        'uptime': details.get('uptime'),
+                        'cpu_usage': details.get('cpu_usage'),
+                        'memory_usage': details.get('memory_usage'),
+                        'temperature': details.get('temperature'),
+                        'interfaces': details.get('interfaces', [])
+                    })
+        except Exception as e:
+            print(f"[Realtime] UniFi fetch failed: {e}")
+            
+    if device.get('snmp_enabled'):
+        try:
+            stats = snmp_worker.get_detailed_stats(device)
+            return jsonify({
+                'status': 'success',
+                'source': 'snmp',
+                'sys_name': stats.get('sys_name') or device.get('sys_name') or device.get('name'),
+                'description': stats.get('description') or device.get('description'),
+                'uptime': stats.get('uptime') or device.get('uptime'),
+                'cpu_usage': stats.get('cpu_usage') if stats.get('cpu_usage') is not None else device.get('cpu_usage'),
+                'memory_usage': stats.get('memory_usage') if stats.get('memory_usage') is not None else device.get('memory_usage'),
+                'temperature': stats.get('temperature') if stats.get('temperature') is not None else device.get('temperature'),
+                'interfaces': stats.get('interfaces', [])
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': f"SNMP Error: {str(e)}"}), 500
+            
+    return jsonify({
+        'status': 'success',
+        'source': 'ping',
+        'sys_name': device.get('name'),
+        'description': device.get('description') or 'No SNMP enabled',
+        'uptime': device.get('uptime'),
+        'cpu_usage': device.get('cpu_usage'),
+        'memory_usage': device.get('memory_usage'),
+        'temperature': device.get('temperature'),
+        'interfaces': []
+    })
+
 # ============================================================
 # API – ZONES
 # ============================================================

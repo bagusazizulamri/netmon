@@ -185,6 +185,10 @@ class SNMPWorker:
         elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
             cpu_oid = '1.3.6.1.4.1.41112.1.4.1.1.4.1'
             mem_oid = '1.3.6.1.4.1.41112.1.4.1.1.5.1'
+        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
+            cpu_oid = '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0'
+            mem_oid = '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0'
+            temp_oid = '1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0'
         elif 'cisco' in vendor_lower or 'cisco' in descr_lower:
             cpu_oid = '1.3.6.1.4.1.9.9.109.1.1.1.1.5.1'
 
@@ -199,7 +203,17 @@ class SNMPWorker:
         if result:
             upd = {'status':'up', 'last_polled': now}
             if result.get(OID['sysName']):   upd['sys_name']    = result[OID['sysName']]
-            if result.get(OID['sysDescr']):  upd['description'] = result[OID['sysDescr']][:500]
+            if result.get(OID['sysDescr']):  
+                upd['description'] = result[OID['sysDescr']][:500]
+                desc_val = result[OID['sysDescr']].lower()
+                if 'ruijie' in desc_val or 'reyee' in desc_val:
+                    upd['vendor'] = 'Ruijie'
+                elif 'mikrotik' in desc_val or 'routeros' in desc_val:
+                    upd['vendor'] = 'MikroTik'
+                elif 'ubiquiti' in desc_val or 'ubnt' in desc_val or 'unifi' in desc_val:
+                    upd['vendor'] = 'Ubiquiti'
+                elif 'cisco' in desc_val:
+                    upd['vendor'] = 'Cisco'
             if result.get(OID['sysUpTime']): upd['uptime']      = result[OID['sysUpTime']]
 
             # Extract metrics
@@ -276,6 +290,216 @@ class SNMPWorker:
             self.socketio.emit('device_status_update', updated)
             self.socketio.emit('stats_update', self.db.get_dashboard_stats())
         return updated.get('status') if updated else 'unknown'
+
+    def get_detailed_stats(self, device):
+        ip = device['ip']
+        community = device.get('snmp_community', 'public') or 'public'
+        port = device.get('snmp_port', 161) or 161
+        version = device.get('snmp_version', '2c') or '2c'
+        
+        # 1. Fetch system details
+        res_sys = self._get(ip, community, [
+            '1.3.6.1.2.1.1.1.0', # sysDescr
+            '1.3.6.1.2.1.1.3.0', # sysUpTime
+            '1.3.6.1.2.1.1.5.0', # sysName
+        ], port=port, version=version)
+        
+        uptime = ""
+        sys_name = ""
+        description = ""
+        if res_sys:
+            uptime = res_sys.get('1.3.6.1.2.1.1.3.0', '')
+            sys_name = res_sys.get('1.3.6.1.2.1.1.5.0', '')
+            description = res_sys.get('1.3.6.1.2.1.1.1.0', '')
+
+        # 2. CPU / Memory / Temp based on vendor
+        vendor_lower = str(device.get('vendor') or '').lower()
+        descr_lower = str(description or device.get('description') or '').lower()
+        
+        cpu_val = None
+        mem_val = None
+        temp_val = None
+
+        if 'mikrotik' in vendor_lower or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+            cpu_res = self._get(ip, community, ['1.3.6.1.4.1.14988.1.1.3.10.0'], port=port, version=version)
+            if cpu_res: cpu_val = cpu_res.get('1.3.6.1.4.1.14988.1.1.3.10.0')
+            temp_res = self._get(ip, community, ['1.3.6.1.4.1.14988.1.1.3.8.0'], port=port, version=version)
+            if temp_res: temp_val = temp_res.get('1.3.6.1.4.1.14988.1.1.3.8.0')
+            mem_res = self._get(ip, community, [
+                '1.3.6.1.4.1.14988.1.1.3.14.0',
+                '1.3.6.1.4.1.14988.1.1.3.17.0'
+            ], port=port, version=version)
+            if mem_res:
+                try:
+                    tot = float(mem_res.get('1.3.6.1.4.1.14988.1.1.3.14.0', 0))
+                    fre = float(mem_res.get('1.3.6.1.4.1.14988.1.1.3.17.0', 0))
+                    if tot > 0:
+                        mem_val = ((tot - fre) / tot) * 100.0
+                except Exception:
+                    pass
+        elif 'ruijie' in vendor_lower or 'ruijie' in descr_lower or 'reyee' in vendor_lower or 'reyee' in descr_lower:
+            cpu_res = self._get(ip, community, [
+                '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0',
+                '1.3.6.1.4.1.4881.1.1.10.2.36.1.1.2.0',
+            ], port=port, version=version)
+            if cpu_res:
+                cpu_val = cpu_res.get('1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0') or cpu_res.get('1.3.6.1.4.1.4881.1.1.10.2.36.1.1.2.0')
+            if not cpu_val:
+                cpu_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.36.1.1', port=port, version=version)
+                if cpu_walk:
+                    for v in cpu_walk.values():
+                        try:
+                            float(v)
+                            cpu_val = v
+                            break
+                        except ValueError:
+                            pass
+            
+            mem_res = self._get(ip, community, [
+                '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0',
+                '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.4.0',
+            ], port=port, version=version)
+            if mem_res:
+                mem_val = mem_res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.0') or mem_res.get('1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.4.0')
+            if not mem_val:
+                mem_walk = self._walk(ip, community, '1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1', port=port, version=version)
+                if mem_walk:
+                    for v in mem_walk.values():
+                        try:
+                            float(v)
+                            mem_val = v
+                            break
+                        except ValueError:
+                            pass
+            
+            temp_res = self._get(ip, community, [
+                '1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0',
+                '1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.3',
+            ], port=port, version=version)
+            if temp_res:
+                temp_val = temp_res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.16.0') or temp_res.get('1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.3')
+        elif 'ubiquiti' in vendor_lower or 'ubnt' in vendor_lower or 'ubiquiti' in descr_lower or 'uap' in descr_lower or 'unifi' in descr_lower:
+            cpu_res = self._get(ip, community, ['1.3.6.1.4.1.41112.1.4.1.1.4.1'], port=port, version=version)
+            if cpu_res: cpu_val = cpu_res.get('1.3.6.1.4.1.41112.1.4.1.1.4.1')
+            mem_res = self._get(ip, community, ['1.3.6.1.4.1.41112.1.4.1.1.5.1'], port=port, version=version)
+            if mem_res: mem_val = mem_res.get('1.3.6.1.4.1.41112.1.4.1.1.5.1')
+        else:
+            cpu_walk = self._walk(ip, community, '1.3.6.1.2.1.25.3.3.1.2', port=port, version=version)
+            if cpu_walk:
+                cpu_vals = [float(v) for v in cpu_walk.values() if v.isdigit()]
+                if cpu_vals: cpu_val = sum(cpu_vals) / len(cpu_vals)
+
+        cpu_usage = None
+        memory_usage = None
+        temperature = None
+        
+        if cpu_val is not None:
+            try:
+                val = float(cpu_val)
+                if val > 100: val /= 10.0
+                cpu_usage = val
+            except ValueError:
+                pass
+        if mem_val is not None:
+            try:
+                val = float(mem_val)
+                if val > 100: val /= 10.0
+                memory_usage = val
+            except ValueError:
+                pass
+        if temp_val is not None:
+            try:
+                val = float(temp_val)
+                if val > 120: val /= 10.0
+                temperature = val
+            except ValueError:
+                pass
+
+        # 3. Interfaces info (SNMP Walk)
+        if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port=port, version=version)
+        if_type = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.3', port=port, version=version)
+        if_speed = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port=port, version=version)
+        if_oper = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port=port, version=version)
+        
+        if_hc_in = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6', port=port, version=version)
+        if_hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port=port, version=version)
+        
+        if_in = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port=port, version=version)
+        if_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port=port, version=version)
+        
+        if_high_speed = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port=port, version=version)
+
+        interfaces = []
+        for oid, name in if_desc.items():
+            idx = oid.split('.')[-1]
+            t = if_type.get(f"1.3.6.1.2.1.2.2.1.3.{idx}", "6")
+            
+            if t == '24': continue
+            name_lower = str(name).lower()
+            if 'loopback' in name_lower or name_lower in ('lo','lo0'): continue
+            
+            status_val = if_oper.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", "4")
+            status = 'up' if str(status_val) == '1' else 'down'
+            
+            speed_bps = 0
+            if f"1.3.6.1.31.1.1.1.15.{idx}" in if_high_speed:
+                try:
+                    speed_bps = float(if_high_speed[f"1.3.6.1.31.1.1.1.15.{idx}"]) * 1000000
+                except ValueError:
+                    pass
+            
+            if speed_bps == 0 and f"1.3.6.1.2.1.31.1.1.1.15.{idx}" in if_high_speed:
+                try:
+                    speed_bps = float(if_high_speed[f"1.3.6.1.2.1.31.1.1.1.15.{idx}"]) * 1000000
+                except ValueError:
+                    pass
+
+            if speed_bps == 0:
+                try:
+                    speed_bps = float(if_speed.get(f"1.3.6.1.2.1.2.2.1.5.{idx}", 0))
+                except ValueError:
+                    pass
+            
+            rx_bytes = 0
+            tx_bytes = 0
+            
+            hc_in_val = if_hc_in.get(f"1.3.6.1.2.1.31.1.1.1.6.{idx}") or if_hc_in.get(f"1.3.6.1.31.1.1.1.6.{idx}")
+            hc_out_val = if_hc_out.get(f"1.3.6.1.2.1.31.1.1.1.10.{idx}") or if_hc_out.get(f"1.3.6.1.31.1.1.1.10.{idx}")
+            
+            if hc_in_val is not None:
+                try: rx_bytes = int(hc_in_val)
+                except ValueError: pass
+            else:
+                try: rx_bytes = int(if_in.get(f"1.3.6.1.2.1.2.2.1.10.{idx}", 0))
+                except ValueError: pass
+                
+            if hc_out_val is not None:
+                try: tx_bytes = int(hc_out_val)
+                except ValueError: pass
+            else:
+                try: tx_bytes = int(if_out.get(f"1.3.6.1.2.1.2.2.1.16.{idx}", 0))
+                except ValueError: pass
+
+            interfaces.append({
+                'index': int(idx),
+                'name': str(name),
+                'status': status,
+                'speed': speed_bps,
+                'rx_bytes': rx_bytes,
+                'tx_bytes': tx_bytes
+            })
+            
+        interfaces.sort(key=lambda x: x['index'])
+        
+        return {
+            'uptime': uptime,
+            'sys_name': sys_name,
+            'description': description,
+            'cpu_usage': cpu_usage,
+            'memory_usage': memory_usage,
+            'temperature': temperature,
+            'interfaces': interfaces
+        }
 
     def _poll_router_traffic(self, did, ip, community, port, version):
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
@@ -401,7 +625,19 @@ class SNMPWorker:
                 if result:
                     name  = result.get(OID['sysName'],'').strip() or ip
                     descr = result.get(OID['sysDescr'],'').strip()
+                    descr_lower = descr.lower()
+                    vendor = 'Unknown'
+                    if 'ruijie' in descr_lower or 'reyee' in descr_lower:
+                        vendor = 'Ruijie'
+                    elif 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+                        vendor = 'MikroTik'
+                    elif 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
+                        vendor = 'Ubiquiti'
+                    elif 'cisco' in descr_lower:
+                        vendor = 'Cisco'
+                    
                     dev   = {'name':name,'ip':ip,'type':self._guess_type(descr),
+                             'vendor':vendor,
                              'icon':self._guess_icon(descr),'description':descr[:200],
                              'sys_name':name,'snmp_enabled':True,
                              'snmp_community':community,'snmp_version':version,
@@ -411,6 +647,7 @@ class SNMPWorker:
                         if existing:
                             self.db.update_device(existing['id'],
                                                   {'sys_name':name,'description':descr[:200],
+                                                   'vendor':vendor,
                                                    'snmp_enabled':1,'status':'up',
                                                    'zone_id':zone_id})
                             dev['id'] = existing['id']
