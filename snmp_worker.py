@@ -601,23 +601,41 @@ class SNMPWorker:
             except Exception:
                 pass
 
+        cached = self._interfaces_cache.get(cache_key)
+        
+        # Prevent partial-read cache poisoning (e.g. if device rate limits after 1 min and returns only Loopback)
+        # We only consider the new walk valid if it has at least 80% of the interfaces we saw before.
+        is_valid = False
         if new_desc:
-            # Cache the successful SNMP walk
+            if not cached:
+                is_valid = True
+            elif len(new_desc) >= len(cached['if_desc']) * 0.8:
+                is_valid = True
+
+        if is_valid:
+            # Cache the successful SNMP walk. For metrics that failed, retain previous cached values if any.
             self._interfaces_cache[cache_key] = {
                 'if_desc': new_desc,
-                'if_type': new_type or {},
-                'if_speed': new_speed or {},
-                'if_oper': new_oper or {},
-                'if_hc_in': new_hc_in or {},
-                'if_hc_out': new_hc_out or {},
-                'if_in': new_in or {},
-                'if_out': new_out or {},
-                'if_high_speed': new_high_speed or {}
+                'if_type': new_type or (cached['if_type'] if cached else {}),
+                'if_speed': new_speed or (cached['if_speed'] if cached else {}),
+                'if_oper': new_oper or (cached['if_oper'] if cached else {}),
+                'if_hc_in': new_hc_in or (cached['if_hc_in'] if cached else {}),
+                'if_hc_out': new_hc_out or (cached['if_hc_out'] if cached else {}),
+                'if_in': new_in or (cached['if_in'] if cached else {}),
+                'if_out': new_out or (cached['if_out'] if cached else {}),
+                'if_high_speed': new_high_speed or (cached['if_high_speed'] if cached else {})
             }
-            if_desc, if_type, if_speed, if_oper = new_desc, new_type, new_speed, new_oper
-            if_hc_in, if_hc_out, if_in, if_out, if_high_speed = new_hc_in, new_hc_out, new_in, new_out, new_high_speed
+            if_desc = new_desc
+            if_type = self._interfaces_cache[cache_key]['if_type']
+            if_speed = self._interfaces_cache[cache_key]['if_speed']
+            if_oper = self._interfaces_cache[cache_key]['if_oper']
+            if_hc_in = self._interfaces_cache[cache_key]['if_hc_in']
+            if_hc_out = self._interfaces_cache[cache_key]['if_hc_out']
+            if_in = self._interfaces_cache[cache_key]['if_in']
+            if_out = self._interfaces_cache[cache_key]['if_out']
+            if_high_speed = self._interfaces_cache[cache_key]['if_high_speed']
         else:
-            # Momentary walk failure: use cache if available
+            # Momentary walk failure or partial read: use cache if available
             cached = self._interfaces_cache.get(cache_key)
             if cached:
                 if_desc = cached['if_desc']
