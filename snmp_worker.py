@@ -876,7 +876,7 @@ class SNMPWorker:
 
     # ─── network scan ────────────────────────────────────────────────
 
-    def scan_network(self, cidr, community='public', version='2c', zone_id=1):
+    def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp'):
         if not SNMP_OK:
             self.socketio.emit('scan_error', {'error':'puresnmp not installed. Run: pip install puresnmp'})
             return
@@ -898,44 +898,93 @@ class SNMPWorker:
             progress_lock = threading.Lock()
 
             def scan_ip(ip):
-                if self._stop.is_set():
-                    return None
-                oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
-                result = self._get(ip, community, oids, version=version, timeout=1.5)
+                if self._stop.is_set(): return None
                 
-                # Fallback to SNMP v1 if 2c fails
-                if not result and version == '2c':
-                    result = self._get(ip, community, oids, version='1', timeout=1.5)
+                dev = None
+                
+                if method == 'snmp':
+                    oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
+                    result = self._get(ip, community, oids, version=version, timeout=1.5)
+                    if not result and version == '2c':
+                        result = self._get(ip, community, oids, version='1', timeout=1.5)
+                        
+                    if result:
+                        name  = result.get(OID['sysName'],'').strip() or ip
+                        descr = result.get(OID['sysDescr'],'').strip()
+                        sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
+                        descr_lower = descr.lower()
+                        vendor = 'Unknown'
+                        if '4881' in sys_obj_id or 'ruijie' in descr_lower or 'reyee' in descr_lower or 'rgos' in descr_lower:
+                            vendor = 'Ruijie'
+                        elif '14988' in sys_obj_id or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+                            vendor = 'MikroTik'
+                        elif '41112' in sys_obj_id or 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
+                            vendor = 'Ubiquiti'
+                        elif 'cisco' in descr_lower:
+                            vendor = 'Cisco'
+                        
+                        dev = {'name':name,'ip':ip,'type':self._guess_type(descr, vendor=vendor),
+                               'vendor':vendor,
+                               'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
+                               'sys_name':name,'snmp_enabled':True,
+                               'snmp_community':community,'snmp_version':version,
+                               'status':'up','zone_id':zone_id, 'source':'scan'}
+                
+                elif method == 'icmp':
+                    import subprocess
+                    ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+                    res = subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if res.returncode == 0:
+                        dev = {'name':ip,'ip':ip,'type':'unknown','vendor':'Unknown','icon':'unknown',
+                               'description':'Discovered via ICMP','snmp_enabled':False,
+                               'status':'up','zone_id':zone_id, 'source':'scan'}
+                
+                elif method == 'arp':
+                    import subprocess
+                    import re
+                    import os
+                    ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+                    subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     
-                if result:
-                    name  = result.get(OID['sysName'],'').strip() or ip
-                    descr = result.get(OID['sysDescr'],'').strip()
-                    sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
-                    descr_lower = descr.lower()
-                    vendor = 'Unknown'
-                    if '4881' in sys_obj_id or 'ruijie' in descr_lower or 'reyee' in descr_lower or 'rgos' in descr_lower:
-                        vendor = 'Ruijie'
-                    elif '14988' in sys_obj_id or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
-                        vendor = 'MikroTik'
-                    elif '41112' in sys_obj_id or 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
-                        vendor = 'Ubiquiti'
-                    elif 'cisco' in descr_lower:
-                        vendor = 'Cisco'
+                    out = ""
+                    try:
+                        if os.name == 'nt':
+                            res = subprocess.run(["arp", "-a", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+                            out = res.stdout
+                        else:
+                            res = subprocess.run(["arp", "-n", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+                            out = res.stdout
+                            if (not out or "No ARP" in out) and os.path.exists("/proc/net/arp"):
+                                with open("/proc/net/arp", "r") as f:
+                                    out = f.read()
+                    except Exception:
+                        pass
                     
-                    dev   = {'name':name,'ip':ip,'type':self._guess_type(descr, vendor=vendor),
-                             'vendor':vendor,
-                             'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
-                             'sys_name':name,'snmp_enabled':True,
-                             'snmp_community':community,'snmp_version':version,
-                             'status':'up','zone_id':zone_id, 'source':'scan'}
+                    mac = ""
+                    mac_re = re.compile(r'([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})')
+                    for line in out.splitlines():
+                        if ip in line:
+                            m = mac_re.search(line)
+                            if m:
+                                mac = m.group(0).replace('-', ':').lower()
+                                break
+                    if mac:
+                        dev = {'name':ip,'ip':ip,'mac':mac,'type':'unknown','vendor':'Unknown','icon':'unknown',
+                               'description':'Discovered via ARP','snmp_enabled':False,
+                               'status':'up','zone_id':zone_id, 'source':'scan'}
+
+                if dev:
                     try:
                         existing = self.db.get_device_by_ip(ip)
                         if existing:
-                            self.db.update_device(existing['id'],
-                                                  {'sys_name':name,'description':descr[:200],
-                                                   'vendor':vendor,
-                                                   'snmp_enabled':1,'status':'up',
-                                                   'zone_id':zone_id})
+                            updates = {'status':'up','zone_id':zone_id}
+                            if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
+                            if 'description' in dev: updates['description'] = dev['description']
+                            if 'vendor' in dev: updates['vendor'] = dev['vendor']
+                            if 'snmp_enabled' in dev: updates['snmp_enabled'] = 1 if dev['snmp_enabled'] else 0
+                            if dev.get('mac'): updates['mac'] = dev['mac']
+                            
+                            self.db.update_device(existing['id'], updates)
                             dev['id'] = existing['id']
                         else:
                             dev['id'] = self.db.add_device(dev)

@@ -185,19 +185,27 @@
           <input type="text" class="nm-input" id="scan-net" value="192.168.1.0/24" placeholder="192.168.1.0/24">
         </div>
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
+            <label class="nm-label">Method</label>
+            <select class="nm-select w-100" id="scan-method" onchange="document.getElementById('scan-community').disabled = document.getElementById('scan-version').disabled = (this.value !== 'snmp')">
+              <option value="snmp" selected>SNMP</option>
+              <option value="icmp">ICMP (Ping)</option>
+              <option value="arp">ARP</option>
+            </select>
+          </div>
+          <div class="col-md-3">
             <label class="nm-label">SNMP Community</label>
             <input type="text" class="nm-input" id="scan-community" value="public">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="nm-label">SNMP Version</label>
             <select class="nm-select w-100" id="scan-version">
               <option value="1">v1</option>
               <option value="2c" selected>v2c</option>
             </select>
           </div>
-          <div class="col-md-4">
-            <label class="nm-label">Penempatan Group</label>
+          <div class="col-md-3">
+            <label class="nm-label">Penempatan Zone</label>
             <select class="nm-select w-100" id="scan-zone"></select>
           </div>
         </div>
@@ -571,10 +579,11 @@ function startScan() {
   fetch('/api/scan', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
-      network:   net,
+      network: net,
       community: document.getElementById('scan-community').value.trim(),
-      version:   document.getElementById('scan-version').value,
-      zone_id:   parseInt(document.getElementById('scan-zone').value) || 1,
+      version: document.getElementById('scan-version').value,
+      zone_id: parseInt(document.getElementById('scan-zone').value) || 1,
+      method: document.getElementById('scan-method').value
     })
   }).then(r=>r.json()).then(data => {
     if (data.status === 'already_running') showToast('Scan already running', 'warning');
