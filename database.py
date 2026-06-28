@@ -321,6 +321,9 @@ class Database:
                           data.get('wan_in'), data.get('wan_out')))
                     return True
 
+        except sqlite3.IntegrityError:
+            return False
+
     def get_zones_with_devices(self):
         with self.conn() as c:
             zones_rows = c.execute('''
@@ -357,8 +360,6 @@ class Database:
             counts = {r['type']: r['cnt'] for r in rows}
             counts['_total'] = sum(counts.values())
             return counts
-        except sqlite3.IntegrityError:
-            return False
 
     # ============================================================
     # ZONES
