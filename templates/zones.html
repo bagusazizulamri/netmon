@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+{% block title %}Zone{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Zone</h1>
+    <p class="page-sub">Perangkat berdasarkan zona</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm" onclick="openZoneModal()">
+      <i class="bi bi-plus-lg"></i> Tambah Zone
+    </button>
+    <button class="btn-nm btn-sm" onclick="openUnifiModal()">
+      <i class="bi bi-cloud-download-fill"></i> Sync UniFi
+    </button>
+    <button class="btn-nm btn-sm btn-success" onclick="openScanModal()">
+      <i class="bi bi-radar"></i> Network Scan
+    </button>
+  </div>
+</div>
+
+<div id="zones-container">
+  <div class="text-center text-muted py-5">Loading...</div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Zone Add/Edit Modal -->
+<div class="modal fade" id="zoneModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="zoneModalTitle">Tambah Zone</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="zn-id">
+        <div class="mb-3">
+          <label class="nm-label">Nama Zone <span class="text-danger">*</span></label>
+          <input type="text" class="nm-input" id="zn-name" placeholder="e.g. Lantai 1">
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Warna Label</label>
+          <input type="color" class="nm-input form-control-color w-100" id="zn-color" value="#00d4ff">
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Deskripsi</label>
+          <textarea class="nm-input" id="zn-desc" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-nm btn-success" onclick="saveZone()">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Device Manual Modal -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title">Tambah Device Manual</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ad-zone-id">
+        <div class="mb-3">
+          <label class="nm-label">IP Address <span class="text-danger">*</span></label>
+          <div class="input-group" style="display: flex;">
+            <input type="text" class="nm-input" id="ad-ip" placeholder="192.168.1.x" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+            <button class="btn-nm btn-info px-3" type="button" id="btn-detect-device" onclick="autoDetectDevice()" style="border-top-left-radius: 0; border-bottom-left-radius: 0; font-size: 12px; height: 38px; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap;">
+              <i class="bi bi-cpu-fill" id="detect-icon"></i><span>Detect</span>
+            </button>
+          </div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="nm-label">Name</label>
+            <input type="text" class="nm-input" id="ad-name">
+          </div>
+          <div class="col-6">
+            <label class="nm-label">Type</label>
+            <select class="nm-select w-100" id="ad-type">
+              <option value="unknown">Unknown</option>
+              <option value="router">Router</option>
+              <option value="switch">Switch</option>
+              <option value="access_point">Access Point</option>
+              <option value="server">Server</option>
+              <option value="camera">Camera</option>
+              <option value="printer">Printer</option>
+              <option value="ups">UPS</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="nm-toggle">
+            <input type="checkbox" id="ad-snmp-en" checked>
+            <span class="nm-slider"></span>
+          </label>
+          <span class="ms-2">Enable SNMP Polling</span>
+        </div>
+        <div class="row g-2">
+          <div class="col-8">
+            <label class="nm-label">Community</label>
+            <input type="text" class="nm-input" id="ad-community" value="public">
+          </div>
+          <div class="col-4">
+            <label class="nm-label">Version</label>
+            <select class="nm-select w-100" id="ad-version">
+              <option value="1">v1</option>
+              <option value="2c" selected>v2c</option>
+              <option value="3">v3</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-nm btn-success" onclick="saveManualDevice()">Simpan Device</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Modal (Same as devices.html) -->
+<div class="modal fade" id="scanModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-radar me-2 text-accent"></i>Network Discovery Scan</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="nm-label">Network CIDR</label>
+          <input type="text" class="nm-input" id="scan-net" value="192.168.1.0/24">
+        </div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="nm-label">SNMP Community</label>
+            <input type="text" class="nm-input" id="scan-community" value="public">
+          </div>
+          <div class="col-md-4">
+            <label class="nm-label">SNMP Version</label>
+            <select class="nm-select w-100" id="scan-version">
+              <option value="1">v1</option>
+              <option value="2c" selected>v2c</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="nm-label">Penempatan Zone</label>
+            <select class="nm-select w-100" id="scan-zone"></select>
+          </div>
+        </div>
+        <div class="scan-progress-wrap mt-3" id="scan-progress-wrap" style="display:none">
+          <div class="d-flex justify-content-between mb-1">
+            <small id="scan-status-text">Scanning…</small>
+            <small id="scan-pct">0%</small>
+          </div>
+          <div class="nm-progress">
+            <div class="nm-progress-bar" id="scan-bar" style="width:0%"></div>
+          </div>
+          <div class="mt-2 text-muted text-sm">
+            Current: <span class="mono-sm" id="scan-cur-ip">—</span>
+            &nbsp;·&nbsp; Found: <span id="scan-found">0</span>
+          </div>
+        </div>
+        <div id="scan-results" class="scan-results mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Close</button>
+        <button class="btn-nm btn-danger" id="btn-scan-stop" style="display:none" onclick="stopScan()">
+          <i class="bi bi-stop-fill"></i> Stop
+        </button>
+        <button class="btn-nm btn-success" id="btn-scan-start" onclick="startScan()">
+          <i class="bi bi-play-fill"></i> Start Scan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UniFi Sync Modal -->
+<div class="modal fade" id="unifiModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cloud-download-fill me-2 text-accent"></i>UniFi Controller Sync</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="nm-label">Controller Host/IP</label>
+            <input type="text" class="nm-input" id="uf-host" placeholder="192.168.1.1">
+          </div>
+          <div class="col-md-4">
+            <label class="nm-label">Port</label>
+            <input type="number" class="nm-input" id="uf-port" value="8443">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Username</label>
+            <input type="text" class="nm-input" id="uf-user" placeholder="admin">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Password</label>
+            <input type="password" class="nm-input" id="uf-pass">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Site</label>
+            <input type="text" class="nm-input" id="uf-site" value="default">
+          </div>
+          <div class="col-md-6">
+            <label class="nm-label">Penempatan Zone</label>
+            <select class="nm-select w-100" id="uf-zone"></select>
+          </div>
+        </div>
+        <div id="uf-result" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn-nm btn-success" onclick="doUnifiSync()">
+          <i class="bi bi-cloud-download-fill me-1"></i>Sync Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Zone Confirm Modal -->
+<div class="modal fade" id="delZoneModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash3-fill me-2"></i>Delete Zone</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Hapus zona <strong id="del-z-name"></strong>?<br>
+        <small class="text-muted">Perangkat di dalamnya akan masuk ke Default Zone.</small></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Batal</button>
+        <button class="btn-nm btn-danger" id="del-z-btn">Hapus</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allZonesData = [];
+let zoneModal, addDeviceModal, scanModal, unifiModal, delZoneModal;
+
+document.addEventListener('DOMContentLoaded', () => {
+  zoneModal = new bootstrap.Modal(document.getElementById('zoneModal'));
+  addDeviceModal = new bootstrap.Modal(document.getElementById('addDeviceModal'));
+  scanModal = new bootstrap.Modal(document.getElementById('scanModal'));
+  unifiModal = new bootstrap.Modal(document.getElementById('unifiModal'));
+  delZoneModal = new bootstrap.Modal(document.getElementById('delZoneModal'));
+  
+  fetch('/api/settings').then(r=>r.json()).then(settings => {
+    if (settings.unifi_host) {
+      document.getElementById('uf-host').value = settings.unifi_host;
+      document.getElementById('uf-port').value = settings.unifi_port || 8443;
+      document.getElementById('uf-user').value = settings.unifi_user;
+      document.getElementById('uf-site').value = settings.unifi_site || 'default';
+    }
+  });
+  
+  loadZones();
+});
+
+async function loadZones() {
+  const [zonesDevs, zones] = await Promise.all([
+    fetch('/api/zones/devices').then(r=>r.json()),
+    fetch('/api/zones').then(r=>r.json()),
+  ]);
+  allZonesData = zonesDevs;
+  renderZones(zonesDevs);
+  populateZoneSelects(zones);
+}
+
+function renderZones(zonesData) {
+  const container = document.getElementById('zones-container');
+  if (!zonesData.length) {
+    container.innerHTML = `
+      <div class="zone-empty-state">
+        <i class="bi bi-map text-muted" style="font-size:3rem"></i>
+        <h4 class="mt-3 text-primary">Belum ada Zone</h4>
+        <p>Buat zone pertama untuk mengelompokkan perangkat Anda.</p>
+        <button class="btn-nm btn-success mt-2" onclick="openZoneModal()">
+          <i class="bi bi-plus"></i> Tambah Zone Pertama
+        </button>
+      </div>`;
+    return;
+  }
+  container.innerHTML = zonesData.map(zone => renderZoneCard(zone)).join('');
+}
+
+function sourceBadge(source) {
+  const map = {
+    unifi:  ['var(--accent)', 'UniFi'],
+    scan:   ['#28a745', 'Scan'],
+    manual: ['#6c757d', 'Manual'],
+  };
+  const [color, label] = map[source] || map.manual;
+  return `<span class="badge-snmp" style="background:${color}20;color:${color};border:1px solid ${color}40">${label}</span>`;
+}
+
+function renderZoneCard(zone) {
+  const devCount = zone.devices ? zone.devices.length : 0;
+  
+  let tableHtml = `<div class="text-center text-muted py-3">Tidak ada device di zona ini.</div>`;
+  if (devCount > 0) {
+    tableHtml = `
+      <table class="nm-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Device / Type</th>
+            <th>IP & MAC</th>
+            <th>Source</th>
+            <th>Metrics</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${zone.devices.map(d => {
+            let metricsHtml = '';
+            if (d.snmp_enabled || d.source === 'unifi') {
+              if (d.cpu_usage !== null) metricsHtml += `<span class="status-dot up py-1 px-2" style="font-size:10px;">CPU: ${formatPercent(d.cpu_usage)}</span> `;
+              if (d.memory_usage !== null) metricsHtml += `<span class="status-dot warning py-1 px-2" style="font-size:10px;">RAM: ${formatPercent(d.memory_usage)}</span> `;
+            }
+            return `
+            <tr>
+              <td>${statusBadge(d.status)}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-${iconClass(d.icon||d.type)} text-accent fs-5"></i>
+                  <div>
+                    <div class="text-sm fw-600 text-primary">${esc(d.name)}</div>
+                    <div class="text-muted" style="font-size: 10px; text-transform: uppercase;">${esc(d.type||'unknown')}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="mono-sm fw-500 text-primary">${esc(d.ip)}</div>
+                <div class="mono-sm text-muted" style="font-size: 10.5px;">${esc(d.mac||'—')}</div>
+              </td>
+              <td>${sourceBadge(d.source)}</td>
+              <td><div class="d-flex flex-wrap gap-1">${metricsHtml}</div></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-icon" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})"><i class="bi bi-info-circle-fill text-accent"></i></button>
+                </div>
+              </td>
+            </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  return `
+    <div class="nm-panel mb-4">
+      <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <span class="zone-header-dot" style="background:${zone.color}"></span>
+          <span class="fw-bold fs-5">${esc(zone.name)}</span>
+          <span class="badge bg-secondary ms-2">${devCount} device${devCount!==1?'s':''}</span>
+        </div>
+        <div class="zone-status-pills">
+          <span class="zone-status-pill up">🟢 ${zone.up_count||0} Online</span>
+          <span class="zone-status-pill down">🔴 ${zone.down_count||0} Offline</span>
+          <span class="zone-status-pill warn">⚠ ${zone.warn_count||0} Warn</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn-nm btn-sm btn-ghost" onclick="openAddDeviceModal(${zone.id})">
+            <i class="bi bi-plus"></i> Device
+          </button>
+          <button class="btn-nm btn-sm btn-ghost" onclick='openZoneModal(${JSON.stringify(zone).replace(/'/g, "&#39;")})'>
+            <i class="bi bi-pencil-fill"></i> Edit
+          </button>
+          ${zone.id !== 1 ? `
+          <button class="btn-nm btn-sm btn-ghost text-danger" onclick="confirmDeleteZone(${zone.id}, '${esc(zone.name)}')">
+            <i class="bi bi-trash-fill"></i>
+          </button>
+          ` : ''}
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        ${tableHtml}
+      </div>
+    </div>
+  `;
+}
+
+function populateZoneSelects(zones) {
+  const options = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
+  ['scan-zone', 'uf-zone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = options;
+  });
+}
+
+// ---- Zone CRUD ----
+function openZoneModal(zone = null) {
+  document.getElementById('zoneModalTitle').textContent = zone ? 'Edit Zone' : 'Tambah Zone';
+  document.getElementById('zn-id').value = zone ? zone.id : '';
+  document.getElementById('zn-name').value = zone ? zone.name : '';
+  document.getElementById('zn-color').value = zone ? zone.color : '#00d4ff';
+  document.getElementById('zn-desc').value = zone ? zone.description : '';
+  zoneModal.show();
+}
+
+function saveZone() {
+  const id = document.getElementById('zn-id').value;
+  const name = document.getElementById('zn-name').value.trim();
+  if (!name) { showToast('Nama zone wajib diisi', 'danger'); return; }
+  
+  const data = {
+    name,
+    color: document.getElementById('zn-color').value,
+    description: document.getElementById('zn-desc').value.trim()
+  };
+  
+  const url = id ? `/api/zones/${id}` : '/api/zones';
+  const method = id ? 'PUT' : 'POST';
+  
+  fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r => r.json())
+    .then(() => {
+      zoneModal.hide();
+      showToast('Zone tersimpan', 'success');
+      loadZones();
+    }).catch(() => showToast('Gagal menyimpan zone', 'danger'));
+}
+
+function confirmDeleteZone(id, name) {
+  document.getElementById('del-z-name').textContent = name;
+  document.getElementById('del-z-btn').onclick = () => {
+    fetch(`/api/zones/${id}`, {method:'DELETE'}).then(() => {
+      delZoneModal.hide();
+      showToast('Zone dihapus', 'info');
+      loadZones();
+    });
+  };
+  delZoneModal.show();
+}
+
+// ---- Add Manual Device ----
+function openAddDeviceModal(zoneId) {
+  document.getElementById('ad-zone-id').value = zoneId;
+  document.getElementById('ad-ip').value = '';
+  document.getElementById('ad-name').value = '';
+  document.getElementById('ad-type').value = 'unknown';
+  addDeviceModal.show();
+}
+
+function saveManualDevice() {
+  const ip = document.getElementById('ad-ip').value.trim();
+  if (!ip) { showToast('IP wajib diisi', 'danger'); return; }
+  
+  const data = {
+    ip,
+    name: document.getElementById('ad-name').value.trim() || ip,
+    type: document.getElementById('ad-type').value,
+    zone_id: parseInt(document.getElementById('ad-zone-id').value) || 1,
+    snmp_enabled: document.getElementById('ad-snmp-en').checked,
+    snmp_community: document.getElementById('ad-community').value.trim(),
+    snmp_version: document.getElementById('ad-version').value,
+    source: 'manual'
+  };
+  
+  fetch('/api/devices', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === 'success') {
+        addDeviceModal.hide();
+        showToast('Device ditambahkan', 'success');
+        loadZones();
+      } else {
+        showToast(res.message, 'danger');
+      }
+    });
+}
+
+function autoDetectDevice() {
+  const ip = document.getElementById('ad-ip').value.trim();
+  if (!ip) { showToast('Isi IP dulu', 'warning'); return; }
+  
+  const btn = document.getElementById('btn-detect-device');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  
+  fetch('/api/devices/detect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ip,
+      snmp_enabled: document.getElementById('ad-snmp-en').checked,
+      snmp_community: document.getElementById('ad-community').value.trim(),
+      snmp_version: document.getElementById('ad-version').value
+    })
+  }).then(r=>r.json()).then(data => {
+    if (data.status === 'success') {
+      showToast('Detected!', 'success');
+      if(data.name) document.getElementById('ad-name').value = data.name;
+      if(data.type) document.getElementById('ad-type').value = data.type;
+    } else {
+      showToast(data.message || 'Gagal deteksi', 'danger');
+    }
+  }).finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cpu-fill" id="detect-icon"></i><span>Detect</span>';
+  });
+}
+
+// ---- Scan & UniFi (Copy of devices.html) ----
+function openScanModal() { scanModal.show(); }
+function startScan() {
+  const net = document.getElementById('scan-net').value.trim();
+  if (!net) return;
+  document.getElementById('scan-progress-wrap').style.display = '';
+  document.getElementById('btn-scan-start').style.display = 'none';
+  document.getElementById('btn-scan-stop').style.display = '';
+  document.getElementById('scan-results').innerHTML = '';
+  fetch('/api/scan', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      network: net,
+      community: document.getElementById('scan-community').value.trim(),
+      version: document.getElementById('scan-version').value,
+      zone_id: parseInt(document.getElementById('scan-zone').value) || 1,
+    })
+  });
+}
+function stopScan() { fetch('/api/scan/stop', {method:'POST'}); }
+
+window.onScanProgress = (d) => {
+  document.getElementById('scan-bar').style.width  = d.percent + '%';
+  document.getElementById('scan-cur-ip').textContent = d.current_ip;
+  document.getElementById('scan-status-text').textContent = `Scanning (${d.progress}/${d.total})`;
+  document.getElementById('scan-pct').textContent = d.percent + '%';
+};
+window.onScanComplete = (d) => {
+  document.getElementById('btn-scan-start').style.display = '';
+  document.getElementById('btn-scan-stop').style.display = 'none';
+  document.getElementById('scan-results').innerHTML = `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>${d.found} device(s) added.</div>`;
+  loadZones();
+};
+window.onDeviceFound = (d) => {
+  document.getElementById('scan-found').textContent = parseInt(document.getElementById('scan-found').textContent || '0') + 1;
+};
+
+function openUnifiModal() { document.getElementById('uf-result').innerHTML = ''; unifiModal.show(); }
+function doUnifiSync() {
+  const data = {
+    host: document.getElementById('uf-host').value.trim(),
+    port: document.getElementById('uf-port').value,
+    username: document.getElementById('uf-user').value.trim(),
+    password: document.getElementById('uf-pass').value,
+    site: document.getElementById('uf-site').value.trim() || 'default',
+    zone_id: parseInt(document.getElementById('uf-zone').value) || 1,
+  };
+  document.getElementById('uf-result').innerHTML = '<div class="text-muted text-sm">Connecting…</div>';
+  fetch('/api/unifi/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res => {
+      if (res.status === 'success') {
+        document.getElementById('uf-result').innerHTML = `<div class="text-success text-sm">${res.devices} devices synced.</div>`;
+        loadZones();
+      } else {
+        document.getElementById('uf-result').innerHTML = `<div class="text-danger text-sm">${res.message}</div>`;
+      }
+    });
+}
+
+window.onDeviceUpdate = () => loadZones();
+
+</script>
+{% endblock %}

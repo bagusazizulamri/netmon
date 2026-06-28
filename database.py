@@ -63,10 +63,10 @@ class Database:
                     cpu_usage     REAL DEFAULT NULL,
                     memory_usage  REAL DEFAULT NULL,
                     temperature   REAL DEFAULT NULL,
-                    wan_in        REAL DEFAULT NULL,
                     wan_out       REAL DEFAULT NULL,
                     created_at    TEXT DEFAULT (datetime('now')),
-                    updated_at    TEXT DEFAULT (datetime('now'))
+                    updated_at    TEXT DEFAULT (datetime('now')),
+                    source        TEXT DEFAULT 'manual'
                 );
 
                 CREATE TABLE IF NOT EXISTS zones (
@@ -121,10 +121,21 @@ class Database:
                     timestamp    TEXT DEFAULT (datetime('now'))
                 );
 
+                CREATE TABLE IF NOT EXISTS interface_traffic (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id   INTEGER NOT NULL,
+                    iface_name  TEXT NOT NULL,
+                    iface_idx   INTEGER DEFAULT 0,
+                    rx_bps      REAL DEFAULT 0,
+                    tx_bps      REAL DEFAULT 0,
+                    sampled_at  TEXT DEFAULT (datetime('now'))
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_alerts_created ON alerts(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_alerts_device ON alerts(device_id);
                 CREATE INDEX IF NOT EXISTS idx_access_logs_created ON access_logs(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_metrics_device ON snmp_metrics(device_id, metric_name);
+                CREATE INDEX IF NOT EXISTS idx_if_traffic ON interface_traffic(device_id, iface_name, sampled_at DESC);
             ''')
 
             # Migration: Add any missing fields to devices table if they don't exist (preserving DB state)
@@ -154,13 +165,17 @@ class Database:
                 'wan_in': "REAL DEFAULT NULL",
                 'wan_out': "REAL DEFAULT NULL",
                 'created_at': "TEXT DEFAULT (datetime('now'))",
-                'updated_at': "TEXT DEFAULT (datetime('now'))"
+                'updated_at': "TEXT DEFAULT (datetime('now'))",
+                'source': "TEXT DEFAULT 'manual'"
             }
             for col, defn in columns_definitions.items():
                 try:
                     c.execute(f"ALTER TABLE devices ADD COLUMN {col} {defn}")
                 except sqlite3.OperationalError:
                     pass # Column already exists
+            
+            # Update source for existing unifi devices
+            c.execute("UPDATE devices SET source='unifi' WHERE (unifi_id IS NOT NULL AND unifi_id != '') AND source = 'manual'")
 
             # Default settings
             defaults = {
@@ -215,8 +230,8 @@ class Database:
                 INSERT INTO devices
                     (name, ip, mac, type, vendor, model, zone_id,
                      snmp_enabled, snmp_community, snmp_version, snmp_port,
-                     icon, pos_x, pos_y, description, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     icon, pos_x, pos_y, description, status, source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 data.get('name') or data.get('ip', 'Unknown'),
                 data.get('ip', ''),
@@ -234,6 +249,7 @@ class Database:
                 data.get('pos_y', 100),
                 data.get('description', ''),
                 data.get('status', 'unknown'),
+                data.get('source', 'manual'),
             ))
             return cur.lastrowid
 
@@ -274,13 +290,15 @@ class Database:
                     now_str = datetime.now().isoformat()
                     c.execute('''
                         UPDATE devices SET name=?, mac=?, vendor=?, model=?, unifi_id=?, zone_id=?, updated_at=?,
+                                           type = CASE WHEN ? NOT IN ('','unifi','unknown') THEN ? ELSE type END,
                                            cpu_usage=?, memory_usage=?, temperature=?, status=?, uptime=?, last_polled=?,
                                            last_seen=CASE WHEN ? = 'up' THEN ? ELSE last_seen END,
-                                           wan_in=?, wan_out=?
+                                           wan_in=?, wan_out=?, source='unifi'
                         WHERE id=?
                     ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
                           data.get('model',''), data.get('unifi_id',''), zone_id,
                           now_str,
+                          data.get('type',''), data.get('type',''),
                           data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
                           data.get('status','unknown'), data.get('uptime',''), now_str,
                           data.get('status','unknown'), now_str,
@@ -291,8 +309,8 @@ class Database:
                     c.execute('''
                         INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, snmp_community, snmp_version, snmp_port, status,
                                              cpu_usage, memory_usage, temperature, uptime, last_polled, last_seen,
-                                             wan_in, wan_out)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                             wan_in, wan_out, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unifi')
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
@@ -302,6 +320,43 @@ class Database:
                           now_str if data.get('status') == 'up' else None,
                           data.get('wan_in'), data.get('wan_out')))
                     return True
+
+    def get_zones_with_devices(self):
+        with self.conn() as c:
+            zones_rows = c.execute('''
+                SELECT z.id, z.name, z.description, z.color,
+                       COUNT(d.id) AS total,
+                       SUM(CASE WHEN d.status='up' THEN 1 ELSE 0 END) AS up_count,
+                       SUM(CASE WHEN d.status='down' THEN 1 ELSE 0 END) AS down_count,
+                       SUM(CASE WHEN d.status='warning' THEN 1 ELSE 0 END) AS warn_count
+                FROM zones z LEFT JOIN devices d ON d.zone_id = z.id
+                GROUP BY z.id ORDER BY z.name COLLATE NOCASE
+            ''').fetchall()
+            
+            zones = [dict(r) for r in zones_rows]
+            for z in zones:
+                z['devices'] = []
+                # Ensure counts are integers even if NULL
+                z['total'] = z['total'] or 0
+                z['up_count'] = z['up_count'] or 0
+                z['down_count'] = z['down_count'] or 0
+                z['warn_count'] = z['warn_count'] or 0
+                
+            for z in zones:
+                devs = c.execute('''
+                    SELECT d.*, z.name AS zone_name, z.color AS zone_color
+                    FROM devices d LEFT JOIN zones z ON z.id = d.zone_id
+                    WHERE d.zone_id = ? ORDER BY d.name COLLATE NOCASE
+                ''', (z['id'],)).fetchall()
+                z['devices'] = [dict(d) for d in devs]
+            return zones
+
+    def get_device_type_counts(self):
+        with self.conn() as c:
+            rows = c.execute('SELECT type, COUNT(*) as cnt FROM devices GROUP BY type').fetchall()
+            counts = {r['type']: r['cnt'] for r in rows}
+            counts['_total'] = sum(counts.values())
+            return counts
         except sqlite3.IntegrityError:
             return False
 
@@ -447,6 +502,48 @@ class Database:
         with self.conn() as c:
             c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)',
                       (device_id, name, str(value)))
+
+    def save_interface_traffic(self, device_id, iface_name, iface_idx, rx_bps, tx_bps):
+        with self.conn() as c:
+            c.execute('INSERT INTO interface_traffic (device_id,iface_name,iface_idx,rx_bps,tx_bps) VALUES (?,?,?,?,?)',
+                      (device_id, iface_name, iface_idx, rx_bps, tx_bps))
+
+    def get_interface_traffic(self, device_id, iface_name=None, hours=1):
+        limit = min(int(hours * 120) + 10, 3000)
+        with self.conn() as c:
+            if iface_name:
+                rows = c.execute('''
+                    SELECT sampled_at, rx_bps, tx_bps FROM interface_traffic
+                    WHERE device_id=? AND iface_name=?
+                      AND sampled_at >= datetime('now', ? || ' hours')
+                    ORDER BY sampled_at ASC LIMIT ?
+                ''', (device_id, iface_name, f'-{int(hours)}', limit)).fetchall()
+            else:
+                rows = c.execute('''
+                    SELECT
+                        strftime('%Y-%m-%dT%H:%M:',sampled_at) ||
+                        (CAST(CAST(strftime('%S',sampled_at) AS INTEGER)/30 AS INTEGER)*30) || 'Z' AS bucket,
+                        SUM(rx_bps), SUM(tx_bps)
+                    FROM interface_traffic
+                    WHERE device_id=?
+                      AND sampled_at >= datetime('now', ? || ' hours')
+                    GROUP BY bucket ORDER BY bucket ASC LIMIT ?
+                ''', (device_id, f'-{int(hours)}', limit)).fetchall()
+            return [{'ts': r[0], 'rx_bps': r[1], 'tx_bps': r[2]} for r in rows]
+
+    def get_device_interfaces(self, device_id, hours=24):
+        with self.conn() as c:
+            rows = c.execute('''
+                SELECT DISTINCT iface_name, iface_idx FROM interface_traffic
+                WHERE device_id=? AND sampled_at >= datetime('now', ? || ' hours')
+                ORDER BY iface_idx ASC
+            ''', (device_id, f'-{int(hours)}')).fetchall()
+            return [{'name': r[0], 'idx': r[1]} for r in rows]
+
+    def cleanup_interface_traffic(self, retention_hours=24):
+        with self.conn() as c:
+            c.execute("DELETE FROM interface_traffic WHERE sampled_at < datetime('now', ? || ' hours')",
+                      (f'-{int(retention_hours)}',))
 
 
     # ============================================================

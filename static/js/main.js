@@ -279,6 +279,8 @@ function openDeviceDetail(id) {
     fetchRealtimeStats();
     if (detailPollInterval) clearInterval(detailPollInterval);
     detailPollInterval = setInterval(fetchRealtimeStats, 3000);
+    loadHistoryInterfaces(activeDetailDeviceId);
+    loadHistoryChart(activeDetailDeviceId, null, 1);
   };
 
   if (dev) {
@@ -442,12 +444,7 @@ function fetchRealtimeStats() {
       const hasInterfaces = interfaces.length > 0;
       
       const showPortList = (
-        typeLower === 'router' || 
-        typeLower === 'switch' || 
-        typeLower === 'usw' || 
-        titleText.includes('switch') || 
-        modelText.includes('switch') || 
-        modelText.includes('usw')
+        hasInterfaces && !new Set(['printer', 'camera', 'ups', 'server']).has(activeDetailDeviceType || '')
       );
       
       // Show interface selector only for routers/switches with multiple ports
@@ -642,4 +639,81 @@ function updateChartData(iface) {
     
     trafficChartInstance.update('none');
   }
+}
+
+// ── State untuk history chart ──
+let _histHours = 1;
+let _histIface = null;
+let _histChart = null;
+
+function loadHistoryChart(deviceId, ifaceName, hours) {
+  if (!deviceId) return;
+  if (hours !== undefined) _histHours = hours;
+  if (ifaceName !== undefined) _histIface = ifaceName;
+  const url = `/api/devices/${deviceId}/traffic_history?hours=${_histHours}` +
+              (_histIface ? `&iface=${encodeURIComponent(_histIface)}` : '');
+  fetch(url).then(r => r.json()).then(res => {
+    if (res.status !== 'success') return;
+    const pts    = res.points || [];
+    const fmt    = _histHours <= 1
+      ? d => new Date(d).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+      : d => new Date(d).toLocaleString([],{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const labels = pts.map(p => { try { return fmt(p.ts); } catch { return p.ts; } });
+    const rxData = pts.map(p => p.rx_bps || 0);
+    const txData = pts.map(p => p.tx_bps || 0);
+    const canvas = document.getElementById('historyChart');
+    if (!canvas) return;
+    if (_histChart) {
+      _histChart.data.labels = labels;
+      _histChart.data.datasets[0].data = rxData;
+      _histChart.data.datasets[1].data = txData;
+      _histChart.update('none');
+    } else {
+      _histChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets: [
+          { label:'RX (Inbound)',  data:rxData, borderColor:'#58a6ff',
+            backgroundColor:'rgba(88,166,255,0.12)', fill:true, tension:0.3,
+            borderWidth:2, pointRadius:1 },
+          { label:'TX (Outbound)', data:txData, borderColor:'#bc8cff',
+            backgroundColor:'rgba(188,140,255,0.12)', fill:true, tension:0.3,
+            borderWidth:2, pointRadius:1 }
+        ]},
+        options: {
+          responsive:true, maintainAspectRatio:false, animation:false,
+          plugins: {
+            legend:{ display:true, labels:{color:'#8b949e',font:{size:11}} },
+            tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${formatBandwidthSimple(ctx.parsed.y)}` } }
+          },
+          scales: {
+            x:{ grid:{display:false}, ticks:{color:'#8b949e',font:{size:10},maxTicksLimit:8,maxRotation:0} },
+            y:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#8b949e',font:{size:10},
+                callback: v => formatBandwidthSimple(v)} }
+          }
+        }
+      });
+    }
+    const noData = document.getElementById('hist-no-data');
+    if (noData) noData.style.display = pts.length === 0 ? '' : 'none';
+  }).catch(err => console.warn('[History]', err));
+}
+
+function loadHistoryInterfaces(deviceId) {
+  fetch(`/api/devices/${deviceId}/traffic_interfaces`)
+    .then(r => r.json())
+    .then(res => {
+      const sel = document.getElementById('hist-iface-select');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Semua interface (agregat)</option>' +
+        (res.interfaces || []).map(i => `<option value="${esc(i.name)}">${esc(i.name)}</option>`).join('');
+    }).catch(()=>{});
+}
+
+function exportHistoryChart() {
+  if (!_histChart) { showToast('Belum ada data grafik', 'warning'); return; }
+  const a    = document.createElement('a');
+  const name = document.getElementById('det-title')?.textContent || 'device';
+  a.download = `traffic_${name.replace(/\s+/g,'_')}_${_histHours}h.png`;
+  a.href     = _histChart.toBase64Image('image/png', 1.0);
+  a.click();
 }

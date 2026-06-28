@@ -37,6 +37,11 @@ def floorplan():
     db.add_access_log({'source': request.remote_addr, 'message': 'Accessed Floor Plan', 'type': 'access'})
     return render_template('floorplan.html')
 
+@app.route('/zones')
+def zones_page():
+    db.add_access_log({'source': request.remote_addr, 'message': 'Accessed Zones', 'type': 'access'})
+    return render_template('zones.html')
+
 @app.route('/devices')
 def devices_page():
     db.add_access_log({'source': request.remote_addr, 'message': 'Accessed Devices', 'type': 'access'})
@@ -63,7 +68,8 @@ def get_devices():
 @app.route('/api/devices', methods=['POST'])
 def add_device():
     import sqlite3
-    data = request.json
+    data = dict(request.json) if request.json else {}
+    data['source'] = request.json.get('source', 'manual') if request.json else 'manual'
     try:
         device_id = db.add_device(data)
         dev = db.get_device(device_id)
@@ -73,6 +79,11 @@ def add_device():
         return jsonify({'status': 'error', 'message': 'Alamat IP sudah terdaftar atau terdapat kesalahan integritas data.'}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/devices/type_counts', methods=['GET'])
+def get_device_type_counts():
+    """Count per device type, untuk sub-nav di halaman /devices."""
+    return jsonify(db.get_device_type_counts())
 
 @app.route('/api/devices/<int:device_id>', methods=['GET'])
 def get_device(device_id):
@@ -267,6 +278,26 @@ def detect_device_info():
         
     return jsonify({'status': 'error', 'message': 'Device is unreachable or offline'}), 404
 
+@app.route('/api/devices/<int:device_id>/traffic_history', methods=['GET'])
+def get_traffic_history(device_id):
+    device = db.get_device(device_id)
+    if not device:
+        return jsonify({'status':'error','message':'Not found'}), 404
+    iface = request.args.get('iface') or None
+    try:
+        hours = max(0.25, min(24, float(request.args.get('hours', 1))))
+    except:
+        hours = 1.0
+    points = db.get_interface_traffic(device_id, iface_name=iface, hours=hours)
+    return jsonify({'status':'success','iface':iface,'hours':hours,'points':points})
+
+@app.route('/api/devices/<int:device_id>/traffic_interfaces', methods=['GET'])
+def get_traffic_interfaces(device_id):
+    device = db.get_device(device_id)
+    if not device:
+        return jsonify({'status':'error','message':'Not found'}), 404
+    return jsonify({'status':'success','interfaces': db.get_device_interfaces(device_id, hours=24)})
+
 @app.route('/api/devices/<int:device_id>/realtime_stats', methods=['GET'])
 def get_device_realtime_stats(device_id):
     device = db.get_device(device_id)
@@ -339,6 +370,11 @@ def get_device_realtime_stats(device_id):
 @app.route('/api/zones', methods=['GET'])
 def get_zones():
     return jsonify(db.get_all_zones())
+
+@app.route('/api/zones/devices', methods=['GET'])
+def get_zones_with_devices():
+    """Zones beserta device-nya, untuk halaman /zones."""
+    return jsonify(db.get_zones_with_devices())
 
 @app.route('/api/zones', methods=['POST'])
 def add_zone():
@@ -576,6 +612,20 @@ def background_poll():
             snmp_worker.poll_device(device)
         except Exception as e:
             print(f"[Poll] Error polling {device.get('ip')}: {e}")
+
+    # Kumpulkan traffic per-interface untuk semua device SNMP-enabled
+    for device in devices:
+        if device.get('snmp_enabled'):
+            try:
+                snmp_worker.collect_interface_traffic(device)
+            except Exception as e:
+                print(f"[Traffic] {device.get('ip')}: {e}")
+
+    # Cleanup data lama (simpan 24 jam terakhir)
+    try:
+        db.cleanup_interface_traffic(retention_hours=int(db.get_settings().get('traffic_retention_hours', 24)))
+    except Exception as e:
+        print(f"[Cleanup] {e}")
 
 # ============================================================
 # MAIN

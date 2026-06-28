@@ -41,6 +41,7 @@ class SNMPWorker:
         self._status = {'running':False,'progress':0,'total':0,'found':0,
                         'current_ip':'','message':'Idle','percent':0}
         self._interfaces_cache = {}
+        self._if_prev = {}
 
     def get_scan_status(self): return dict(self._status)
     def stop_scan(self):       self._stop.set()
@@ -609,12 +610,18 @@ class SNMPWorker:
         if new_desc:
             if not cached:
                 is_valid = True
-            elif len(new_desc) >= len(cached['if_desc']) * 0.8:
-                is_valid = True
+            else:
+                cache_age = time.time() - cached.get('_ts', 0)
+                if len(new_desc) >= len(cached['if_desc']):
+                    is_valid = True          # sama atau lebih banyak → selalu valid
+                elif cache_age > 300:
+                    is_valid = True          # cache stale >5 menit → izinkan refresh
+                # else: lebih sedikit DAN cache masih fresh → rate-limited, tolak
 
         if is_valid:
             # Cache the successful SNMP walk. For metrics that failed, retain previous cached values if any.
             self._interfaces_cache[cache_key] = {
+                '_ts': time.time(),
                 'if_desc': new_desc,
                 'if_type': new_type or (cached['if_type'] if cached else {}),
                 'if_speed': new_speed or (cached['if_speed'] if cached else {}),
@@ -722,6 +729,57 @@ class SNMPWorker:
             'temperature': temperature,
             'interfaces': interfaces
         }
+
+    def collect_interface_traffic(self, device):
+        """Walk ifHCInOctets/ifHCOutOctets, hitung bps dari delta, simpan ke DB."""
+        if not SNMP_OK:
+            return
+        did       = device['id']
+        ip        = device.get('ip', '')
+        community = device.get('snmp_community', 'public') or 'public'
+        port      = device.get('snmp_port', 161) or 161
+        version   = device.get('snmp_version', '2c') or '2c'
+
+        if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=2)
+        if not if_desc:
+            return
+
+        hc_in  = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6',  port, version, timeout=2)
+        hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port, version, timeout=2)
+        if not hc_in:
+            hc_in  = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port, version, timeout=2)
+            hc_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=2)
+
+        now_ts = time.time()
+        for oid, name in if_desc.items():
+            idx = oid.split('.')[-1]
+            if str(name).lower() in ('lo', 'lo0') or 'loopback' in str(name).lower():
+                continue
+            rx = next((int(v) for k in [
+                f'1.3.6.1.2.1.31.1.1.1.6.{idx}', f'1.3.6.1.31.1.1.1.6.{idx}',
+                f'1.3.6.1.2.1.2.2.1.10.{idx}']
+                if (v := (hc_in or {}).get(k)) is not None), None)
+            tx = next((int(v) for k in [
+                f'1.3.6.1.2.1.31.1.1.1.10.{idx}', f'1.3.6.1.31.1.1.1.10.{idx}',
+                f'1.3.6.1.2.1.2.2.1.16.{idx}']
+                if (v := (hc_out or {}).get(k)) is not None), None)
+            if rx is None or tx is None:
+                continue
+            key  = (did, idx)
+            prev = self._if_prev.get(key)
+            self._if_prev[key] = {'rx': rx, 'tx': tx, 'ts': now_ts}
+            if prev:
+                dt = now_ts - prev['ts']
+                if dt <= 0:
+                    continue
+                d_rx = rx - prev['rx']
+                d_tx = tx - prev['tx']
+                if d_rx < 0: d_rx += 2**32
+                if d_tx < 0: d_tx += 2**32
+                rx_bps = (d_rx * 8) / dt
+                tx_bps = (d_tx * 8) / dt
+                if rx_bps <= 100e9 and tx_bps <= 100e9:
+                    self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
 
     def _poll_router_traffic(self, did, ip, community, port, version):
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
@@ -869,7 +927,7 @@ class SNMPWorker:
                              'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
                              'sys_name':name,'snmp_enabled':True,
                              'snmp_community':community,'snmp_version':version,
-                             'status':'up','zone_id':zone_id}
+                             'status':'up','zone_id':zone_id, 'source':'scan'}
                     try:
                         existing = self.db.get_device_by_ip(ip)
                         if existing:

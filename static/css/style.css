@@ -741,3 +741,71 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Type sub-navigation tabs ── */
+.type-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px;
+}
+.type-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.type-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.type-tab.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.type-cnt {
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.type-tab.active .type-cnt {
+  background: rgba(0,212,255,0.15);
+}
+
+/* ── Zone cards ── */
+.zone-header-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.zone-status-pills {
+  display: flex; gap: 8px; align-items: center;
+}
+.zone-status-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.zone-status-pill.up     { background: rgba(40,167,69,0.15); color: #28a745; }
+.zone-status-pill.down   { background: rgba(220,53,69,0.15); color: #dc3545; }
+.zone-status-pill.warn   { background: rgba(255,193,7,0.15); color: #ffc107; }
+.zone-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}

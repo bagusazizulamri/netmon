@@ -28,8 +28,11 @@
     <a href="/floorplan" class="nav-item {% if request.endpoint=='floorplan' %}active{% endif %}">
       <i class="bi bi-map-fill"></i><span>Floor Plan</span>
     </a>
+    <a href="/zones" class="nav-item {% if request.endpoint=='zones_page' %}active{% endif %}">
+      <i class="bi bi-map-fill"></i><span>Zone</span>
+    </a>
     <a href="/devices" class="nav-item {% if request.endpoint=='devices_page' %}active{% endif %}">
-      <i class="bi bi-hdd-rack-fill"></i><span>Devices</span>
+      <i class="bi bi-hdd-rack-fill"></i><span>Device</span>
     </a>
     <a href="/logs" class="nav-item {% if request.endpoint=='logs_page' %}active{% endif %}">
       <i class="bi bi-journal-code"></i><span>Logs</span>
@@ -222,6 +225,35 @@
                 </table>
               </div>
             </div>
+            
+            <div class="nm-panel mt-3" id="history-chart-panel">
+              <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-graph-up-arrow me-2 text-accent"></i>Traffic History</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <select id="hist-iface-select" class="nm-select" style="min-width:160px"
+                          onchange="loadHistoryChart(activeDetailDeviceId, this.value)">
+                    <option value="">Semua interface</option>
+                  </select>
+                  <div class="btn-group" role="group">
+                    <button class="btn-nm btn-sm btn-ghost" onclick="loadHistoryChart(activeDetailDeviceId,undefined,0.25)">15m</button>
+                    <button class="btn-nm btn-sm btn-ghost" onclick="loadHistoryChart(activeDetailDeviceId,undefined,1)">1h</button>
+                    <button class="btn-nm btn-sm btn-ghost" onclick="loadHistoryChart(activeDetailDeviceId,undefined,6)">6h</button>
+                    <button class="btn-nm btn-sm btn-ghost" onclick="loadHistoryChart(activeDetailDeviceId,undefined,24)">24h</button>
+                  </div>
+                  <button class="btn-nm btn-sm btn-ghost" onclick="exportHistoryChart()" title="Export PNG">
+                    <i class="bi bi-download me-1"></i>PNG
+                  </button>
+                </div>
+              </div>
+              <div class="panel-body" style="position:relative; height:220px;">
+                <div id="hist-no-data" class="text-center text-muted py-4" style="display:none">
+                  <i class="bi bi-hourglass-split me-1"></i>
+                  Belum ada data historis. Data akan muncul setelah background poll berjalan.
+                </div>
+                <canvas id="historyChart"></canvas>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

@@ -20,21 +20,11 @@
   </div>
 </div>
 
-<!-- Unified Filter and Stats Card -->
-<div class="nm-panel mb-4">
-  <div class="panel-body d-flex flex-wrap align-items-center justify-content-between gap-3 py-3" style="background: rgba(255,255,255,0.01);">
-    <!-- Left: Zone Filter Tabs -->
-    <div class="d-flex flex-column gap-2">
-      <span class="nm-section-lbl text-muted">Filter Zone</span>
-      <div class="zone-tabs m-0" id="zone-tabs">
-        <button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>
-      </div>
-    </div>
-    
-    <!-- Right: Device Stats Summary -->
-    <div class="d-flex flex-column gap-2 align-items-lg-end">
-      <span class="nm-section-lbl text-muted text-lg-end">Status Summary</span>
-      <div class="dev-stats-strip m-0" id="dev-stats-strip"></div>
+<!-- Type Sub-navigation -->
+<div class="nm-panel mb-3">
+  <div class="panel-body p-0">
+    <div class="type-subnav" id="type-subnav">
+      <!-- Rendered via JS -->
     </div>
   </div>
 </div>
@@ -325,17 +315,32 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAll();
 });
 
+const TYPE_ORDER = [
+  { key:'',             label:'All'          },
+  { key:'router',       label:'Router'        },
+  { key:'firewall',     label:'Firewall'      },
+  { key:'switch',       label:'Switch'        },
+  { key:'access_point', label:'Access Point'  },
+  { key:'server',       label:'Server'        },
+  { key:'printer',      label:'Printer'       },
+  { key:'camera',       label:'Camera'        },
+  { key:'ups',          label:'UPS'           },
+  { key:'unifi',        label:'UniFi'         },
+  { key:'unknown',      label:'Unknown'       },
+];
+let activeType = '';
+
 function loadAll() {
   Promise.all([
     fetch('/api/devices').then(r=>r.json()),
     fetch('/api/zones').then(r=>r.json()),
     fetch('/api/settings').then(r=>r.json()),
-  ]).then(([devs, zones, settings]) => {
+    fetch('/api/devices/type_counts').then(r=>r.json()),
+  ]).then(([devs, zones, settings, typeCounts]) => {
     allDevices = devs; allZones = zones;
-    populateZoneTabs(zones);
+    renderTypeTabs(typeCounts);
     populateZoneSelect(zones);
     renderTable(devs);
-    renderStatsStrip(devs);
     // Pre-fill UniFi fields
     if (settings.unifi_host) {
       document.getElementById('uf-host').value = settings.unifi_host;
@@ -346,8 +351,41 @@ function loadAll() {
   });
 }
 
-window.onInitData = (d) => { allDevices = d.devices; allZones = d.zones; populateZoneTabs(d.zones); populateZoneSelect(d.zones); renderTable(d.devices); renderStatsStrip(d.devices); };
-window.onDeviceUpdate = () => { fetch('/api/devices').then(r=>r.json()).then(d => { allDevices=d; renderTable(d); renderStatsStrip(d); }); };
+function renderTypeTabs(counts) {
+  const container = document.getElementById('type-subnav');
+  const total = allDevices.length;
+  container.innerHTML = TYPE_ORDER
+    .filter(t => t.key === '' || (counts[t.key] || 0) > 0)
+    .map(t => {
+      const cnt = t.key === '' ? total : (counts[t.key] || 0);
+      const isActive = activeType === t.key;
+      return `<button class="type-tab${isActive?' active':''}"
+                      data-type="${t.key}"
+                      onclick="filterByType('${t.key}',this)">
+                ${t.label}
+                <span class="type-cnt">${cnt}</span>
+              </button>`;
+    }).join('');
+}
+
+function filterByType(type, btn) {
+  activeType = type;
+  document.querySelectorAll('.type-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.type === type));
+  applyFilter();
+}
+
+window.onInitData = (d) => { allDevices = d.devices; allZones = d.zones; populateZoneSelect(d.zones); renderTable(d.devices); };
+window.onDeviceUpdate = () => {
+  Promise.all([
+    fetch('/api/devices').then(r=>r.json()),
+    fetch('/api/devices/type_counts').then(r=>r.json()),
+  ]).then(([devs, counts]) => {
+    allDevices = devs;
+    renderTypeTabs(counts);
+    renderTable(devs);
+  });
+};
 
 function renderTable(devices) {
   document.getElementById('dev-count').textContent = devices.length;
@@ -381,7 +419,7 @@ function renderTable(devices) {
     }
 
     return `
-    <tr class="dev-row" data-status="${d.status}" data-zone="${d.zone_id}"
+    <tr class="dev-row" data-status="${d.status}" data-zone="${d.zone_id}" data-type="${d.type||'unknown'}"
         data-search="${(d.name+d.ip+(d.zone_name||'')+(d.type||'')).toLowerCase()}">
       <td>${statusBadge(d.status)}</td>
       <td>
@@ -420,51 +458,26 @@ function renderTable(devices) {
   }).join('');
 }
 
-function renderStatsStrip(devices) {
-  const counts = {up:0,down:0,warning:0,unknown:0};
-  devices.forEach(d => { counts[d.status] = (counts[d.status]||0) + 1; });
-  document.getElementById('dev-stats-strip').innerHTML =
-    Object.entries(counts).map(([s,c]) =>
-      `<div class="dss-item ${s}"><span class="dss-val">${c}</span><span class="dss-lbl">${s}</span></div>`
-    ).join('');
-}
-
-function populateZoneTabs(zones) {
-  const tabs = document.getElementById('zone-tabs');
-  const current = tabs.innerHTML;
-  const zonePart = zones.map(z =>
-    `<button class="zone-tab" data-zone="${z.id}" onclick="filterZone('${z.id}',this)" style="--ztab-color:${z.color}">
-       ${esc(z.name)} <span class="zone-cnt">${z.device_count||0}</span>
-     </button>`
-  ).join('');
-  tabs.innerHTML = `<button class="zone-tab active" data-zone="all" onclick="filterZone('all',this)">All</button>` + zonePart;
-}
-
 function populateZoneSelect(zones) {
   const sel = document.getElementById('dev-zone');
-  sel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
+  if (sel) sel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
   const ufSel = document.getElementById('uf-zone');
   if (ufSel) ufSel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
   const scSel = document.getElementById('scan-zone');
   if (scSel) scSel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('');
 }
 
-let activeZone = 'all';
-function filterZone(zone, btn) {
-  activeZone = zone;
-  document.querySelectorAll('.zone-tab').forEach(t => t.classList.toggle('active', t.dataset.zone == zone));
-  applyFilter();
-}
-
 function applyFilter() {
   const q   = document.getElementById('dev-filter').value.toLowerCase();
   const st  = document.getElementById('status-filter').value;
   document.querySelectorAll('.dev-row').forEach(r => {
-    const matchZone   = activeZone === 'all' || r.dataset.zone == activeZone;
+    const matchType   = !activeType || r.dataset.type === activeType;
     const matchSearch = !q  || r.dataset.search.includes(q);
     const matchStatus = !st || r.dataset.status === st;
-    r.style.display = (matchZone && matchSearch && matchStatus) ? '' : 'none';
+    r.style.display = (matchType && matchSearch && matchStatus) ? '' : 'none';
   });
+  const visible = document.querySelectorAll('.dev-row:not([style*="none"])').length;
+  document.getElementById('dev-count').textContent = visible;
 }
 
 // ---- Device CRUD ----
