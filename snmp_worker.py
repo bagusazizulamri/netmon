@@ -96,8 +96,8 @@ class SNMPWorker:
                         res[oids[i]] = str_val
                 if res:
                     return res
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[SNMP multiget error] {ip}: {e}")
         # Fallback to individual gets if multiget fails
         for oid in oids:
             try:
@@ -116,8 +116,8 @@ class SNMPWorker:
                 if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
                     continue
                 res[oid] = str_val
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[SNMP individual get error] {ip} (OID {oid}): {e}")
         return res if res else None
 
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
@@ -132,8 +132,8 @@ class SNMPWorker:
                 res = loop.run_until_complete(coro)
                 if res:
                     return res
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[SNMP _get error] {ip} (attempt {attempt + 1}): {e}")
             finally:
                 if loop is not None:
                     try:
@@ -1037,10 +1037,15 @@ class SNMPWorker:
 
     # ─── network scan ────────────────────────────────────────────────
 
-    def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp'):
+    def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp', **kwargs):
         if method == 'snmp' and not SNMP_OK:
             self.socketio.emit('scan_error', {'error':'puresnmp not installed. Run: pip install puresnmp'})
             return
+
+        ping_timeout = kwargs.get('ping_timeout') or 1.5
+        snmp_timeout = kwargs.get('snmp_timeout') or 2.5
+        retries = kwargs.get('retries') or 1
+        max_workers = kwargs.get('max_workers') or 30
 
         with self._lock:
             self._stop.clear()
@@ -1067,17 +1072,17 @@ class SNMPWorker:
                     oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
                     
                     # Try with user-provided community string first
-                    result = self._get(ip, community, oids, version=version, timeout=2.5)
+                    result = self._get(ip, community, oids, version=version, timeout=snmp_timeout)
                     # Fallback to SNMPv1 if v2c failed
                     if not result and version == '2c':
-                        result = self._get(ip, community, oids, version='1', timeout=2.5)
+                        result = self._get(ip, community, oids, version='1', timeout=snmp_timeout)
                     
                     # Try common community strings if user-provided one failed
                     if not result:
                         for alt_community in ('public', 'private'):
                             if alt_community == community:
                                 continue
-                            result = self._get(ip, alt_community, oids, version=version, timeout=2.0)
+                            result = self._get(ip, alt_community, oids, version=version, timeout=snmp_timeout)
                             if result:
                                 # Override community with the one that worked
                                 community_used = alt_community
@@ -1151,34 +1156,34 @@ class SNMPWorker:
 
                 if dev:
                     try:
-                        existing = self.db.get_device_by_ip(ip)
-                        if existing:
-                            updates = {'status':'up','zone_id':zone_id}
+                        with self.db_write_lock:
+                            existing = self.db.get_device_by_ip(ip)
+                            if existing:
+                                updates = {'status':'up','zone_id':zone_id}
 
-                            if method == 'snmp':
-                                # SNMP scan: update all fields including SNMP config
-                                if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
-                                if 'description' in dev: updates['description'] = dev['description']
-                                if 'vendor' in dev: updates['vendor'] = dev['vendor']
-                                updates['snmp_enabled'] = 1
-                                if dev.get('snmp_community'): updates['snmp_community'] = dev['snmp_community']
-                                if dev.get('snmp_version'): updates['snmp_version'] = dev['snmp_version']
+                                if method == 'snmp':
+                                    # SNMP scan: update all fields including SNMP config
+                                    if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
+                                    if 'description' in dev: updates['description'] = dev['description']
+                                    if 'vendor' in dev: updates['vendor'] = dev['vendor']
+                                    updates['snmp_enabled'] = 1
+                                    if dev.get('snmp_community'): updates['snmp_community'] = dev['snmp_community']
+                                    if dev.get('snmp_version'): updates['snmp_version'] = dev['snmp_version']
+                                else:
+                                    # ICMP/ARP scan: NEVER overwrite snmp_enabled, community,
+                                    # version, description, or vendor on existing devices
+                                    # to protect data from prior SNMP detection
+                                    if dev.get('mac'): updates['mac'] = dev['mac']
+
+                                self.db.update_device(existing['id'], updates)
+                                dev['id'] = existing['id']
                             else:
-                                # ICMP/ARP scan: NEVER overwrite snmp_enabled, community,
-                                # version, description, or vendor on existing devices
-                                # to protect data from prior SNMP detection
-                                if dev.get('mac'): updates['mac'] = dev['mac']
-
-                            self.db.update_device(existing['id'], updates)
-                            dev['id'] = existing['id']
-                        else:
-                            dev['id'] = self.db.add_device(dev)
+                                dev['id'] = self.db.add_device(dev)
                         return dev
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"[Scan] Failed to save device {ip} to DB: {e}")
                 return None
 
-            max_workers = 30
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {executor.submit(scan_ip, str(host)): str(host) for host in hosts}
                 for future in as_completed(futures):
