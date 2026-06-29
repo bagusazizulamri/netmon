@@ -9,9 +9,17 @@ from datetime import datetime
 try:
     from puresnmp import PyWrapper, Client, V1, V2C
     from puresnmp.exc import SnmpError, Timeout as SnmpTimeout
+    try:
+        from puresnmp.pdu import NoSuchObject, NoSuchInstance
+    except ImportError:
+        # Older puresnmp versions may not have these
+        NoSuchObject = type(None)
+        NoSuchInstance = type(None)
     SNMP_OK = True
 except ImportError:
     SNMP_OK = False
+    NoSuchObject = type(None)
+    NoSuchInstance = type(None)
     print("[SNMP] puresnmp not installed — run: pip install puresnmp")
 
 OID = {
@@ -60,16 +68,47 @@ class SNMPWorker:
     async def _async_get(self, ip, community, oids, port, version, timeout):
         c = _client(ip, version, community, port, timeout=timeout, retries=0)
         res = {}
+        # Try multiget first (single SNMP request for all OIDs — faster & more reliable)
+        try:
+            multi_result = await c.multiget(oids)
+            if multi_result and isinstance(multi_result, (list, tuple)):
+                for i, val in enumerate(multi_result):
+                    if i < len(oids):
+                        # Filter out NoSuchObject/NoSuchInstance sentinel values
+                        if val is None or isinstance(val, (NoSuchObject, NoSuchInstance)):
+                            continue
+                        if isinstance(val, bytes):
+                            try:
+                                val = val.decode('utf-8', errors='ignore')
+                            except Exception:
+                                pass
+                        str_val = str(val)
+                        # Also filter string representations of sentinel values
+                        if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
+                            continue
+                        res[oids[i]] = str_val
+                if res:
+                    return res
+        except Exception:
+            pass
+        # Fallback to individual gets if multiget fails
         for oid in oids:
             try:
                 val = await c.get(oid)
+                # Filter out NoSuchObject/NoSuchInstance sentinel values
+                if val is None or isinstance(val, (NoSuchObject, NoSuchInstance)):
+                    continue
                 # Clean up bytes to string if needed
                 if isinstance(val, bytes):
                     try:
                         val = val.decode('utf-8', errors='ignore')
                     except Exception:
                         pass
-                res[oid] = str(val)
+                str_val = str(val)
+                # Also filter string representations of sentinel values
+                if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
+                    continue
+                res[oid] = str_val
             except Exception:
                 pass
         return res if res else None
@@ -79,16 +118,22 @@ class SNMPWorker:
         import asyncio
         # Retry up to 2 times to prevent random NAT UDP packet loss
         for attempt in range(2):
+            loop = None
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 coro = self._async_get(ip, community, oids, port, version, timeout)
                 res = loop.run_until_complete(coro)
-                loop.close()
                 if res:
                     return res
             except Exception:
                 pass
+            finally:
+                if loop is not None:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
         return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
@@ -112,16 +157,22 @@ class SNMPWorker:
         import asyncio
         # Retry up to 2 times to prevent random NAT UDP packet loss
         for attempt in range(2):
+            loop = None
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 coro = self._async_walk(ip, community, base_oid, port, version, timeout)
                 res = loop.run_until_complete(coro)
-                loop.close()
                 if res:
                     return res
             except Exception:
                 pass
+            finally:
+                if loop is not None:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
         return {}
 
     # ─── poll a single device ────────────────────────────────────────
@@ -959,11 +1010,13 @@ class SNMPWorker:
                 
                 dev = None
                 
-                if method == 'snmp':
+                if method in ('snmp', 'snmp+icmp'):
                     oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
-                    result = self._get(ip, community, oids, version=version, timeout=1.5)
+                    # Try SNMPv2c first with adequate timeout
+                    result = self._get(ip, community, oids, version=version, timeout=2.5)
+                    # Fallback to SNMPv1 if v2c failed
                     if not result and version == '2c':
-                        result = self._get(ip, community, oids, version='1', timeout=1.5)
+                        result = self._get(ip, community, oids, version='1', timeout=2.5)
                         
                     if result:
                         name  = result.get(OID['sysName'],'').strip() or ip
@@ -986,6 +1039,12 @@ class SNMPWorker:
                                'sys_name':name,'snmp_enabled':True,
                                'snmp_community':community,'snmp_version':version,
                                'status':'up','zone_id':zone_id, 'source':'scan'}
+                    elif method == 'snmp+icmp' and not dev:
+                        # SNMP failed, fallback to ICMP ping for this IP
+                        if self._ping(ip):
+                            dev = {'name':ip,'ip':ip,'type':'unknown','vendor':'Unknown','icon':'unknown',
+                                   'description':'Discovered via ICMP (SNMP unreachable)','snmp_enabled':False,
+                                   'status':'up','zone_id':zone_id, 'source':'scan'}
                 
                 elif method == 'icmp':
                     ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]

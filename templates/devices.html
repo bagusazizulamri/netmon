@@ -187,8 +187,9 @@
         <div class="row g-3">
           <div class="col-md-3">
             <label class="nm-label">Method</label>
-            <select class="nm-select w-100" id="scan-method" onchange="document.getElementById('scan-community').disabled = document.getElementById('scan-version').disabled = (this.value !== 'snmp')">
-              <option value="snmp" selected>SNMP</option>
+            <select class="nm-select w-100" id="scan-method" onchange="document.getElementById('scan-community').disabled = document.getElementById('scan-version').disabled = (this.value !== 'snmp' && this.value !== 'snmp+icmp')">
+              <option value="snmp+icmp" selected>SNMP + ICMP (Recommended)</option>
+              <option value="snmp">SNMP Only</option>
               <option value="icmp">ICMP (Ping)</option>
               <option value="arp">ARP</option>
             </select>
