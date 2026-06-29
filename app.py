@@ -462,9 +462,34 @@ def scan_network():
     version = data.get('version', '2c') or '2c'
     zone_id = int(data.get('zone_id', 1))
     method = data.get('method', 'snmp')
+    
+    ping_timeout = data.get('ping_timeout', 1.5)
+    snmp_timeout = data.get('snmp_timeout', data.get('timeout', 2.0))
+    retries = data.get('retries', 1)
+    max_workers = data.get('max_workers', data.get('workers', None))
+    
+    # Cast variables if present
+    if ping_timeout is not None: ping_timeout = float(ping_timeout)
+    if snmp_timeout is not None: snmp_timeout = float(snmp_timeout)
+    if retries is not None: retries = int(retries)
+    if max_workers is not None: max_workers = int(max_workers)
+    
     if snmp_worker.get_scan_status()['running']:
         return jsonify({'status': 'already_running'}), 409
-    threading.Thread(target=snmp_worker.scan_network, args=(network, community, version, zone_id, method), daemon=True).start()
+        
+    t = threading.Thread(
+        target=snmp_worker.scan_network,
+        args=(network, community, version, zone_id, method),
+        kwargs={
+            'ping_timeout': ping_timeout,
+            'snmp_timeout': snmp_timeout,
+            'retries': retries,
+            'max_workers': max_workers
+        },
+        daemon=True
+    )
+    snmp_worker._scan_future = t
+    t.start()
     db.add_access_log({'source': request.remote_addr, 'message': f'Network scan started: {network}', 'type': 'scan'})
     return jsonify({'status': 'started', 'network': network})
 

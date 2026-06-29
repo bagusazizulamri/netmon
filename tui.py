@@ -433,6 +433,7 @@ class NetMonTUI:
             print()
             
         t = threading.Thread(target=self.worker.scan_network, args=(net, community, version))
+        self.worker._scan_future = t
         t.start()
         
         lt = threading.Thread(target=loader)

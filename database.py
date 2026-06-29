@@ -22,7 +22,7 @@ class Database:
 
     @contextmanager
     def conn(self):
-        c = sqlite3.connect(self.db_path, check_same_thread=False)
+        c = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
         c.row_factory = sqlite3.Row
         c.execute("PRAGMA journal_mode=WAL")
         try:
