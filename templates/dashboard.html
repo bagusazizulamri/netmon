@@ -2,116 +2,134 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-<div class="page-header">
+<style>
+  .dashboard-map-panel {
+    border-radius: 18px;
+    background: rgba(28, 28, 30, 0.4) !important;
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  .dashboard-map-container {
+    height: 380px !important;
+    min-height: 380px !important;
+    background: transparent !important;
+  }
+  .apple-alert {
+    border-radius: 14px;
+    background: rgba(255, 69, 58, 0.12) !important;
+    border: 1px solid rgba(255, 69, 58, 0.25) !important;
+    color: #ff453a !important;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 15px rgba(255, 69, 58, 0.1);
+  }
+  .apple-alert.warning {
+    background: rgba(255, 159, 10, 0.12) !important;
+    border: 1px solid rgba(255, 159, 10, 0.25) !important;
+    color: #ff9f0a !important;
+    box-shadow: 0 4px 15px rgba(255, 159, 10, 0.1);
+  }
+  .zone-pill {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+</style>
+
+<div class="page-header mb-4">
   <div>
-    <h1 class="page-title">Dashboard</h1>
-    <p class="page-sub">Real-time network overview</p>
+    <h1 class="page-title" style="font-weight: 700; letter-spacing: -0.5px; font-size: 26px;">Dashboard</h1>
+    <p class="page-sub" style="color: var(--text-secondary); font-size: 13px;">Real-time network status overview</p>
   </div>
-  <div class="page-actions">
-    <button class="btn-nm btn-sm" onclick="refreshAll()">
+  <div class="page-actions d-flex align-items-center gap-3">
+    <button class="btn-nm btn-sm px-3 py-2" onclick="refreshAll()" style="border-radius: 10px;">
       <i class="bi bi-arrow-clockwise"></i> Refresh
     </button>
-    <span class="uptime-badge" id="last-refresh">Updating…</span>
+    <span class="uptime-badge px-3 py-2" id="last-refresh" style="border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border);">Updating…</span>
   </div>
 </div>
 
-<!-- ===== STAT CARDS ===== -->
-<div class="stat-grid" id="stat-grid">
-  <div class="stat-card up">
-    <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-up">—</div>
-      <div class="stat-lbl">Online</div>
-    </div>
+<!-- ===== WARNING ALERTS SECTION (TOP) ===== -->
+<div id="dashboard-warning-banner" class="mb-4 animate-fade-in" style="display: none;">
+  <!-- Rendered dynamically -->
+</div>
+
+<!-- ===== VISUAL TOPOLOGY MAP (MIDDLE) ===== -->
+<div class="nm-panel p-0 mb-4 dashboard-map-panel" style="position: relative;">
+  <div class="panel-header d-flex justify-content-between align-items-center border-0 p-3" style="background: transparent;">
+    <span class="fw-600 fs-6"><i class="bi bi-map-fill me-2 text-accent"></i>Visual Topology Map</span>
+    <span class="text-xs text-muted" style="font-size:11px;"><i class="bi bi-info-circle me-1"></i>Klik node zona untuk melihat detail perangkat di dalamnya</span>
   </div>
-  <div class="stat-card down">
-    <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-down">—</div>
-      <div class="stat-lbl">Offline</div>
+  <div class="fp-container dashboard-map-container" id="fp-container" style="border: 0; border-radius: 0; margin-bottom: 0;">
+    <canvas id="fp-canvas"></canvas>
+    <div class="fp-tooltip" id="fp-tooltip" style="display:none; background: rgba(20,20,22,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px;"></div>
+    
+    <!-- Zoom Controls Overlay -->
+    <div class="fp-controls">
+      <button onclick="FP.zoomIn()" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
+      <button onclick="FP.zoomReset()" title="Reset View"><i class="bi bi-aspect-ratio"></i></button>
+      <button onclick="FP.zoomOut()" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
     </div>
-  </div>
-  <div class="stat-card warn">
-    <div class="stat-icon"><i class="bi bi-exclamation-circle-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-warn">—</div>
-      <div class="stat-lbl">Warning</div>
-    </div>
-  </div>
-  <div class="stat-card total">
-    <div class="stat-icon"><i class="bi bi-hdd-stack-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-total">—</div>
-      <div class="stat-lbl">Total Devices</div>
-    </div>
-  </div>
-  <div class="stat-card alert">
-    <div class="stat-icon"><i class="bi bi-bell-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-alerts">—</div>
-      <div class="stat-lbl">Unack Alerts</div>
-    </div>
-  </div>
-  <div class="stat-card zone">
-    <div class="stat-icon"><i class="bi bi-diagram-3-fill"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" id="stat-zones">—</div>
-      <div class="stat-lbl">Zones</div>
+    
+    <!-- Zone Detail Card Overlay -->
+    <div class="zone-detail-card" id="zone-detail-card" style="display:none; background: rgba(28,28,30,0.92); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; backdrop-filter: blur(15px); box-shadow: 0 10px 40px rgba(0,0,0,0.6);">
+      <button class="card-close" onclick="FP.hideZoneDetails()" style="color:var(--text-secondary);">✕</button>
+      <div class="card-title fw-600" id="zd-title" style="font-size: 15px; color:#fff;">Zone Name</div>
+      <div class="card-subtitle text-xs text-muted mb-2" id="zd-subtitle">0 Perangkat Terdaftar</div>
+      <div id="zd-alert-container"></div>
+      <ul class="device-list mt-2" id="zd-device-list" style="max-height: 200px; overflow-y:auto; padding-left:0;"></ul>
     </div>
   </div>
 </div>
 
-<!-- ===== MAIN GRID ===== -->
-<div class="dash-grid">
-
-  <!-- LEFT: Mini alert map + device list -->
-  <div class="dash-col-main">
-
-    <!-- Device status panel -->
-    <div class="nm-panel">
-      <div class="panel-header">
-        <span><i class="bi bi-hdd-rack-fill me-2 text-accent"></i>Device Status</span>
-        <div class="d-flex gap-2 align-items-center">
-          <input class="nm-search" type="text" id="dev-search" placeholder="Search…" oninput="filterDevTable()">
-          <a href="/devices" class="btn-nm btn-sm btn-ghost">All Devices →</a>
-        </div>
+<!-- ===== TWO COLUMN GRID (BOTTOM) ===== -->
+<div class="row g-4">
+  
+  <!-- Left Column: Offline Devices -->
+  <div class="col-lg-6">
+    <div class="nm-panel h-100 p-0 d-flex flex-column" style="min-height: 380px;">
+      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+        <span class="fw-600 fs-6"><i class="bi bi-x-circle-fill me-2 text-danger"></i>Offline Devices</span>
+        <span class="badge bg-danger px-2.5 py-1 text-xs" id="offline-count-badge" style="border-radius: 8px;">0</span>
       </div>
-      <div class="panel-body p-0">
-        <table class="nm-table" id="dev-table">
+      <div class="panel-body p-0 flex-grow-1" style="overflow-y:auto;">
+        <table class="nm-table" id="offline-dev-table" style="margin-bottom:0;">
           <thead>
             <tr>
-              <th>Status</th>
-              <th>Name</th>
-              <th>IP</th>
+              <th class="ps-3">Name</th>
+              <th>IP Address</th>
               <th>Zone</th>
-              <th>Type</th>
               <th>Last Seen</th>
-              <th>Actions</th>
+              <th class="pe-3">Actions</th>
             </tr>
           </thead>
-          <tbody id="dev-tbody">
-            <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+          <tbody id="offline-dev-tbody">
+            <tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-check-circle-fill text-success d-block fs-3 mb-2"></i>No offline devices. All systems nominal.</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- RIGHT: Alert log -->
-  <div class="dash-col-side">
-    <div class="nm-panel h-100">
-      <div class="panel-header">
-        <span><i class="bi bi-bell-fill me-2 text-accent"></i>Alert Log</span>
-        <div class="d-flex gap-2">
-          <button class="btn-nm btn-sm btn-ghost" onclick="ackAllAlerts()" title="Acknowledge all">
-            <i class="bi bi-check-all"></i>
+  <!-- Right Column: Unacknowledged Alerts -->
+  <div class="col-lg-6">
+    <div class="nm-panel h-100 p-0 d-flex flex-column" style="min-height: 380px;">
+      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+        <span class="fw-600 fs-6"><i class="bi bi-bell-fill me-2 text-warning"></i>Unacknowledged Alerts</span>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="badge bg-warning text-dark px-2.5 py-1 text-xs" id="unack-count-badge" style="border-radius: 8px;">0</span>
+          <button class="btn-nm btn-sm btn-ghost p-1" onclick="ackAllAlerts()" title="Acknowledge all alerts" style="border-radius: 6px;">
+            <i class="bi bi-check-all fs-5"></i>
           </button>
-          <a href="/logs" class="btn-nm btn-sm btn-ghost">All →</a>
         </div>
       </div>
-      <div class="panel-body p-0" style="overflow-y:auto;max-height:600px">
-        <div id="alert-log">
-          <div class="text-center text-muted py-4">Loading…</div>
+      <div class="panel-body p-2 flex-grow-1" style="overflow-y:auto; max-height: 320px;">
+        <div id="unack-alert-log" class="d-flex flex-column gap-2">
+          <div class="text-center text-muted py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>No unacknowledged alerts.</div>
         </div>
       </div>
     </div>
@@ -124,23 +142,23 @@
 {% block scripts %}
 <script>
 /* -------------------------------------------------------
-   Dashboard page JS
-------------------------------------------------------- */
+   Dashboard Page JS (Apple-ish View-Only Zones Topology)
+   ------------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', () => {
-  // Socket events already handled in main.js
-  // Just render initial data when received
-  window.onInitData = (data) => {
-    renderStats(data.stats);
-    renderDevTable(data.devices);
-    renderAlertLog(data.alerts);
-  };
+  // Socket.io listeners handled in main.js
   window.onStatsUpdate = renderStats;
   window.onDeviceUpdate = () => {
-    fetch('/api/devices').then(r=>r.json()).then(renderDevTable);
+    fetch('/api/devices').then(r=>r.json()).then(devices => {
+      renderOfflineDevices(devices);
+      // Reload map topology
+      Promise.all([
+        fetch('/api/zones').then(r=>r.json()),
+        fetch('/api/floorplan').then(r=>r.json())
+      ]).then(([zones, fp]) => FP.update(devices, zones, fp));
+    });
   };
   window.onNewAlert = (alert) => {
-    prependAlert(alert);
-    fetch('/api/stats').then(r=>r.json()).then(renderStats);
+    refreshAll(); // Reload everything on new alert for real-time consistency
   };
   refreshAll();
 });
@@ -149,57 +167,84 @@ function refreshAll() {
   Promise.all([
     fetch('/api/stats').then(r=>r.json()),
     fetch('/api/devices').then(r=>r.json()),
-    fetch('/api/alerts?limit=40').then(r=>r.json()),
-  ]).then(([stats, devices, alerts]) => {
+    fetch('/api/alerts?limit=100').then(r=>r.json()),
+    fetch('/api/zones').then(r=>r.json()),
+    fetch('/api/floorplan').then(r=>r.json())
+  ]).then(([stats, devices, alerts, zones, floorplan]) => {
     renderStats(stats);
-    renderDevTable(devices);
-    renderAlertLog(alerts);
+    renderOfflineDevices(devices);
+    renderUnackedAlerts(alerts);
+    FP.init(devices, zones, floorplan);
     document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
-  });
+  }).catch(err => console.error("Error refreshing dashboard:", err));
 }
 
 function renderStats(s) {
   if (!s) return;
-  setEl('stat-up',     s.up     ?? '—');
-  setEl('stat-down',   s.down   ?? '—');
-  setEl('stat-warn',   s.warning ?? '—');
-  setEl('stat-total',  s.total  ?? '—');
-  setEl('stat-alerts', s.unacked_alerts ?? '—');
-  setEl('stat-zones',  s.zones  ?? '—');
-  // Sidebar
+  // Sidebar stats sync
   setEl('sb-up',   s.up     ?? '—');
   setEl('sb-down', s.down   ?? '—');
   setEl('sb-warn', s.warning ?? '—');
   setEl('sb-unk',  s.unknown ?? '—');
-  // Alert banner
-  if (s.critical_alerts > 0) {
-    showBanner(`⚠ ${s.critical_alerts} critical alert(s) unacknowledged`);
+
+  // Render Warning Banner Card at the top
+  const banner = document.getElementById('dashboard-warning-banner');
+  if (s.down > 0 || s.unacked_alerts > 0) {
+    let alertHtml = '';
+    if (s.down > 0) {
+      alertHtml += `
+        <div class="apple-alert d-flex align-items-center gap-3 p-3 mb-2">
+          <i class="bi bi-x-circle-fill fs-4 flex-shrink-0"></i>
+          <div>
+            <div class="fw-700 text-sm">Offline Device Alert</div>
+            <div class="text-xs text-secondary mt-0.5">${s.down} device(s) are currently unreachable. Please check the network connectivity or device power.</div>
+          </div>
+        </div>`;
+    }
+    if (s.unacked_alerts > 0) {
+      alertHtml += `
+        <div class="apple-alert warning d-flex align-items-center gap-3 p-3">
+          <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0"></i>
+          <div>
+            <div class="fw-700 text-sm">Unacknowledged Warnings</div>
+            <div class="text-xs mt-0.5">${s.unacked_alerts} alert(s) require review and acknowledgment from the network administrator.</div>
+          </div>
+        </div>`;
+    }
+    banner.innerHTML = alertHtml;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
   }
 }
 
-function renderDevTable(devices) {
-  const tbody = document.getElementById('dev-tbody');
-  if (!devices || !devices.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No devices. <a href="/devices">Add one →</a></td></tr>';
+function renderOfflineDevices(devices) {
+  const tbody = document.getElementById('offline-dev-tbody');
+  const countBadge = document.getElementById('offline-count-badge');
+  const offlineDevs = (devices || []).filter(d => d.status === 'down');
+
+  countBadge.textContent = offlineDevs.length;
+
+  if (!offlineDevs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-check-circle-fill text-success d-block fs-3 mb-2"></i>No offline devices. All systems nominal.</td></tr>';
     return;
   }
-  tbody.innerHTML = devices.map(d => `
-    <tr class="dev-row" data-search="${(d.name+d.ip+d.zone_name+'').toLowerCase()}">
-      <td>${statusBadge(d.status)}</td>
-      <td class="mono-sm">
-        <i class="bi bi-${iconClass(d.icon||d.type)} me-1 text-accent"></i>${esc(d.name)}
+
+  tbody.innerHTML = offlineDevs.map(d => `
+    <tr class="dev-row">
+      <td class="mono-sm fw-600 ps-3">
+        <i class="bi bi-${iconClass(d.icon||d.type)} me-1 text-danger"></i>${esc(d.name)}
       </td>
       <td class="mono-sm text-muted">${esc(d.ip)}</td>
       <td><span class="zone-pill" style="background:${d.zone_color||'#333'}">${esc(d.zone_name||'—')}</span></td>
-      <td class="text-muted text-sm">${esc(d.type||'—')}</td>
-      <td class="text-muted text-sm mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
-      <td>
+      <td class="text-muted text-xs mono-sm">${d.last_seen ? relTime(d.last_seen) : '—'}</td>
+      <td class="pe-3">
         <div class="action-btns">
           <button class="btn-icon" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})">
             <i class="bi bi-info-circle-fill text-accent"></i>
           </button>
-          <button class="btn-icon" title="Poll now" onclick="pollNow(${d.id})">
-            <i class="bi bi-arrow-repeat"></i>
+          <button class="btn-nm btn-xs text-xs px-2 py-1" style="border-radius:6px; font-size:11px;" title="Poll now" onclick="pollNow(${d.id})">
+            <i class="bi bi-arrow-repeat"></i> Poll
           </button>
         </div>
       </td>
@@ -207,51 +252,49 @@ function renderDevTable(devices) {
   `).join('');
 }
 
-function renderAlertLog(alerts) {
-  const el = document.getElementById('alert-log');
-  if (!alerts || !alerts.length) {
-    el.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-check-circle text-success fs-4"></i><br>No alerts</div>';
+function renderUnackedAlerts(alerts) {
+  const el = document.getElementById('unack-alert-log');
+  const countBadge = document.getElementById('unack-count-badge');
+  const unackAlerts = (alerts || []).filter(a => !a.acknowledged);
+
+  countBadge.textContent = unackAlerts.length;
+
+  if (!unackAlerts.length) {
+    el.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>No unacknowledged alerts.</div>';
     return;
   }
-  el.innerHTML = alerts.map(a => alertItem(a)).join('');
-}
 
-function prependAlert(a) {
-  const el = document.getElementById('alert-log');
-  const empty = el.querySelector('.text-muted');
-  if (empty) el.innerHTML = '';
-  el.insertAdjacentHTML('afterbegin', alertItem(a));
-  // Keep max 40 items
-  const items = el.querySelectorAll('.alert-item');
-  if (items.length > 40) items[items.length-1].remove();
-  playAlertSound(a.severity);
+  el.innerHTML = unackAlerts.map(a => alertItem(a)).join('');
 }
 
 function alertItem(a) {
   const sev = a.severity || 'info';
   const icon = {critical:'x-circle-fill',warning:'exclamation-circle-fill',info:'info-circle-fill'}[sev] || 'info-circle';
-  const acked = a.acknowledged ? ' acked' : '';
-  return `<div class="alert-item ${sev}${acked}" id="alert-${a.id}">
-    <div class="alert-icon"><i class="bi bi-${icon}"></i></div>
-    <div class="alert-content">
-      <div class="alert-msg">${esc(a.message)}</div>
-      <div class="alert-meta">
-        <span class="mono-sm">${esc(a.device_ip||'')}</span>
-        <span class="sep">·</span>
-        <span>${a.created_at ? relTime(a.created_at) : ''}</span>
+  return `
+    <div class="alert-item ${sev}" id="alert-${a.id}" style="border-radius:12px; margin-bottom:2px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); padding:10px 14px;">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div class="d-flex gap-2.5">
+          <div class="alert-icon" style="color:var(--${sev === 'critical' ? 'red' : (sev === 'warning' ? 'yellow' : 'accent')})"><i class="bi bi-${icon}"></i></div>
+          <div class="alert-content">
+            <div class="alert-msg fw-500" style="color:var(--text-primary); font-size:12.5px;">${esc(a.message)}</div>
+            <div class="alert-meta text-xs text-muted mt-1 mono-sm">
+              <span>${esc(a.device_ip||'')}</span>
+              <span class="mx-1">·</span>
+              <span>${a.created_at ? relTime(a.created_at) : ''}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-ack" onclick="ackAlert(${a.id})" title="Acknowledge alert" style="background:var(--accent-dim); border:0; color:var(--accent); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:600;">
+          <i class="bi bi-check2 me-1"></i>Ack
+        </button>
       </div>
-    </div>
-    ${a.acknowledged ? '<div class="alert-ack-badge">ACK</div>' : 
-      `<button class="btn-ack" onclick="ackAlert(${a.id})" title="Acknowledge"><i class="bi bi-check2"></i></button>`}
-  </div>`;
+    </div>`;
 }
 
 function ackAlert(id) {
   fetch(`/api/alerts/${id}/ack`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})})
     .then(() => {
-      const el = document.getElementById(`alert-${id}`);
-      if (el) { el.classList.add('acked'); el.querySelector('.btn-ack')?.remove(); el.insertAdjacentHTML('beforeend','<div class="alert-ack-badge">ACK</div>'); }
-      fetch('/api/stats').then(r=>r.json()).then(renderStats);
+      refreshAll();
     });
 }
 
@@ -263,29 +306,349 @@ function pollNow(id) {
   fetch(`/api/devices/${id}/poll`, {method:'POST'}).then(() => showToast('Polling device…', 'info'));
 }
 
-function filterDevTable() {
-  const q = document.getElementById('dev-search').value.toLowerCase();
-  document.querySelectorAll('.dev-row').forEach(r => {
-    r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
-  });
-}
+/* =====================================================
+   FloorPlan Topology Module (View-Only Dashboard Map)
+   ===================================================== */
+const FP = (() => {
+  const canvas  = document.getElementById('fp-canvas');
+  const ctx     = canvas.getContext('2d');
+  const tooltip = document.getElementById('fp-tooltip');
+  const ctr     = document.getElementById('fp-container');
 
-// Helpers
-const playAlertSound = (severity) => {
-  if (severity === 'critical') {
-    try {
-      const ctx = new AudioContext();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880;
-      o.type = 'square';
-      g.gain.setValueAtTime(0.1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      o.start(ctx.currentTime);
-      o.stop(ctx.currentTime + 0.3);
-    } catch(e) {}
+  let rawDevices = [];
+  let rawZones   = [];
+  let zones      = [];
+  let bgImage    = null;
+  let bgUrl      = '';
+  
+  let scale      = 1.0;
+  let offsetX    = 0;
+  let offsetY    = 0;
+  let isPanning  = false;
+  let panStartX  = 0, panStartY = 0;
+
+  const COLOR = { up:'#30d158', down:'#ff453a', warning:'#ff9f0a', unknown:'#636366', critical:'#ff453a' };
+
+  function resize() {
+    const rect = ctr.getBoundingClientRect();
+    canvas.width  = rect.width  || 900;
+    canvas.height = rect.height || 380;
+    draw();
   }
-};
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    if (bgImage) {
+      ctx.globalAlpha = 0.25;
+      ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = '#08090b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Fine Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+      ctx.lineWidth = 1;
+      for (let x=0; x<canvas.width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+      for (let y=0; y<canvas.height; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+    }
+
+    drawConnections();
+    zones.forEach(z => drawZone(z));
+    ctx.restore();
+  }
+
+  function drawConnections() {
+    if (zones.length < 2) return;
+    ctx.beginPath();
+    const centralZone = zones[0];
+    for (let i = 1; i < zones.length; i++) {
+      const z = zones[i];
+      ctx.moveTo(centralZone.pos_x, centralZone.pos_y);
+      ctx.lineTo(z.pos_x, z.pos_y);
+    }
+    ctx.strokeStyle = 'rgba(10, 132, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawZone(z) {
+    const x = z.pos_x || 100, y = z.pos_y || 100;
+    const status = z.status || 'unknown';
+    const color  = COLOR[status] || COLOR.unknown;
+
+    if (status === 'down') {
+      const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
+      ctx.shadowColor = '#ff453a';
+      ctx.shadowBlur  = 10 + pulse * 6;
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI*2);
+    ctx.fillStyle = '#1c1c1e';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0; // Reset shadow
+
+    ctx.fillStyle = color;
+    ctx.font = 'bold 10px IBM Plex Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${z.device_count || 0} DEV`, x, y);
+
+    // Zone Label
+    ctx.fillStyle = '#f5f5f7';
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const label = z.name.length > 16 ? z.name.slice(0,15)+'…' : z.name;
+    
+    const lw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = 'rgba(28,28,30,0.85)';
+    ctx.fillRect(x - lw/2, y + 31, lw, 16);
+    ctx.fillStyle = '#f5f5f7';
+    ctx.fillText(label, x, y + 33);
+
+    if (z.down_count > 0) {
+      ctx.beginPath();
+      ctx.arc(x + 18, y - 18, 7, 0, Math.PI*2);
+      ctx.fillStyle = '#ff453a';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Inter, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(z.down_count, x + 18, y - 18);
+    }
+  }
+
+  function hitTest(cx, cy) {
+    for (let i = zones.length-1; i >= 0; i--) {
+      const z = zones[i];
+      const dx = cx - z.pos_x, dy = cy - z.pos_y;
+      if (dx*dx + dy*dy <= 26*26) return z;
+    }
+    return null;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const cx = (mx - offsetX) / scale;
+    const cy = (my - offsetY) / scale;
+
+    const z = hitTest(cx, cy);
+    if (z) {
+      showZoneDetails(z);
+    } else {
+      isPanning = true;
+      panStartX = mx - offsetX;
+      panStartY = my - offsetY;
+      canvas.style.cursor = 'move';
+      hideZoneDetails();
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const cx = (mx - offsetX) / scale;
+    const cy = (my - offsetY) / scale;
+
+    if (isPanning) {
+      offsetX = mx - panStartX;
+      offsetY = my - panStartY;
+      draw();
+    } else {
+      const z = hitTest(cx, cy);
+      if (z) {
+        canvas.style.cursor = 'pointer';
+        showTooltip(e.clientX, e.clientY, z);
+      } else {
+        canvas.style.cursor = 'default';
+        hideTooltip();
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    isPanning = false;
+    canvas.style.cursor = 'default';
+  });
+
+  canvas.addEventListener('mouseleave', () => { isPanning = false; hideTooltip(); });
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    const newScale = Math.max(0.4, Math.min(3.0, scale * zoomFactor));
+    
+    offsetX = mx - (mx - offsetX) * (newScale / scale);
+    offsetY = my - (my - offsetY) * (newScale / scale);
+    scale = newScale;
+    draw();
+  }, { passive: false });
+
+  function showTooltip(cx, cy, z) {
+    tooltip.innerHTML = `
+      <div class="tt-name" style="font-weight:600; font-size:12px;">${esc(z.name)}</div>
+      <div class="tt-row text-muted" style="font-size:11px;">Devices: ${z.device_count || 0}</div>
+      <div class="tt-row text-muted" style="font-size:11px;">Offline: <span class="${z.down_count > 0 ? 'text-danger fw-600' : ''}">${z.down_count}</span></div>
+    `;
+    const rect = ctr.getBoundingClientRect();
+    let tx = cx - rect.left + 12, ty = cy - rect.top - 10;
+    if (tx + 180 > rect.width)  tx = tx - 190;
+    if (ty + 100 > rect.height) ty = ty - 110;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top  = ty + 'px';
+    tooltip.style.display = 'block';
+  }
+
+  function hideTooltip() { tooltip.style.display = 'none'; }
+
+  function showZoneDetails(z) {
+    const card = document.getElementById('zone-detail-card');
+    const title = document.getElementById('zd-title');
+    const subtitle = document.getElementById('zd-subtitle');
+    const list = document.getElementById('zd-device-list');
+    const alertBox = document.getElementById('zd-alert-container');
+    
+    title.textContent = z.name;
+    subtitle.textContent = `${z.device_count || 0} Perangkat Terdaftar`;
+    
+    const sortedDevs = [...(z.devices || [])].sort((a, b) => {
+      if (a.status === 'down' && b.status !== 'down') return -1;
+      if (a.status !== 'down' && b.status === 'down') return 1;
+      return 0;
+    });
+
+    if (z.down_count > 0) {
+      alertBox.innerHTML = `
+        <div class="alert-banner mb-2" style="background:rgba(255, 69, 58, 0.12); border-color:rgba(255, 69, 58, 0.25); color:#ff453a; font-size:11px; padding:6px 10px; border-radius:8px;">
+          <i class="bi bi-exclamation-triangle-fill"></i> <strong>${z.down_count} Perangkat Offline!</strong>
+        </div>`;
+    } else if (z.device_count > 0) {
+      alertBox.innerHTML = `
+        <div class="alert-banner mb-2" style="background:rgba(48, 209, 88, 0.12); border-color:rgba(48, 209, 88, 0.25); color:#30d158; font-size:11px; padding:6px 10px; border-radius:8px;">
+          <i class="bi bi-check-circle-fill"></i> Semua perangkat online
+        </div>`;
+    } else {
+      alertBox.innerHTML = '';
+    }
+
+    if (sortedDevs.length === 0) {
+      list.innerHTML = `<li class="p-2 text-center text-muted text-sm">Tidak ada perangkat di zone ini</li>`;
+    } else {
+      list.innerHTML = sortedDevs.map(d => {
+        const stat = d.status || 'unknown';
+        const col = COLOR[stat] || COLOR.unknown;
+        const badgeClass = stat === 'up' ? 'bg-success-subtle text-success border border-success-subtle' : (stat === 'down' ? 'bg-danger-subtle text-danger border border-danger-subtle' : 'bg-secondary-subtle text-secondary');
+        return `
+          <li class="device-item d-flex justify-content-between align-items-center py-2" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <span class="d-flex align-items-center">
+              <span class="status-indicator" style="background:${col}; width:6px; height:6px; border-radius:50%; margin-right:8px; display:inline-block;"></span>
+              <div>
+                <strong style="color: var(--text-primary); font-size:12px;">${esc(d.name)}</strong>
+                <div class="text-muted mono-sm" style="font-size: 10px; line-height: 1.35;">
+                  ${esc(d.ip)}
+                </div>
+              </div>
+            </span>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn-icon" style="padding:2px 6px;" title="Detail Perangkat" onclick="openDeviceDetail(${d.id})">
+                <i class="bi bi-info-circle-fill text-accent"></i>
+              </button>
+              <span class="badge ${badgeClass}" style="font-size:9px; text-transform:uppercase; padding:2px 5px;">${stat}</span>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+    card.style.display = 'block';
+  }
+
+  function hideZoneDetails() {
+    document.getElementById('zone-detail-card').style.display = 'none';
+  }
+
+  let animFrame;
+  function startAnim() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    function loop() {
+      draw();
+      animFrame = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  return {
+    init(devs, zns, fp) {
+      rawDevices = devs;
+      rawZones = zns;
+      
+      const zoneDevices = {};
+      devs.forEach(d => {
+        if (!zoneDevices[d.zone_id]) zoneDevices[d.zone_id] = [];
+        zoneDevices[d.zone_id].push(d);
+      });
+
+      zones = zns.map((z, idx) => {
+        const dList = zoneDevices[z.id] || [];
+        const downCount = dList.filter(d => d.status === 'down').length;
+        const warnCount = dList.filter(d => d.status === 'warning').length;
+        const upCount = dList.filter(d => d.status === 'up').length;
+        
+        let status = 'unknown';
+        if (downCount > 0) status = 'down';
+        else if (warnCount > 0) status = 'warning';
+        else if (upCount > 0) status = 'up';
+
+        let px = 120 + (idx % 5) * 160;
+        let py = 100 + Math.floor(idx / 5) * 150;
+        if (fp && fp.canvas_data && fp.canvas_data.zones && fp.canvas_data.zones[z.id]) {
+          px = fp.canvas_data.zones[z.id].x || px;
+          py = fp.canvas_data.zones[z.id].y || py;
+        }
+
+        return {
+          ...z,
+          pos_x: px,
+          pos_y: py,
+          status: status,
+          device_count: dList.length,
+          down_count: downCount,
+          devices: dList
+        };
+      });
+
+      if (fp && fp.background_url) {
+        bgUrl = fp.background_url;
+        const img = new Image();
+        img.onload = () => { bgImage = img; };
+        img.src = bgUrl;
+      }
+      resize();
+      startAnim();
+    },
+    update(devs, zns, fp) {
+      this.init(devs, zns || rawZones, fp);
+    },
+    zoomIn() { scale = Math.min(3.0, scale + 0.15); draw(); },
+    zoomOut() { scale = Math.max(0.4, scale - 0.15); draw(); },
+    zoomReset() { scale = 1.0; offsetX = 0; offsetY = 0; draw(); },
+    hideZoneDetails
+  };
+})();
 </script>
 {% endblock %}

@@ -3,34 +3,34 @@
    Minimal, functional, no-nonsense.
    ============================================================ */
 :root {
-  --bg-base:    #111318;
-  --bg-card:    #1a1d24;
-  --bg-card2:   #1e2128;
-  --bg-hover:   #252830;
-  --border:     #2a2d35;
-  --border-lt:  #2a2d35;
+  --bg-base:       #08090b;
+  --bg-card:       rgba(28, 28, 30, 0.55);
+  --bg-card-solid: #1c1c1e;
+  --bg-hover:      rgba(255, 255, 255, 0.08);
+  --border:        rgba(255, 255, 255, 0.08);
+  --border-lt:     rgba(255, 255, 255, 0.04);
 
-  --accent:     #6ea8fe;
-  --accent-dim: rgba(110, 168, 254, 0.12);
-  --green:      #63e6be;
-  --green-dim:  rgba(99, 230, 190, 0.12);
-  --yellow:     #ffe066;
-  --yellow-dim: rgba(255, 224, 102, 0.12);
-  --red:        #ff6b6b;
-  --red-dim:    rgba(255, 107, 107, 0.12);
-  --purple:     #cc5de8;
-  --orange:     #ffa94d;
+  --accent:        #0a84ff; /* Apple Blue */
+  --accent-dim:    rgba(10, 132, 255, 0.12);
+  --green:         #30d158; /* Apple Green */
+  --green-dim:     rgba(48, 209, 88, 0.12);
+  --yellow:        #ffd60a; /* Apple Yellow */
+  --yellow-dim:    rgba(255, 214, 10, 0.12);
+  --red:           #ff453a; /* Apple Red */
+  --red-dim:       rgba(255, 69, 58, 0.12);
+  --purple:        #bf5af2;
+  --orange:        #ff9f0a;
 
-  --text-primary:   #e4e6ea;
-  --text-secondary: #9ca3af;
-  --text-muted:     #6b7280;
+  --text-primary:   #f5f5f7;
+  --text-secondary: #86868b;
+  --text-muted:     #424245;
 
-  --sidebar-w:  210px;
+  --sidebar-w:  220px;
   --header-h:   0px;
-  --radius:     8px;
-  --radius-sm:  6px;
-  --radius-lg:  10px;
-  --trans:      0.15s ease;
+  --radius:     16px; /* Smooth Apple-ish borders */
+  --radius-sm:  8px;
+  --radius-lg:  22px;
+  --trans:      0.2s cubic-bezier(0.16, 1, 0.3, 1); /* Apple-like ease-out */
 
   font-size: 14px;
 }
@@ -50,7 +50,9 @@ body {
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: var(--bg-card);
+  background: rgba(28, 28, 30, 0.45);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -253,9 +255,14 @@ body {
   border-radius: var(--radius);
   margin-bottom: 18px;
   overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  transition: border-color var(--trans), box-shadow var(--trans);
 }
 .nm-panel:hover {
-  border-color: #353840;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 .panel-header {
   display: flex;
