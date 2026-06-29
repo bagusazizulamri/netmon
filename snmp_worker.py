@@ -74,7 +74,7 @@ class SNMPWorker:
     # ─── low-level helpers ───────────────────────────────────────────
 
     async def _async_get(self, ip, community, oids, port, version, timeout):
-        c = _client(ip, version, community, port, timeout=timeout, retries=1)
+        c = _client(ip, version, community, port, timeout=timeout, retries=0)
         res = {}
         # Try multiget first (single SNMP request for all OIDs — faster & more reliable)
         try:
@@ -97,6 +97,9 @@ class SNMPWorker:
                         res[oids[i]] = str_val
                 if res:
                     return res
+        except (SnmpTimeout, asyncio.TimeoutError) as e:
+            print(f"[SNMP multiget timeout] {ip}: {e}")
+            return None
         except Exception as e:
             print(f"[SNMP multiget error] {ip}: {e}")
         # Fallback to individual gets if multiget fails
@@ -117,14 +120,17 @@ class SNMPWorker:
                 if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
                     continue
                 res[oid] = str_val
+            except (SnmpTimeout, asyncio.TimeoutError) as e:
+                print(f"[SNMP individual get timeout] {ip} (OID {oid}): {e}")
+                break
             except Exception as e:
                 print(f"[SNMP individual get error] {ip} (OID {oid}): {e}")
         return res if res else None
 
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
         if not SNMP_OK: return None
-        # Retry up to 2 times to prevent random NAT UDP packet loss
-        for attempt in range(2):
+        # Single attempt for fast network discovery
+        for attempt in range(1):
             loop = None
             try:
                 loop = asyncio.new_event_loop()
