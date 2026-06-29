@@ -3,16 +3,8 @@
 NetMon - SNMP Worker (puresnmp 2.x, Python 3.9+)
 """
 
-import threading, socket, time, ipaddress, os, subprocess, re, sys, asyncio, traceback
+import threading, socket, time, ipaddress, os, subprocess, re, sys, asyncio
 from datetime import datetime
-
-# Logging helper with required prefixes
-def log_scan(tag, message, level="INFO", exc=None):
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    log_str = f"[{timestamp}] [{tag}] [{level}] {message}"
-    print(log_str)
-    if exc:
-        print(traceback.format_exc())
 
 # Set Windows Selector Event Loop Policy to prevent IOCP/Proactor event loop issues with UDP in background threads
 if sys.platform == 'win32':
@@ -51,17 +43,16 @@ def _creds(version, community):
     return V1(community) if version == '1' else V2C(community)
 
 
-def _client(ip, version, community, port, timeout=2.0, retries=0):
+def _client(ip, version, community, port, timeout=2.0, retries=1):
     c = Client(ip, _creds(version, community), port=port)
     try:
         c.configure(timeout=timeout, retries=retries)
-    except Exception as e:
-        log_scan("ERROR", f"Client configure failed for {ip}, trying fallback: {e}", exc=e)
+    except Exception:
         try:
             c.config.timeout = timeout
             c.config.retries = retries
-        except Exception as ex:
-            log_scan("ERROR", f"Fallback client configure failed for {ip}: {ex}", exc=ex)
+        except Exception:
+            pass
     return PyWrapper(c)
 
 
@@ -75,50 +66,14 @@ class SNMPWorker:
                         'current_ip':'','message':'Idle','percent':0}
         self._interfaces_cache = {}
         self._if_prev = {}
-        self.db_write_lock = threading.RLock()
-        self._scan_future = None
-        
-        # Shared event loop thread initialization
-        self._loop = None
-        self._loop_thread = None
-        self._start_shared_loop()
 
-        import atexit
-        atexit.register(self.shutdown)
-
-    def get_scan_status(self):
-        with self._lock:
-            return dict(self._status)
-
-    def stop_scan(self):
-        self._stop.set()
-        if hasattr(self, '_scan_future') and self._scan_future:
-            try:
-                self._scan_future.cancel()
-            except Exception as e:
-                log_scan("ERROR", f"Failed to cancel scan future: {e}", exc=e)
-
-    def shutdown(self):
-        log_scan("THREAD", "Shutting down SNMPWorker event loop...")
-        self.stop_scan()
-        with self._lock:
-            if self._loop is not None and self._loop.is_running():
-                try:
-                    self._loop.call_soon_threadsafe(self._loop.stop)
-                except Exception:
-                    pass
-            if self._loop_thread is not None:
-                try:
-                    self._loop_thread.join(timeout=3.0)
-                except Exception:
-                    pass
-                self._loop_thread = None
-                self._loop = None
+    def get_scan_status(self): return dict(self._status)
+    def stop_scan(self):       self._stop.set()
 
     # ─── low-level helpers ───────────────────────────────────────────
 
     async def _async_get(self, ip, community, oids, port, version, timeout):
-        c = _client(ip, version, community, port, timeout=timeout, retries=0)
+        c = _client(ip, version, community, port, timeout=timeout, retries=1)
         res = {}
         # Try multiget first (single SNMP request for all OIDs — faster & more reliable)
         try:
@@ -132,8 +87,8 @@ class SNMPWorker:
                         if isinstance(val, bytes):
                             try:
                                 val = val.decode('utf-8', errors='ignore')
-                            except Exception as e:
-                                log_scan("ERROR", f"Failed to decode bytes value for {ip}: {e}", exc=e)
+                            except Exception:
+                                pass
                         str_val = str(val)
                         # Also filter string representations of sentinel values
                         if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
@@ -141,11 +96,8 @@ class SNMPWorker:
                         res[oids[i]] = str_val
                 if res:
                     return res
-        except SnmpTimeout as e:
-            log_scan("TIMEOUT", f"SNMP multiget timeout for {ip}: {e}")
-        except Exception as e:
-            log_scan("ERROR", f"SNMP multiget error for {ip}: {e}", exc=e)
-
+        except Exception:
+            pass
         # Fallback to individual gets if multiget fails
         for oid in oids:
             try:
@@ -157,103 +109,45 @@ class SNMPWorker:
                 if isinstance(val, bytes):
                     try:
                         val = val.decode('utf-8', errors='ignore')
-                    except Exception as e:
-                        log_scan("ERROR", f"Failed to decode individual get bytes for {ip} (OID {oid}): {e}", exc=e)
+                    except Exception:
+                        pass
                 str_val = str(val)
                 # Also filter string representations of sentinel values
                 if str_val.lower() in ('nosuchobject', 'nosuchinstance', 'endofmibview', 'none'):
                     continue
                 res[oid] = str_val
-            except SnmpTimeout as e:
-                log_scan("TIMEOUT", f"SNMP individual get timeout for {ip} (OID {oid}): {e}")
-            except Exception as e:
-                log_scan("ERROR", f"SNMP individual get error for {ip} (OID {oid}): {e}", exc=e)
+            except Exception:
+                pass
         return res if res else None
 
-    def _start_shared_loop(self):
-        with self._lock:
-            if self._loop is not None and self._loop.is_running():
-                return
-            
-            self._loop = None
-            
-            def run_loop():
-                if sys.platform == 'win32':
-                    try:
-                        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-                    except Exception as e:
-                        log_scan("ERROR", f"Failed to set Windows Selector Event Loop Policy: {e}", exc=e)
-                
-                self._loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self._loop)
-                log_scan("THREAD", "Shared SNMP event loop started")
-                try:
-                    self._loop.run_forever()
-                except Exception as e:
-                    log_scan("ERROR", f"Shared SNMP event loop crashed: {e}", exc=e)
-                finally:
-                    try:
-                        pending = asyncio.all_tasks(self._loop)
-                        if pending:
-                            self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                        self._loop.close()
-                    except Exception as e:
-                        log_scan("ERROR", f"Error closing shared event loop: {e}", exc=e)
-                    log_scan("THREAD", "Shared SNMP event loop stopped")
-
-            self._loop_thread = threading.Thread(target=run_loop, name="SNMPEventLoopThread", daemon=True)
-            self._loop_thread.start()
-            
-            # Wait for initialization
-            for _ in range(50):
-                if self._loop is not None and self._loop.is_running():
-                    break
-                time.sleep(0.05)
-            else:
-                log_scan("ERROR", "Shared SNMP event loop failed to start within 2.5s")
-
-    def _run_sync(self, coro, timeout=None):
-        if self._loop is None or not self._loop.is_running():
-            log_scan("ERROR", "Shared event loop is not running, restarting...")
-            self._start_shared_loop()
-            if self._loop is None or not self._loop.is_running():
-                log_scan("ERROR", "Failed to restart shared event loop")
-                raise RuntimeError("Shared SNMP event loop is not running")
-        
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        try:
-            res_timeout = (timeout + 1.0) if timeout is not None else None
-            return future.result(timeout=res_timeout)
-        except Exception as e:
-            future.cancel()
-            raise e
-
-    def _get(self, ip, community, oids, port=161, version='2c', timeout=2.0, retries=1):
-        if not SNMP_OK:
-            log_scan("ERROR", "SNMP _get called but SNMP_OK is False")
-            return None
-        total_attempts = retries + 1
-        for attempt in range(total_attempts):
-            if self._stop.is_set():
-                log_scan("SCAN", f"Query cancelled, skipping {ip}")
-                return None
+    def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
+        if not SNMP_OK: return None
+        # Retry up to 2 times to prevent random NAT UDP packet loss
+        for attempt in range(2):
+            loop = None
             try:
-                if attempt > 0:
-                    backoff = min(8.0, 1.0 * (2 ** (attempt - 1)))
-                    log_scan("THREAD", f"Backing off for {backoff}s before retry {attempt} for {ip}")
-                    time.sleep(backoff)
-                
-                log_scan("SNMP", f"Getting OIDs from {ip} (attempt {attempt + 1}/{total_attempts})")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 coro = self._async_get(ip, community, oids, port, version, timeout)
-                res = self._run_sync(coro, timeout=timeout)
+                res = loop.run_until_complete(coro)
                 if res:
                     return res
-            except Exception as e:
-                log_scan("ERROR", f"Error in _get attempt {attempt + 1} for {ip}: {e}", exc=e)
+            except Exception:
+                pass
+            finally:
+                if loop is not None:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
+                    try:
+                        asyncio.set_event_loop(None)
+                    except Exception:
+                        pass
         return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
-        c = _client(ip, version, community, port, timeout=timeout, retries=0)
+        c = _client(ip, version, community, port, timeout=timeout, retries=1)
         res = {}
         try:
             async for oid, val in c.walk(base_oid):
@@ -261,64 +155,57 @@ class SNMPWorker:
                 if isinstance(val, bytes):
                     try:
                         val = val.decode('utf-8', errors='ignore')
-                    except Exception as e:
-                        log_scan("ERROR", f"Failed to decode walk bytes for {ip} (OID {oid}): {e}", exc=e)
+                    except Exception:
+                        pass
                 res[str(oid)] = str(val)
-        except SnmpTimeout as e:
-            log_scan("TIMEOUT", f"SNMP walk timeout for {ip} (OID {base_oid}): {e}")
-        except Exception as e:
-            log_scan("ERROR", f"SNMP walk error for {ip} (OID {base_oid}): {e}", exc=e)
+        except Exception:
+            pass
         return res
 
-    def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2.0, retries=1):
-        if not SNMP_OK:
-            log_scan("ERROR", "SNMP _walk called but SNMP_OK is False")
-            return {}
-        total_attempts = retries + 1
-        for attempt in range(total_attempts):
-            if self._stop.is_set():
-                log_scan("SCAN", f"Walk cancelled, skipping {ip}")
-                return {}
+    def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2):
+        if not SNMP_OK: return {}
+        # Retry up to 2 times to prevent random NAT UDP packet loss
+        for attempt in range(2):
+            loop = None
             try:
-                if attempt > 0:
-                    backoff = min(8.0, 1.0 * (2 ** (attempt - 1)))
-                    log_scan("THREAD", f"Backing off for {backoff}s before walk retry {attempt} for {ip}")
-                    time.sleep(backoff)
-
-                log_scan("SNMP", f"Walking {base_oid} on {ip} (attempt {attempt + 1}/{total_attempts})")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 coro = self._async_walk(ip, community, base_oid, port, version, timeout)
-                res = self._run_sync(coro, timeout=timeout)
+                res = loop.run_until_complete(coro)
                 if res:
                     return res
-            except Exception as e:
-                log_scan("ERROR", f"Error in _walk attempt {attempt + 1} for {ip}: {e}", exc=e)
+            except Exception:
+                pass
+            finally:
+                if loop is not None:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
+                    try:
+                        asyncio.set_event_loop(None)
+                    except Exception:
+                        pass
         return {}
 
     # ─── poll a single device ────────────────────────────────────────
 
-    def _ping(self, ip, timeout=1.5):
+    def _ping(self, ip):
         # 1. Try TCP connection check on common ports (works perfectly through NAT)
         import socket
         common_ports = [22, 80, 443, 445]
-        tcp_timeout = max(0.05, min(0.2, timeout / len(common_ports)))
         for port in common_ports:
-            s = None
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(tcp_timeout)
+                s.settimeout(0.2)  # Fast 200ms timeout
                 result = s.connect_ex((ip, port))
+                s.close()
                 # 0: Connected successfully
                 # 111 (Linux) or 10061 (Windows): Connection Refused (means host is active and rejected it)
                 if result == 0 or result in (111, 10061):
                     return True
-            except Exception as e:
-                log_scan("ERROR", f"TCP probe failed for {ip}:{port}: {e}", exc=e)
-            finally:
-                if s is not None:
-                    try:
-                        s.close()
-                    except Exception:
-                        pass
+            except Exception:
+                pass
 
         # 2. Fallback to standard OS Ping
         import subprocess
@@ -326,7 +213,7 @@ class SNMPWorker:
         is_win = platform.system().lower() == 'windows'
         param = '-n' if is_win else '-c'
         timeout_param = '-w' if is_win else '-W'
-        timeout_val = str(int(timeout * 1000)) if is_win else str(max(1, int(timeout)))
+        timeout_val = '1000' if is_win else '1'
         
         cmd = ['ping', param, '1', timeout_param, timeout_val, ip]
         try:
@@ -340,11 +227,10 @@ class SNMPWorker:
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
                 startupinfo=startupinfo, 
-                timeout=timeout + 0.5
+                timeout=1.5
             )
             return res.returncode == 0
-        except Exception as e:
-            log_scan("ERROR", f"Standard OS Ping failed for {ip}: {e}", exc=e)
+        except Exception:
             return False
 
     def _get_resource_metrics(self, ip, community, port, version, vendor_lower, descr_lower, sys_obj_id=None):
@@ -597,18 +483,6 @@ class SNMPWorker:
         }
 
     def poll_device(self, device):
-        # Prune memory caches to prevent leaks from deleted devices
-        try:
-            active_dids = {d['id'] for d in self.db.get_all_devices()}
-            for k in list(self._if_prev.keys()):
-                if k[0] not in active_dids:
-                    self._if_prev.pop(k, None)
-            for k in list(self._interfaces_cache.keys()):
-                if k not in active_dids:
-                    self._interfaces_cache.pop(k, None)
-        except Exception as e:
-            log_scan("ERROR", f"Failed to prune caches: {e}", exc=e)
-
         did, ip   = device['id'], device['ip']
         community = device.get('snmp_community', 'public') or 'public'
         try:
@@ -672,82 +546,78 @@ class SNMPWorker:
             metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower, result.get('1.3.6.1.2.1.1.2.0', ''))
             upd.update(metrics)
             
-            with self.db_write_lock:
-                # Save metrics to DB timeseries
-                if metrics['cpu_usage'] is not None:
-                    self.db.save_metric(did, 'cpu_usage', metrics['cpu_usage'])
-                if metrics['memory_usage'] is not None:
-                    self.db.save_metric(did, 'memory_usage', metrics['memory_usage'])
-                if metrics['temperature'] is not None:
-                    self.db.save_metric(did, 'temperature', metrics['temperature'])
+            # Save metrics to DB timeseries
+            if metrics['cpu_usage'] is not None:
+                self.db.save_metric(did, 'cpu_usage', metrics['cpu_usage'])
+            if metrics['memory_usage'] is not None:
+                self.db.save_metric(did, 'memory_usage', metrics['memory_usage'])
+            if metrics['temperature'] is not None:
+                self.db.save_metric(did, 'temperature', metrics['temperature'])
 
-                # Poll WAN traffic throughput if device type is router
-                if device.get('type') == 'router':
-                    traffic_data = self._poll_router_traffic(did, ip, community, port, version)
-                    if traffic_data:
-                        upd.update(traffic_data)
-                        self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
-                        self.db.save_metric(did, 'wan_out', traffic_data['wan_out'])
+            # Poll WAN traffic throughput if device type is router
+            if device.get('type') == 'router':
+                traffic_data = self._poll_router_traffic(did, ip, community, port, version)
+                if traffic_data:
+                    upd.update(traffic_data)
+                    self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
+                    self.db.save_metric(did, 'wan_out', traffic_data['wan_out'])
 
+            if old_st == 'down':
+                upd['last_seen'] = now
+                self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
+            elif old_st == 'unknown':
+                upd['last_seen'] = now
+
+            self.db.update_device(did, upd)
+            if upd.get('uptime'):
+                self.db.save_metric(did, 'uptime', upd['uptime'])
+
+        elif snmp_en:
+            # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
+            is_alive = self._ping(ip)
+            if is_alive:
+                # Device reachable via ping but SNMP is not responding
+                upd = {'status': 'up', 'last_polled': now,
+                        'snmp_enabled': 0,
+                        'cpu_usage': None, 'memory_usage': None, 'temperature': None}
+                if old_st == 'down':
+                    upd['last_seen'] = now
+                    self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
+                elif old_st == 'unknown':
+                    upd['last_seen'] = now
+                self._alert(device, 'warning',
+                            f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
+                print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
+                self.db.update_device(did, upd)
+            else:
+                self.db.update_device(did, {'status':'down','last_polled':now,
+                                             'cpu_usage': None, 'memory_usage': None, 'temperature': None})
+                if old_st != 'down':
+                    s = self.db.get_settings()
+                    if s.get('alert_on_down','true') == 'true':
+                        self._alert(device, 'critical',
+                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
+
+        else:
+            # ── SNMP not enabled: ping-only check ──
+            is_alive = self._ping(ip)
+            if is_alive:
+                upd = {'status': 'up', 'last_polled': now}
                 if old_st == 'down':
                     upd['last_seen'] = now
                     self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
                 elif old_st == 'unknown':
                     upd['last_seen'] = now
-
                 self.db.update_device(did, upd)
-                if upd.get('uptime'):
-                    self.db.save_metric(did, 'uptime', upd['uptime'])
+            else:
+                self.db.update_device(did, {'status':'down','last_polled':now})
+                if old_st != 'down':
+                    s = self.db.get_settings()
+                    if s.get('alert_on_down','true') == 'true':
+                        self._alert(device, 'critical',
+                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
 
-        elif snmp_en:
-            # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
-            is_alive = self._ping(ip)
-            with self.db_write_lock:
-                if is_alive:
-                    # Device reachable via ping but SNMP is not responding
-                    upd = {'status': 'up', 'last_polled': now,
-                            'snmp_enabled': 0,
-                            'cpu_usage': None, 'memory_usage': None, 'temperature': None}
-                    if old_st == 'down':
-                        upd['last_seen'] = now
-                        self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
-                    elif old_st == 'unknown':
-                        upd['last_seen'] = now
-                    self._alert(device, 'warning',
-                                f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
-                    print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
-                    self.db.update_device(did, upd)
-                else:
-                    self.db.update_device(did, {'status':'down','last_polled':now,
-                                                 'cpu_usage': None, 'memory_usage': None, 'temperature': None})
-                    if old_st != 'down':
-                        s = self.db.get_settings()
-                        if s.get('alert_on_down','true') == 'true':
-                            self._alert(device, 'critical',
-                                        f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
-
-        else:
-            # ── SNMP not enabled: ping-only check ──
-            is_alive = self._ping(ip)
-            with self.db_write_lock:
-                if is_alive:
-                    upd = {'status': 'up', 'last_polled': now}
-                    if old_st == 'down':
-                        upd['last_seen'] = now
-                        self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
-                    elif old_st == 'unknown':
-                        upd['last_seen'] = now
-                    self.db.update_device(did, upd)
-                else:
-                    self.db.update_device(did, {'status':'down','last_polled':now})
-                    if old_st != 'down':
-                        s = self.db.get_settings()
-                        if s.get('alert_on_down','true') == 'true':
-                            self._alert(device, 'critical',
-                                        f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
-
-        with self.db_write_lock:
-            updated = self.db.get_device(did)
+        updated = self.db.get_device(did)
         if updated:
             self.socketio.emit('device_status_update', updated)
             self.socketio.emit('stats_update', self.db.get_dashboard_stats())
@@ -796,6 +666,9 @@ class SNMPWorker:
         new_hc_in, new_hc_out, new_in, new_out, new_high_speed = {}, {}, {}, {}, {}
         
         try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
             async def fetch_all_walks():
                 tasks = [
                     self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=1.5),
@@ -810,7 +683,7 @@ class SNMPWorker:
                 ]
                 return await asyncio.gather(*tasks, return_exceptions=True)
                 
-            results = self._run_sync(fetch_all_walks(), timeout=15.0)
+            results = loop.run_until_complete(fetch_all_walks())
             if results and len(results) == 9:
                 def clean_res(val):
                     return val if isinstance(val, dict) else {}
@@ -824,7 +697,16 @@ class SNMPWorker:
                 new_out = clean_res(results[7])
                 new_high_speed = clean_res(results[8])
         except Exception as e:
-            log_scan("ERROR", f"Parallel walks failed: {e}", exc=e)
+            print(f"[SNMP Detail] Parallel walks failed: {e}")
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+            try:
+                asyncio.set_event_loop(None)
+            except Exception:
+                pass
 
         cached = self._interfaces_cache.get(cache_key)
         
@@ -1026,8 +908,7 @@ class SNMPWorker:
                 rx_bps = (d_rx * 8) / dt
                 tx_bps = (d_tx * 8) / dt
                 if rx_bps <= 100e9 and tx_bps <= 100e9:
-                    with self.db_write_lock:
-                        self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
+                    self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
 
     def _poll_router_traffic(self, did, ip, community, port, version):
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
@@ -1142,11 +1023,10 @@ class SNMPWorker:
         return 'ok'
 
     def _alert(self, device, severity, message):
-        with self.db_write_lock:
-            aid = self.db.add_alert({'device_id':device['id'],
-                                      'device_name':device.get('name',device.get('ip','')),
-                                      'device_ip':device.get('ip',''),
-                                      'severity':severity, 'message':message})
+        aid = self.db.add_alert({'device_id':device['id'],
+                                  'device_name':device.get('name',device.get('ip','')),
+                                  'device_ip':device.get('ip',''),
+                                  'severity':severity, 'message':message})
         self.socketio.emit('new_alert', {
             'id':aid,'device_id':device['id'],
             'device_name':device.get('name',''), 'device_ip':device.get('ip',''),
@@ -1157,39 +1037,14 @@ class SNMPWorker:
 
     # ─── network scan ────────────────────────────────────────────────
 
-    def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp', ping_timeout=1.5, snmp_timeout=2.0, retries=1, max_workers=None, timeout=None):
-        if timeout is not None:
-            snmp_timeout = timeout
-
+    def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp'):
         if method == 'snmp' and not SNMP_OK:
             self.socketio.emit('scan_error', {'error':'puresnmp not installed. Run: pip install puresnmp'})
             return
 
         with self._lock:
             self._stop.clear()
-            self._status.update({
-                'running': True,
-                'found': 0,
-                'progress': 0,
-                'total': 0,
-                'current_ip': '',
-                'message': f'Scanning {cidr}…',
-                'percent': 0
-            })
-
-        log_scan("SCAN", f"Starting network scan: {cidr} (method={method}, ping_timeout={ping_timeout}, snmp_timeout={snmp_timeout}, retries={retries})")
-        start_time = datetime.now()
-        stats = {
-            'scanned': 0,
-            'found': 0,
-            'failed': 0,
-            'skipped': 0,
-            'cancelled': 0,
-            'start_time': start_time.isoformat(),
-            'end_time': None,
-            'duration_seconds': 0.0
-        }
-        progress_lock = threading.Lock()
+            self._status.update({'running':True,'found':0,'progress':0,'message':f'Scanning {cidr}…'})
 
         try:
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1200,229 +1055,163 @@ class SNMPWorker:
             self.socketio.emit('scan_started', {'network':str(net),'total':total})
 
             found = []
-
-            # Calculate automatic worker count based on network size
-            prefixlen = net.prefixlen
-            if max_workers is None:
-                if prefixlen >= 30:
-                    max_workers = 4
-                elif prefixlen >= 28:
-                    max_workers = 16
-                elif prefixlen >= 24:
-                    max_workers = 32
-                elif prefixlen >= 22:
-                    max_workers = 64
-                else:
-                    max_workers = 100
-            
-            # Bound workers to avoid system thread limits / socket descriptor exhaustion
-            max_workers = max(1, min(max_workers, 120))
-            log_scan("SCAN", f"Assigned workers: {max_workers} for prefixlen: {prefixlen}")
+            progress_counter = 0
+            progress_lock = threading.Lock()
 
             def scan_ip(ip):
-                if self._stop.is_set():
-                    return None
-                
-                # Pipeline Step 1 & 2: Ping / Host Alive
-                is_alive = self._ping(ip, timeout=ping_timeout)
-                if not is_alive or self._stop.is_set():
-                    return None
+                if self._stop.is_set(): return None
                 
                 dev = None
-                try:
-                    if method == 'snmp':
-                        oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
-                        
-                        # Pipeline Step 3: SNMP
-                        result = self._get(ip, community, oids, version=version, timeout=snmp_timeout, retries=retries)
-                        if not result and version == '2c' and not self._stop.is_set():
-                            result = self._get(ip, community, oids, version='1', timeout=snmp_timeout, retries=retries)
-                        
-                        if not result and not self._stop.is_set():
-                            for alt_community in ('public', 'private'):
-                                if alt_community == community or self._stop.is_set():
-                                    continue
-                                result = self._get(ip, alt_community, oids, version=version, timeout=snmp_timeout, retries=retries)
-                                if result:
-                                    community_used = alt_community
-                                    break
-                            else:
-                                community_used = community
+                
+                if method == 'snmp':
+                    oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
+                    
+                    # Try with user-provided community string first
+                    result = self._get(ip, community, oids, version=version, timeout=2.5)
+                    # Fallback to SNMPv1 if v2c failed
+                    if not result and version == '2c':
+                        result = self._get(ip, community, oids, version='1', timeout=2.5)
+                    
+                    # Try common community strings if user-provided one failed
+                    if not result:
+                        for alt_community in ('public', 'private'):
+                            if alt_community == community:
+                                continue
+                            result = self._get(ip, alt_community, oids, version=version, timeout=2.0)
+                            if result:
+                                # Override community with the one that worked
+                                community_used = alt_community
+                                break
                         else:
                             community_used = community
-                            
-                        if result and not self._stop.is_set():
-                            # Pipeline Step 4: Vendor Detection
-                            name  = result.get(OID['sysName'],'').strip() or ip
-                            descr = result.get(OID['sysDescr'],'').strip()
-                            sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
-                            descr_lower = descr.lower()
-                            vendor = 'Unknown'
-                            if '4881' in sys_obj_id or 'ruijie' in descr_lower or 'reyee' in descr_lower or 'rgos' in descr_lower:
-                                vendor = 'Ruijie'
-                            elif '14988' in sys_obj_id or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
-                                vendor = 'MikroTik'
-                            elif '41112' in sys_obj_id or 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
-                                vendor = 'Ubiquiti'
-                            elif 'cisco' in descr_lower:
-                                vendor = 'Cisco'
-                            
-                            dev = {'name':name,'ip':ip,'type':self._guess_type(descr, vendor=vendor),
-                                   'vendor':vendor,
-                                   'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
-                                   'sys_name':name,'snmp_enabled':True,
-                                   'snmp_community':community_used,'snmp_version':version,
-                                   'status':'up','zone_id':zone_id, 'source':'scan'}
-                    
-                    elif method == 'icmp':
+                    else:
+                        community_used = community
+                        
+                    if result:
+                        name  = result.get(OID['sysName'],'').strip() or ip
+                        descr = result.get(OID['sysDescr'],'').strip()
+                        sys_obj_id = str(result.get('1.3.6.1.2.1.1.2.0', '')).lower()
+                        descr_lower = descr.lower()
+                        vendor = 'Unknown'
+                        if '4881' in sys_obj_id or 'ruijie' in descr_lower or 'reyee' in descr_lower or 'rgos' in descr_lower:
+                            vendor = 'Ruijie'
+                        elif '14988' in sys_obj_id or 'mikrotik' in descr_lower or 'routeros' in descr_lower:
+                            vendor = 'MikroTik'
+                        elif '41112' in sys_obj_id or 'ubiquiti' in descr_lower or 'ubnt' in descr_lower or 'unifi' in descr_lower:
+                            vendor = 'Ubiquiti'
+                        elif 'cisco' in descr_lower:
+                            vendor = 'Cisco'
+                        
+                        dev = {'name':name,'ip':ip,'type':self._guess_type(descr, vendor=vendor),
+                               'vendor':vendor,
+                               'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
+                               'sys_name':name,'snmp_enabled':True,
+                               'snmp_community':community_used,'snmp_version':version,
+                               'status':'up','zone_id':zone_id, 'source':'scan'}
+                        print(f"[Scan] SNMP detected: {ip} → {name} ({vendor})")
+                
+                elif method == 'icmp':
+                    ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+                    res = subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if res.returncode == 0:
                         dev = {'name':ip,'ip':ip,'type':'unknown','vendor':'Unknown','icon':'unknown',
                                'description':'Discovered via ICMP','snmp_enabled':False,
                                'status':'up','zone_id':zone_id, 'source':'scan'}
+                
+                elif method == 'arp':
+                    ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
+                    subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     
-                    elif method == 'arp':
-                        out = ""
-                        try:
-                            if os.name == 'nt':
-                                res = subprocess.run(["arp", "-a", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
-                                out = res.stdout
-                            else:
-                                res = subprocess.run(["arp", "-n", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
-                                out = res.stdout
-                                if (not out or "No ARP" in out) and os.path.exists("/proc/net/arp"):
-                                    with open("/proc/net/arp", "r") as f:
-                                        out = f.read()
-                        except Exception as e:
-                            log_scan("ERROR", f"ARP execution failed for {ip}: {e}", exc=e)
-                        
-                        mac = ""
-                        mac_re = re.compile(r'([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})')
-                        for line in out.splitlines():
-                            if ip in line:
-                                m = mac_re.search(line)
-                                if m:
-                                    mac = m.group(0).replace('-', ':').lower()
-                                    break
-                        if mac:
-                            dev = {'name':ip,'ip':ip,'mac':mac,'type':'unknown','vendor':'Unknown','icon':'unknown',
-                                   'description':'Discovered via ARP','snmp_enabled':False,
-                                   'status':'up','zone_id':zone_id, 'source':'scan'}
-                except Exception as e:
-                    log_scan("ERROR", f"Exception in scan_ip detection loop for {ip}: {e}", exc=e)
-
-                if dev and not self._stop.is_set():
+                    out = ""
                     try:
-                        # Pipeline Step 5: Save Device
-                        with self.db_write_lock:
-                            existing = self.db.get_device_by_ip(ip)
-                            if existing:
-                                updates = {'status':'up','zone_id':zone_id}
+                        if os.name == 'nt':
+                            res = subprocess.run(["arp", "-a", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+                            out = res.stdout
+                        else:
+                            res = subprocess.run(["arp", "-n", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1)
+                            out = res.stdout
+                            if (not out or "No ARP" in out) and os.path.exists("/proc/net/arp"):
+                                with open("/proc/net/arp", "r") as f:
+                                    out = f.read()
+                    except Exception:
+                        pass
+                    
+                    mac = ""
+                    mac_re = re.compile(r'([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})')
+                    for line in out.splitlines():
+                        if ip in line:
+                            m = mac_re.search(line)
+                            if m:
+                                mac = m.group(0).replace('-', ':').lower()
+                                break
+                    if mac:
+                        dev = {'name':ip,'ip':ip,'mac':mac,'type':'unknown','vendor':'Unknown','icon':'unknown',
+                               'description':'Discovered via ARP','snmp_enabled':False,
+                               'status':'up','zone_id':zone_id, 'source':'scan'}
 
-                                if method == 'snmp':
-                                    if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
-                                    if 'description' in dev: updates['description'] = dev['description']
-                                    if 'vendor' in dev: updates['vendor'] = dev['vendor']
-                                    updates['snmp_enabled'] = 1
-                                    if dev.get('snmp_community'): updates['snmp_community'] = dev['snmp_community']
-                                    if dev.get('snmp_version'): updates['snmp_version'] = dev['snmp_version']
-                                else:
-                                    if dev.get('mac'): updates['mac'] = dev['mac']
+                if dev:
+                    try:
+                        existing = self.db.get_device_by_ip(ip)
+                        if existing:
+                            updates = {'status':'up','zone_id':zone_id}
 
-                                self.db.update_device(existing['id'], updates)
-                                dev['id'] = existing['id']
+                            if method == 'snmp':
+                                # SNMP scan: update all fields including SNMP config
+                                if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
+                                if 'description' in dev: updates['description'] = dev['description']
+                                if 'vendor' in dev: updates['vendor'] = dev['vendor']
+                                updates['snmp_enabled'] = 1
+                                if dev.get('snmp_community'): updates['snmp_community'] = dev['snmp_community']
+                                if dev.get('snmp_version'): updates['snmp_version'] = dev['snmp_version']
                             else:
-                                dev['id'] = self.db.add_device(dev)
-                            return dev
-                    except Exception as e:
-                        log_scan("ERROR", f"Failed to save device {ip} to DB: {e}", exc=e)
+                                # ICMP/ARP scan: NEVER overwrite snmp_enabled, community,
+                                # version, description, or vendor on existing devices
+                                # to protect data from prior SNMP detection
+                                if dev.get('mac'): updates['mac'] = dev['mac']
+
+                            self.db.update_device(existing['id'], updates)
+                            dev['id'] = existing['id']
+                        else:
+                            dev['id'] = self.db.add_device(dev)
+                        return dev
+                    except Exception:
+                        pass
                 return None
 
-            log_scan("SCAN", f"Submitting hosts to ThreadPoolExecutor with max_workers={max_workers}")
-            
-            # Keep thread pools bounded and safely clean them up
+            max_workers = 30
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {executor.submit(scan_ip, str(host)): str(host) for host in hosts}
-                
-                # Check stops periodically while pulling futures
                 for future in as_completed(futures):
-                    ip = futures[future]
-                    
                     if self._stop.is_set():
-                        log_scan("SCAN", "Scan execution stopped by cancellation flag. Cancelling pending tasks.")
-                        cancelled_count = 0
-                        for f in futures:
-                            if not f.done() and f.cancel():
-                                cancelled_count += 1
-                        with progress_lock:
-                            stats['cancelled'] += cancelled_count
-                            stats['scanned'] += cancelled_count
                         break
-                        
-                    try:
-                        dev = future.result()
-                        with progress_lock:
-                            stats['scanned'] += 1
-                            if dev:
-                                stats['found'] += 1
-                                found.append(dev)
-                                with self._lock:
-                                    self._status['found'] = stats['found']
-                                # Pipeline Step 6: Emit Socket Event (device_found)
-                                self.socketio.emit('device_found', dev)
-                            else:
-                                stats['skipped'] += 1
-                    except Exception as e:
-                        log_scan("ERROR", f"Exception scanning {ip}: {e}", exc=e)
-                        with progress_lock:
-                            stats['scanned'] += 1
-                            stats['failed'] += 1
-                    
-                    # Pipeline Step 7: Update Progress / Emit progress
+                    ip = futures[future]
                     with progress_lock:
-                        progress_counter = stats['scanned']
-                        pct = round((progress_counter)/total*100) if total > 0 else 0
-                        with self._lock:
-                            self._status.update({'progress':progress_counter,'current_ip':ip,'percent':pct,
-                                                 'message':f'Scanning {ip}…'})
+                        progress_counter += 1
+                        pct = round((progress_counter)/total*100)
+                        self._status.update({'progress':progress_counter,'current_ip':ip,'percent':pct,
+                                             'message':f'Scanning {ip}…'})
                         self.socketio.emit('scan_progress',
                                            {'progress':progress_counter,'total':total,'percent':pct,'current_ip':ip})
+                    try:
+                        dev = future.result()
+                        if dev:
+                            found.append(dev)
+                            with progress_lock:
+                                self._status['found'] += 1
+                            self.socketio.emit('device_found', dev)
+                    except Exception as e:
+                        print(f"[Scan] Error scanning {ip}: {e}")
 
+            self._status.update({'running':False,'percent':100,
+                                 'message':f'Done — {len(found)} device(s) found'})
+            self.socketio.emit('scan_complete', {'found':len(found),'devices':found})
+            self.db.add_access_log({'source':'Scanner',
+                                    'message':f'Scan {cidr}: {len(found)} found','type':'scan'})
         except Exception as e:
-            log_scan("ERROR", f"Fatal error during scan_network operation: {e}", exc=e)
-            with self._lock:
-                self._status.update({'running':False,'message':f'Error: {e}'})
+            self._status.update({'running':False,'message':f'Error: {e}'})
             self.socketio.emit('scan_error', {'error':str(e)})
         finally:
-            end_time = datetime.now()
-            duration = (end_time - start_time).total_seconds()
-            stats['end_time'] = end_time.isoformat()
-            stats['duration_seconds'] = duration
-            
-            with progress_lock:
-                with self._lock:
-                    self._status['running'] = False
-                    if self._stop.is_set():
-                        self._status['message'] = f'Cancelled — {len(found)} device(s) found'
-                        log_scan("SCAN", f"Scan cancelled. final stats: {stats}")
-                    else:
-                        self._status.update({'percent':100,
-                                             'message':f'Done — {len(found)} device(s) found'})
-                        log_scan("SCAN", f"Scan complete. final stats: {stats}")
-            
-            self.socketio.emit('scan_complete', {
-                'found': len(found),
-                'devices': found,
-                'statistics': stats
-            })
-            
-            try:
-                with self.db_write_lock:
-                    self.db.add_access_log({
-                        'source': 'Scanner',
-                        'message': f"Scan {cidr} finished: {stats['found']} found, {stats['scanned']} scanned in {duration:.1f}s",
-                        'type': 'scan'
-                    })
-            except Exception as e:
-                log_scan("ERROR", f"Failed to add access log entry for scan: {e}", exc=e)
+            self._status['running'] = False
 
     def _guess_type(self, d, vendor=''):
         if not d: return 'unknown'
