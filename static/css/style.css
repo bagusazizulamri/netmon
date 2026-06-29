@@ -471,14 +471,28 @@ body {
 
 /* ============================================================ MODALS */
 .nm-modal {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(28, 28, 30, 0.75) !important;
+  backdrop-filter: blur(30px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: var(--text-primary);
   border-radius: var(--radius-lg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75) !important;
 }
-.nm-modal .modal-header { border-color: var(--border); padding: 14px 18px; }
-.nm-modal .modal-footer { border-color: var(--border); padding: 12px 18px; }
+.nm-modal .modal-header { border-color: rgba(255, 255, 255, 0.08); padding: 14px 18px; }
+.nm-modal .modal-footer { border-color: rgba(255, 255, 255, 0.08); padding: 12px 18px; }
 .nm-modal .modal-body   { padding: 18px; }
+
+/* Frosted glass hardblur backdrop overlay */
+.modal-backdrop {
+  background-color: #000000 !important;
+  transition: opacity 0.15s linear;
+}
+.modal-backdrop.show {
+  opacity: 0.65 !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
 
 /* ============================================================ TABS */
 .nm-tabs  { display: flex; gap: 4px; margin-bottom: 16px; }
