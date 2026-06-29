@@ -28,8 +28,17 @@ def _creds(version, community):
     return V1(community) if version == '1' else V2C(community)
 
 
-def _client(ip, version, community, port):
-    return PyWrapper(Client(ip, _creds(version, community), port=port))
+def _client(ip, version, community, port, timeout=2.0, retries=0):
+    c = Client(ip, _creds(version, community), port=port)
+    try:
+        c.configure(timeout=timeout, retries=retries)
+    except Exception:
+        try:
+            c.config.timeout = timeout
+            c.config.retries = retries
+        except Exception:
+            pass
+    return PyWrapper(c)
 
 
 class SNMPWorker:
@@ -49,13 +58,11 @@ class SNMPWorker:
     # ─── low-level helpers ───────────────────────────────────────────
 
     async def _async_get(self, ip, community, oids, port, version, timeout):
-        import asyncio
-        c = _client(ip, version, community, port)
+        c = _client(ip, version, community, port, timeout=timeout, retries=0)
         res = {}
         for oid in oids:
             try:
-                # Wrap the await in asyncio.wait_for to apply timeout
-                val = await asyncio.wait_for(c.get(oid), timeout=timeout)
+                val = await c.get(oid)
                 # Clean up bytes to string if needed
                 if isinstance(val, bytes):
                     try:
@@ -84,21 +91,17 @@ class SNMPWorker:
         return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
-        import asyncio
-        c = _client(ip, version, community, port)
+        c = _client(ip, version, community, port, timeout=timeout, retries=0)
         res = {}
         try:
-            async def run_walk():
-                async for oid, val in c.walk(base_oid):
-                    # Clean up bytes to string if needed
-                    if isinstance(val, bytes):
-                        try:
-                            val = val.decode('utf-8', errors='ignore')
-                        except Exception:
-                            pass
-                    res[str(oid)] = str(val)
-            
-            await asyncio.wait_for(run_walk(), timeout=timeout)
+            async for oid, val in c.walk(base_oid):
+                # Clean up bytes to string if needed
+                if isinstance(val, bytes):
+                    try:
+                        val = val.decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
+                res[str(oid)] = str(val)
         except Exception:
             pass
         return res
@@ -746,9 +749,11 @@ class SNMPWorker:
 
         hc_in  = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.6',  port, version, timeout=2)
         hc_out = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port, version, timeout=2)
+        is_64bit = True
         if not hc_in:
             hc_in  = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port, version, timeout=2)
             hc_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=2)
+            is_64bit = False
 
         now_ts = time.time()
         for oid, name in if_desc.items():
@@ -774,8 +779,26 @@ class SNMPWorker:
                     continue
                 d_rx = rx - prev['rx']
                 d_tx = tx - prev['tx']
-                if d_rx < 0: d_rx += 2**32
-                if d_tx < 0: d_tx += 2**32
+                
+                # Rollover / Reboot protection
+                if d_rx < 0:
+                    if is_64bit:
+                        d_rx = 0
+                    else:
+                        if prev['rx'] > 3000000000:
+                            d_rx += 2**32
+                        else:
+                            d_rx = 0
+                            
+                if d_tx < 0:
+                    if is_64bit:
+                        d_tx = 0
+                    else:
+                        if prev['tx'] > 3000000000:
+                            d_tx += 2**32
+                        else:
+                            d_tx = 0
+                            
                 rx_bps = (d_rx * 8) / dt
                 tx_bps = (d_tx * 8) / dt
                 if rx_bps <= 100e9 and tx_bps <= 100e9:
@@ -811,18 +834,31 @@ class SNMPWorker:
         if not target_idx:
             return None
             
-        # 2. Query ifInOctets and ifOutOctets
+        # 2. Query ifHCInOctets/ifHCOutOctets (64-bit) first, fallback to ifInOctets/ifOutOctets (32-bit)
         traffic = self._get(ip, community, [
-            f"1.3.6.1.2.1.2.2.1.10.{target_idx}", # ifInOctets
-            f"1.3.6.1.2.1.2.2.1.16.{target_idx}"  # ifOutOctets
+            f"1.3.6.1.2.1.31.1.1.1.6.{target_idx}",  # ifHCInOctets
+            f"1.3.6.1.2.1.31.1.1.1.10.{target_idx}", # ifHCOutOctets
+            f"1.3.6.1.2.1.2.2.1.10.{target_idx}",    # ifInOctets
+            f"1.3.6.1.2.1.2.2.1.16.{target_idx}"     # ifOutOctets
         ], port, version)
         
         if not traffic:
             return None
             
         try:
-            in_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.10.{target_idx}", 0))
-            out_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.16.{target_idx}", 0))
+            in_octets = None
+            out_octets = None
+            is_64bit = False
+            
+            hc_in_val = traffic.get(f"1.3.6.1.2.1.31.1.1.1.6.{target_idx}")
+            hc_out_val = traffic.get(f"1.3.6.1.2.1.31.1.1.1.10.{target_idx}")
+            if hc_in_val is not None and hc_out_val is not None:
+                in_octets = int(hc_in_val)
+                out_octets = int(hc_out_val)
+                is_64bit = True
+            else:
+                in_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.10.{target_idx}", 0))
+                out_octets = int(traffic.get(f"1.3.6.1.2.1.2.2.1.16.{target_idx}", 0))
             
             now_ts = time.time()
             if not hasattr(self, '_last_traffic'):
@@ -836,10 +872,29 @@ class SNMPWorker:
                 if delta_t > 0:
                     delta_in = in_octets - last_data["in"]
                     delta_out = out_octets - last_data["out"]
-                    if delta_in >= 0 and delta_out >= 0:
-                        wan_in_bps = (delta_in * 8) / delta_t
-                        wan_out_bps = (delta_out * 8) / delta_t
-                        return {"wan_in": wan_in_bps, "wan_out": wan_out_bps}
+                    
+                    # Rollover / Reboot protection
+                    if delta_in < 0:
+                        if is_64bit:
+                            delta_in = 0
+                        else:
+                            if last_data["in"] > 3000000000:
+                                delta_in += 2**32
+                            else:
+                                delta_in = 0
+                                
+                    if delta_out < 0:
+                        if is_64bit:
+                            delta_out = 0
+                        else:
+                            if last_data["out"] > 3000000000:
+                                delta_out += 2**32
+                            else:
+                                delta_out = 0
+                                
+                    wan_in_bps = (delta_in * 8) / delta_t
+                    wan_out_bps = (delta_out * 8) / delta_t
+                    return {"wan_in": wan_in_bps, "wan_out": wan_out_bps}
         except Exception:
             pass
         return None
