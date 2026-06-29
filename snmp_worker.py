@@ -599,7 +599,6 @@ class SNMPWorker:
                 if is_alive:
                     # Device reachable via ping but SNMP is not responding
                     upd = {'status': 'up', 'last_polled': now,
-                            'snmp_enabled': 0,
                             'cpu_usage': None, 'memory_usage': None, 'temperature': None}
                     if old_st == 'down':
                         upd['last_seen'] = now
@@ -607,8 +606,8 @@ class SNMPWorker:
                     elif old_st == 'unknown':
                         upd['last_seen'] = now
                     self._alert(device, 'warning',
-                                f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
-                    print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
+                                f"SNMP unreachable on {device.get('name',ip)} ({ip}) — check community/config")
+                    print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding")
                     self.db.update_device(did, upd)
                 else:
                     self.db.update_device(did, {'status':'down','last_polled':now,
@@ -748,20 +747,20 @@ class SNMPWorker:
                 # else: lebih sedikit DAN cache masih fresh → rate-limited, tolak
 
         if is_valid:
-            # Cache the successful SNMP walk. For metrics that failed, retain previous cached values if any.
+            # Cache the successful SNMP walk, merging new values with cached values
             self._interfaces_cache[cache_key] = {
                 '_ts': time.time(),
-                'if_desc': new_desc,
-                'if_type': new_type or (cached['if_type'] if cached else {}),
-                'if_speed': new_speed or (cached['if_speed'] if cached else {}),
-                'if_oper': new_oper or (cached['if_oper'] if cached else {}),
-                'if_hc_in': new_hc_in or (cached['if_hc_in'] if cached else {}),
-                'if_hc_out': new_hc_out or (cached['if_hc_out'] if cached else {}),
-                'if_in': new_in or (cached['if_in'] if cached else {}),
-                'if_out': new_out or (cached['if_out'] if cached else {}),
-                'if_high_speed': new_high_speed or (cached['if_high_speed'] if cached else {})
+                'if_desc': {**cached['if_desc'], **new_desc} if (cached and new_desc) else (new_desc or {}),
+                'if_type': {**cached['if_type'], **new_type} if (cached and new_type) else (new_type or {}),
+                'if_speed': {**cached['if_speed'], **new_speed} if (cached and new_speed) else (new_speed or {}),
+                'if_oper': {**cached['if_oper'], **new_oper} if (cached and new_oper) else (new_oper or {}),
+                'if_hc_in': {**cached['if_hc_in'], **new_hc_in} if (cached and new_hc_in) else (new_hc_in or {}),
+                'if_hc_out': {**cached['if_hc_out'], **new_hc_out} if (cached and new_hc_out) else (new_hc_out or {}),
+                'if_in': {**cached['if_in'], **new_in} if (cached and new_in) else (new_in or {}),
+                'if_out': {**cached['if_out'], **new_out} if (cached and new_out) else (new_out or {}),
+                'if_high_speed': {**cached['if_high_speed'], **new_high_speed} if (cached and new_high_speed) else (new_high_speed or {})
             }
-            if_desc = new_desc
+            if_desc = self._interfaces_cache[cache_key]['if_desc']
             if_type = self._interfaces_cache[cache_key]['if_type']
             if_speed = self._interfaces_cache[cache_key]['if_speed']
             if_oper = self._interfaces_cache[cache_key]['if_oper']
@@ -771,18 +770,18 @@ class SNMPWorker:
             if_out = self._interfaces_cache[cache_key]['if_out']
             if_high_speed = self._interfaces_cache[cache_key]['if_high_speed']
         else:
-            # Momentary walk failure or partial read: use cache if available
+            # Momentary walk failure or partial read: use cache merged with any partial new results
             cached = self._interfaces_cache.get(cache_key)
             if cached:
-                if_desc = cached['if_desc']
-                if_type = cached['if_type']
-                if_speed = cached['if_speed']
-                if_oper = new_oper if new_oper else cached['if_oper']
-                if_hc_in = new_hc_in if new_hc_in else cached['if_hc_in']
-                if_hc_out = new_hc_out if new_hc_out else cached['if_hc_out']
-                if_in = new_in if new_in else cached['if_in']
-                if_out = new_out if new_out else cached['if_out']
-                if_high_speed = new_high_speed if new_high_speed else cached['if_high_speed']
+                if_desc = {**cached['if_desc'], **new_desc} if new_desc else cached['if_desc']
+                if_type = {**cached['if_type'], **new_type} if new_type else cached['if_type']
+                if_speed = {**cached['if_speed'], **new_speed} if new_speed else cached['if_speed']
+                if_oper = {**cached['if_oper'], **new_oper} if new_oper else cached['if_oper']
+                if_hc_in = {**cached['if_hc_in'], **new_hc_in} if new_hc_in else cached['if_hc_in']
+                if_hc_out = {**cached['if_hc_out'], **new_hc_out} if new_hc_out else cached['if_hc_out']
+                if_in = {**cached['if_in'], **new_in} if new_in else cached['if_in']
+                if_out = {**cached['if_out'], **new_out} if new_out else cached['if_out']
+                if_high_speed = {**cached['if_high_speed'], **new_high_speed} if new_high_speed else cached['if_high_speed']
             else:
                 if_desc, if_type, if_speed, if_oper = {}, {}, {}, {}
                 if_hc_in, if_hc_out, if_in, if_out, if_high_speed = {}, {}, {}, {}, {}
