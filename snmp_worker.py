@@ -3,7 +3,7 @@
 NetMon - SNMP Worker (puresnmp 2.x, Python 3.9+)
 """
 
-import threading, socket, time, ipaddress
+import threading, socket, time, ipaddress, os, subprocess, re
 from datetime import datetime
 
 try:
@@ -988,7 +988,6 @@ class SNMPWorker:
                                'status':'up','zone_id':zone_id, 'source':'scan'}
                 
                 elif method == 'icmp':
-                    import subprocess
                     ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
                     res = subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     if res.returncode == 0:
@@ -997,9 +996,6 @@ class SNMPWorker:
                                'status':'up','zone_id':zone_id, 'source':'scan'}
                 
                 elif method == 'arp':
-                    import subprocess
-                    import re
-                    import os
                     ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
                     subprocess.run(ping_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     
