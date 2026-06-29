@@ -601,7 +601,7 @@ function updateChartData(iface) {
   
   if (history) {
     const dt = (currentTimestamp - history.time) / 1000.0;
-    if (dt > 0) {
+    if (dt >= 1.0) {
       let diffRx = iface.rx_bytes - history.rx;
       let diffTx = iface.tx_bytes - history.tx;
       
@@ -611,6 +611,10 @@ function updateChartData(iface) {
       if (diffRx >= 0 && diffTx >= 0) {
         rxSpeed = (diffRx * 8) / dt;
         txSpeed = (diffTx * 8) / dt;
+        
+        // Spike protection: ignore values that are physically impossible (e.g. > 100 Gbps)
+        if (rxSpeed > 100e9) rxSpeed = 0;
+        if (txSpeed > 100e9) txSpeed = 0;
       }
     }
   }
