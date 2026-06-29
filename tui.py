@@ -92,14 +92,18 @@ else:
         dr, dw, de = select.select([sys.stdin], [], [], 0)
         if dr:
             ch = sys.stdin.read(1)
-            if ch == '\x1b':  # Escape sequence (e.g. arrow keys)
-                dr2, dw2, de2 = select.select([sys.stdin], [], [], 0.05)
-                if dr2:
-                    ch2 = sys.stdin.read(2)
-                    if ch2 == '[A': return 'arrow_up'
-                    elif ch2 == '[B': return 'arrow_down'
-                    elif ch2 == '[C': return 'arrow_right'
-                    elif ch2 == '[D': return 'arrow_left'
+            if ch == '\x1b':  # Escape sequence
+                seq = ""
+                for _ in range(2):
+                    dr2, dw2, de2 = select.select([sys.stdin], [], [], 0.02)
+                    if dr2:
+                        seq += sys.stdin.read(1)
+                    else:
+                        break
+                if seq == '[A': return 'arrow_up'
+                elif seq == '[B': return 'arrow_down'
+                elif seq == '[C': return 'arrow_right'
+                elif seq == '[D': return 'arrow_left'
                 return 'esc'
             return ch
         return None
@@ -195,10 +199,15 @@ class NetMonTUI:
         self.selected_idx = 0
         self.traffic_histories = {}
         self.polling_status = {}
+        self.trigger_immediate_selected_poll = False
         
         # Start passive polling background thread
         self.poll_thread = threading.Thread(target=self._background_poll_loop, daemon=True)
         self.poll_thread.start()
+
+        # Start selected device traffic poller thread
+        self.selected_poll_thread = threading.Thread(target=self._poll_selected_device_traffic, daemon=True)
+        self.selected_poll_thread.start()
 
     def _is_web_ui_active(self):
         import socket
@@ -242,6 +251,72 @@ class NetMonTUI:
             except Exception:
                 time.sleep(10)
 
+    def _poll_selected_device_traffic(self):
+        while self.running:
+            try:
+                devices = self.db.get_all_devices()
+                if not devices or self.selected_idx >= len(devices):
+                    time.sleep(1)
+                    continue
+                
+                sel_dev = devices[self.selected_idx]
+                if not sel_dev.get('snmp_enabled'):
+                    for _ in range(10):
+                        if self.trigger_immediate_selected_poll:
+                            break
+                        time.sleep(0.1)
+                    continue
+                
+                stats = self.worker.get_detailed_stats(sel_dev)
+                if stats and 'interfaces' in stats:
+                    interfaces = stats['interfaces']
+                    rx_bytes = sum(i.get('rx_bytes') or 0 for i in interfaces)
+                    tx_bytes = sum(i.get('tx_bytes') or 0 for i in interfaces)
+                    
+                    now_ms = time.time() * 1000.0
+                    dev_id = sel_dev['id']
+                    
+                    if dev_id not in self.traffic_histories:
+                        self.traffic_histories[dev_id] = {'rx': [], 'tx': [], 'prev': None}
+                    
+                    prev = self.traffic_histories[dev_id]['prev']
+                    if prev:
+                        dt = (now_ms - prev['time']) / 1000.0
+                        if dt >= 1.0:
+                            diff_rx = rx_bytes - prev['rx']
+                            diff_tx = tx_bytes - prev['tx']
+                            
+                            # Rollover protection (32-bit & 64-bit safe)
+                            if diff_rx < 0: diff_rx += 2**32
+                            if diff_tx < 0: diff_tx += 2**32
+                            
+                            if diff_rx >= 0 and diff_tx >= 0:
+                                rx_speed = (diff_rx * 8) / dt
+                                tx_speed = (diff_tx * 8) / dt
+                                
+                                # Spike protection (100 Gbps)
+                                if rx_speed <= 100e9 and tx_speed <= 100e9:
+                                    self.traffic_histories[dev_id]['rx'].append(rx_speed)
+                                    self.traffic_histories[dev_id]['tx'].append(tx_speed)
+                                    
+                                    max_history_len = 120
+                                    self.traffic_histories[dev_id]['rx'] = self.traffic_histories[dev_id]['rx'][-max_history_len:]
+                                    self.traffic_histories[dev_id]['tx'] = self.traffic_histories[dev_id]['tx'][-max_history_len:]
+                    
+                    self.traffic_histories[dev_id]['prev'] = {
+                        'rx': rx_bytes,
+                        'tx': tx_bytes,
+                        'time': now_ms
+                    }
+                
+                # Sleep 3 seconds in small steps to allow immediate interruption on selection change
+                for _ in range(30):
+                    if not self.running or self.trigger_immediate_selected_poll:
+                        break
+                    time.sleep(0.1)
+            except Exception:
+                time.sleep(2)
+
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
         sys.stdout.flush()
@@ -261,9 +336,12 @@ class NetMonTUI:
                         break
                     elif key == 'arrow_up':
                         self.selected_idx = max(0, self.selected_idx - 1)
+                        self.trigger_immediate_selected_poll = True
                         last_render = 0 # Force instant redraw
                     elif key == 'arrow_down':
-                        self.selected_idx += 1
+                        devices = self.db.get_all_devices()
+                        self.selected_idx = min(len(devices) - 1, self.selected_idx + 1) if devices else 0
+                        self.trigger_immediate_selected_poll = True
                         last_render = 0 # Force instant redraw
                     elif key in ('p', 'P'):
                         # Force poll selected device in background thread
@@ -452,29 +530,26 @@ class NetMonTUI:
                 if dev_id not in self.traffic_histories:
                     self.traffic_histories[dev_id] = {'rx': [], 'tx': []}
 
-                rx_val = sel_dev.get('wan_in') or 0.0
-                tx_val = sel_dev.get('wan_out') or 0.0
-
-                self.traffic_histories[dev_id]['rx'].append(rx_val)
-                self.traffic_histories[dev_id]['tx'].append(tx_val)
-
-                # Keep traffic history bound to graph width
-                max_history_len = graph_w - 6
-                self.traffic_histories[dev_id]['rx'] = self.traffic_histories[dev_id]['rx'][-max_history_len:]
-                self.traffic_histories[dev_id]['tx'] = self.traffic_histories[dev_id]['tx'][-max_history_len:]
-
                 rx_hist = self.traffic_histories[dev_id]['rx']
                 tx_hist = self.traffic_histories[dev_id]['tx']
 
-                max_rx = max(rx_hist, default=1.0)
-                max_tx = max(tx_hist, default=1.0)
+                # Clip history to fit the current graph width dynamically
+                max_w = graph_w - 4
+                rx_hist_clipped = rx_hist[-max_w:]
+                tx_hist_clipped = tx_hist[-max_w:]
+
+                rx_val = rx_hist_clipped[-1] if rx_hist_clipped else 0.0
+                tx_val = tx_hist_clipped[-1] if tx_hist_clipped else 0.0
+
+                max_rx = max(rx_hist_clipped, default=1.0)
+                max_tx = max(tx_hist_clipped, default=1.0)
                 # Avoid division by zero issues, default floor to 10 Kbps
                 max_rx = max(max_rx, 10000.0)
                 max_tx = max(max_tx, 10000.0)
 
                 # Build bars
-                rx_rows = render_bars(rx_hist, rx_h, graph_w - 4, max_rx)
-                tx_rows = render_bars(tx_hist, tx_h, graph_w - 4, max_tx)
+                rx_rows = render_bars(rx_hist_clipped, rx_h, graph_w - 4, max_rx)
+                tx_rows = render_bars(tx_hist_clipped, tx_h, graph_w - 4, max_tx)
 
                 # 3a. RX Inbound Graph (Cyan)
                 curr_rx_lbl = format_bandwidth(rx_val)
