@@ -95,15 +95,15 @@ else:
             if ch == '\x1b':  # Escape sequence
                 seq = ""
                 for _ in range(2):
-                    dr2, dw2, de2 = select.select([sys.stdin], [], [], 0.02)
+                    dr2, dw2, de2 = select.select([sys.stdin], [], [], 0.1)
                     if dr2:
                         seq += sys.stdin.read(1)
                     else:
                         break
-                if seq == '[A': return 'arrow_up'
-                elif seq == '[B': return 'arrow_down'
-                elif seq == '[C': return 'arrow_right'
-                elif seq == '[D': return 'arrow_left'
+                if seq in ('[A', 'OA'): return 'arrow_up'
+                elif seq in ('[B', 'OB'): return 'arrow_down'
+                elif seq in ('[C', 'OC'): return 'arrow_right'
+                elif seq in ('[D', 'OD'): return 'arrow_left'
                 return 'esc'
             return ch
         return None
