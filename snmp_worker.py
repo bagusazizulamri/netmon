@@ -901,8 +901,10 @@ class SNMPWorker:
                 continue
             key  = (did, idx)
             prev = self._if_prev.get(key)
-            self._if_prev[key] = {'rx': rx, 'tx': tx, 'ts': now_ts}
+            self._if_prev[key] = {'rx': rx, 'tx': tx, 'ts': now_ts, 'is_64bit': is_64bit}
             if prev:
+                if prev.get('is_64bit') != is_64bit:
+                    continue
                 dt = now_ts - prev['ts']
                 if dt <= 0:
                     continue
@@ -995,9 +997,11 @@ class SNMPWorker:
                 self._last_traffic = {}
                 
             last_data = self._last_traffic.get(did)
-            self._last_traffic[did] = {"in": in_octets, "out": out_octets, "ts": now_ts}
+            self._last_traffic[did] = {"in": in_octets, "out": out_octets, "ts": now_ts, "is_64bit": is_64bit}
             
             if last_data:
+                if last_data.get("is_64bit") != is_64bit:
+                    return None
                 delta_t = now_ts - last_data["ts"]
                 if delta_t > 0:
                     delta_in = in_octets - last_data["in"]
@@ -1024,6 +1028,11 @@ class SNMPWorker:
                                 
                     wan_in_bps = (delta_in * 8) / delta_t
                     wan_out_bps = (delta_out * 8) / delta_t
+                    
+                    # Spike protection: ignore values that are physically impossible (> 100 Gbps)
+                    if wan_in_bps > 100e9: wan_in_bps = 0
+                    if wan_out_bps > 100e9: wan_out_bps = 0
+                    
                     return {"wan_in": wan_in_bps, "wan_out": wan_out_bps}
         except Exception:
             pass

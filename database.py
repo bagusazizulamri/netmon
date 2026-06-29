@@ -199,6 +199,16 @@ class Database:
             c.execute('INSERT OR IGNORE INTO zones (id, name, color, description) VALUES (1, "Default Zone", "#00d4ff", "Default network zone")')
             c.execute('INSERT OR IGNORE INTO floorplans (id) VALUES (1)')
 
+            # Clean up any legacy traffic spikes (> 100 Gbps) in the database to restore normal graph scales
+            try:
+                c.execute("UPDATE interface_traffic SET rx_bps = 0 WHERE rx_bps > 100000000000")
+                c.execute("UPDATE interface_traffic SET tx_bps = 0 WHERE tx_bps > 100000000000")
+                c.execute("UPDATE snmp_metrics SET metric_value = '0' WHERE metric_name IN ('wan_in', 'wan_out') AND CAST(metric_value AS REAL) > 100000000000")
+                c.execute("UPDATE devices SET wan_in = 0 WHERE wan_in > 100000000000")
+                c.execute("UPDATE devices SET wan_out = 0 WHERE wan_out > 100000000000")
+            except Exception as e:
+                print(f"[DB migration] Traffic cleanup failed: {e}")
+
     # ============================================================
     # DEVICES
     # ============================================================
