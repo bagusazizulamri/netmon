@@ -66,6 +66,7 @@ class SNMPWorker:
                         'current_ip':'','message':'Idle','percent':0}
         self._interfaces_cache = {}
         self._if_prev = {}
+        self.db_write_lock = threading.RLock()
 
     def get_scan_status(self): return dict(self._status)
     def stop_scan(self):       self._stop.set()
@@ -483,6 +484,18 @@ class SNMPWorker:
         }
 
     def poll_device(self, device):
+        # Prune memory caches to prevent leaks from deleted devices
+        try:
+            active_dids = {d['id'] for d in self.db.get_all_devices()}
+            for k in list(self._if_prev.keys()):
+                if k[0] not in active_dids:
+                    self._if_prev.pop(k, None)
+            for k in list(self._interfaces_cache.keys()):
+                if k not in active_dids:
+                    self._interfaces_cache.pop(k, None)
+        except Exception as e:
+            print(f"[Worker] Failed to prune caches: {e}")
+
         did, ip   = device['id'], device['ip']
         community = device.get('snmp_community', 'public') or 'public'
         try:
@@ -546,78 +559,82 @@ class SNMPWorker:
             metrics = self._get_resource_metrics(ip, community, port, version, vendor_lower, descr_lower, result.get('1.3.6.1.2.1.1.2.0', ''))
             upd.update(metrics)
             
-            # Save metrics to DB timeseries
-            if metrics['cpu_usage'] is not None:
-                self.db.save_metric(did, 'cpu_usage', metrics['cpu_usage'])
-            if metrics['memory_usage'] is not None:
-                self.db.save_metric(did, 'memory_usage', metrics['memory_usage'])
-            if metrics['temperature'] is not None:
-                self.db.save_metric(did, 'temperature', metrics['temperature'])
+            with self.db_write_lock:
+                # Save metrics to DB timeseries
+                if metrics['cpu_usage'] is not None:
+                    self.db.save_metric(did, 'cpu_usage', metrics['cpu_usage'])
+                if metrics['memory_usage'] is not None:
+                    self.db.save_metric(did, 'memory_usage', metrics['memory_usage'])
+                if metrics['temperature'] is not None:
+                    self.db.save_metric(did, 'temperature', metrics['temperature'])
 
-            # Poll WAN traffic throughput if device type is router
-            if device.get('type') == 'router':
-                traffic_data = self._poll_router_traffic(did, ip, community, port, version)
-                if traffic_data:
-                    upd.update(traffic_data)
-                    self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
-                    self.db.save_metric(did, 'wan_out', traffic_data['wan_out'])
+                # Poll WAN traffic throughput if device type is router
+                if device.get('type') == 'router':
+                    traffic_data = self._poll_router_traffic(did, ip, community, port, version)
+                    if traffic_data:
+                        upd.update(traffic_data)
+                        self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
+                        self.db.save_metric(did, 'wan_out', traffic_data['wan_out'])
 
-            if old_st == 'down':
-                upd['last_seen'] = now
-                self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
-            elif old_st == 'unknown':
-                upd['last_seen'] = now
-
-            self.db.update_device(did, upd)
-            if upd.get('uptime'):
-                self.db.save_metric(did, 'uptime', upd['uptime'])
-
-        elif snmp_en:
-            # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
-            is_alive = self._ping(ip)
-            if is_alive:
-                # Device reachable via ping but SNMP is not responding
-                upd = {'status': 'up', 'last_polled': now,
-                        'snmp_enabled': 0,
-                        'cpu_usage': None, 'memory_usage': None, 'temperature': None}
-                if old_st == 'down':
-                    upd['last_seen'] = now
-                    self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
-                elif old_st == 'unknown':
-                    upd['last_seen'] = now
-                self._alert(device, 'warning',
-                            f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
-                print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
-                self.db.update_device(did, upd)
-            else:
-                self.db.update_device(did, {'status':'down','last_polled':now,
-                                             'cpu_usage': None, 'memory_usage': None, 'temperature': None})
-                if old_st != 'down':
-                    s = self.db.get_settings()
-                    if s.get('alert_on_down','true') == 'true':
-                        self._alert(device, 'critical',
-                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
-
-        else:
-            # ── SNMP not enabled: ping-only check ──
-            is_alive = self._ping(ip)
-            if is_alive:
-                upd = {'status': 'up', 'last_polled': now}
                 if old_st == 'down':
                     upd['last_seen'] = now
                     self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
                 elif old_st == 'unknown':
                     upd['last_seen'] = now
-                self.db.update_device(did, upd)
-            else:
-                self.db.update_device(did, {'status':'down','last_polled':now})
-                if old_st != 'down':
-                    s = self.db.get_settings()
-                    if s.get('alert_on_down','true') == 'true':
-                        self._alert(device, 'critical',
-                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
 
-        updated = self.db.get_device(did)
+                self.db.update_device(did, upd)
+                if upd.get('uptime'):
+                    self.db.save_metric(did, 'uptime', upd['uptime'])
+
+        elif snmp_en:
+            # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
+            is_alive = self._ping(ip)
+            with self.db_write_lock:
+                if is_alive:
+                    # Device reachable via ping but SNMP is not responding
+                    upd = {'status': 'up', 'last_polled': now,
+                            'snmp_enabled': 0,
+                            'cpu_usage': None, 'memory_usage': None, 'temperature': None}
+                    if old_st == 'down':
+                        upd['last_seen'] = now
+                        self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
+                    elif old_st == 'unknown':
+                        upd['last_seen'] = now
+                    self._alert(device, 'warning',
+                                f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
+                    print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
+                    self.db.update_device(did, upd)
+                else:
+                    self.db.update_device(did, {'status':'down','last_polled':now,
+                                                 'cpu_usage': None, 'memory_usage': None, 'temperature': None})
+                    if old_st != 'down':
+                        s = self.db.get_settings()
+                        if s.get('alert_on_down','true') == 'true':
+                            self._alert(device, 'critical',
+                                        f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
+
+        else:
+            # ── SNMP not enabled: ping-only check ──
+            is_alive = self._ping(ip)
+            with self.db_write_lock:
+                if is_alive:
+                    upd = {'status': 'up', 'last_polled': now}
+                    if old_st == 'down':
+                        upd['last_seen'] = now
+                        self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
+                    elif old_st == 'unknown':
+                        upd['last_seen'] = now
+                    self.db.update_device(did, upd)
+                else:
+                    self.db.update_device(did, {'status':'down','last_polled':now})
+                    if old_st != 'down':
+                        s = self.db.get_settings()
+                        if s.get('alert_on_down','true') == 'true':
+                            self._alert(device, 'critical',
+                                        f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
+
+        with self.db_write_lock:
+            updated = self.db.get_device(did)
         if updated:
             self.socketio.emit('device_status_update', updated)
             self.socketio.emit('stats_update', self.db.get_dashboard_stats())
@@ -908,7 +925,8 @@ class SNMPWorker:
                 rx_bps = (d_rx * 8) / dt
                 tx_bps = (d_tx * 8) / dt
                 if rx_bps <= 100e9 and tx_bps <= 100e9:
-                    self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
+                    with self.db_write_lock:
+                        self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
 
     def _poll_router_traffic(self, did, ip, community, port, version):
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
@@ -1023,10 +1041,11 @@ class SNMPWorker:
         return 'ok'
 
     def _alert(self, device, severity, message):
-        aid = self.db.add_alert({'device_id':device['id'],
-                                  'device_name':device.get('name',device.get('ip','')),
-                                  'device_ip':device.get('ip',''),
-                                  'severity':severity, 'message':message})
+        with self.db_write_lock:
+            aid = self.db.add_alert({'device_id':device['id'],
+                                      'device_name':device.get('name',device.get('ip','')),
+                                      'device_ip':device.get('ip',''),
+                                      'severity':severity, 'message':message})
         self.socketio.emit('new_alert', {
             'id':aid,'device_id':device['id'],
             'device_name':device.get('name',''), 'device_ip':device.get('ip',''),
