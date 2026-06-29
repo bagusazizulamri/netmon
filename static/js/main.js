@@ -347,6 +347,10 @@ function initChart() {
     chartRxData.push(0);
     chartTxData.push(0);
   }
+
+  const isLight = document.body.classList.contains('light-theme');
+  const tickColor = isLight ? '#6e6e73' : '#8b949e';
+  const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
   
   trafficChartInstance = new Chart(ctx, {
     type: 'line',
@@ -384,12 +388,12 @@ function initChart() {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#8b949e', font: { size: 10 } }
+          ticks: { color: tickColor, font: { size: 10 } }
         },
         y: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: gridColor },
           ticks: {
-            color: '#8b949e',
+            color: tickColor,
             font: { size: 10 },
             callback: function(value) {
               return formatBandwidthSimple(value);
@@ -697,6 +701,10 @@ function loadHistoryChart(deviceId, ifaceName, hours) {
       _histChart.data.datasets[1].data = txData;
       _histChart.update('none');
     } else {
+      const isLight = document.body.classList.contains('light-theme');
+      const tickColor = isLight ? '#6e6e73' : '#8b949e';
+      const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+
       _histChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: { labels, datasets: [
@@ -710,12 +718,12 @@ function loadHistoryChart(deviceId, ifaceName, hours) {
         options: {
           responsive:true, maintainAspectRatio:false, animation:false,
           plugins: {
-            legend:{ display:true, labels:{color:'#8b949e',font:{size:11}} },
+            legend:{ display:true, labels:{color:tickColor,font:{size:11}} },
             tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${formatBandwidthSimple(ctx.parsed.y)}` } }
           },
           scales: {
-            x:{ grid:{display:false}, ticks:{color:'#8b949e',font:{size:10},maxTicksLimit:8,maxRotation:0} },
-            y:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#8b949e',font:{size:10},
+            x:{ grid:{display:false}, ticks:{color:tickColor,font:{size:10},maxTicksLimit:8,maxRotation:0} },
+            y:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{size:10},
                 callback: v => formatBandwidthSimple(v)} }
           }
         }
@@ -745,3 +753,84 @@ function exportHistoryChart() {
   a.href     = _histChart.toBase64Image('image/png', 1.0);
   a.click();
 }
+
+// ---- Day/Night (Light/Dark) Theme Toggle ----
+document.addEventListener('DOMContentLoaded', () => {
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  if (!themeToggleBtn) return;
+
+  const toggleIcon = document.getElementById('toggle-icon');
+  const toggleText = document.getElementById('toggle-text');
+  const themeIndicator = document.getElementById('theme-icon-indicator');
+
+  function updateChartsTheme(isLight) {
+    const tickColor = isLight ? '#6e6e73' : '#8b949e';
+    const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+
+    if (trafficChartInstance) {
+      if (trafficChartInstance.options && trafficChartInstance.options.scales) {
+        if (trafficChartInstance.options.scales.x && trafficChartInstance.options.scales.x.ticks) {
+          trafficChartInstance.options.scales.x.ticks.color = tickColor;
+        }
+        if (trafficChartInstance.options.scales.y) {
+          if (trafficChartInstance.options.scales.y.ticks) trafficChartInstance.options.scales.y.ticks.color = tickColor;
+          if (trafficChartInstance.options.scales.y.grid) trafficChartInstance.options.scales.y.grid.color = gridColor;
+        }
+        trafficChartInstance.update();
+      }
+    }
+    if (_histChart) {
+      if (_histChart.options && _histChart.options.scales) {
+        if (_histChart.options.scales.x) {
+          if (_histChart.options.scales.x.ticks) _histChart.options.scales.x.ticks.color = tickColor;
+        }
+        if (_histChart.options.scales.y) {
+          if (_histChart.options.scales.y.ticks) _histChart.options.scales.y.ticks.color = tickColor;
+          if (_histChart.options.scales.y.grid) _histChart.options.scales.y.grid.color = gridColor;
+        }
+        if (_histChart.options.plugins && _histChart.options.plugins.legend && _histChart.options.plugins.legend.labels) {
+          _histChart.options.plugins.legend.labels.color = tickColor;
+        }
+        _histChart.update();
+      }
+    }
+  }
+
+  function updateThemeUI(isLight) {
+    if (isLight) {
+      document.body.classList.add('light-theme');
+      if (toggleIcon) {
+        toggleIcon.className = 'bi bi-moon-stars-fill';
+      }
+      if (toggleText) {
+        toggleText.textContent = 'Dark';
+      }
+      if (themeIndicator) {
+        themeIndicator.className = 'bi bi-sun-fill text-warning';
+      }
+    } else {
+      document.body.classList.remove('light-theme');
+      if (toggleIcon) {
+        toggleIcon.className = 'bi bi-brightness-high-fill';
+      }
+      if (toggleText) {
+        toggleText.textContent = 'Light';
+      }
+      if (themeIndicator) {
+        themeIndicator.className = 'bi bi-moon-stars-fill';
+      }
+    }
+    updateChartsTheme(isLight);
+  }
+
+  // Initial check based on class applied by fast-path script in body
+  const isLight = document.body.classList.contains('light-theme');
+  updateThemeUI(isLight);
+
+  themeToggleBtn.addEventListener('click', () => {
+    const isCurrentlyLight = document.body.classList.contains('light-theme');
+    const newLight = !isCurrentlyLight;
+    localStorage.setItem('theme', newLight ? 'light' : 'dark');
+    updateThemeUI(newLight);
+  });
+});

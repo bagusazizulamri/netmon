@@ -129,28 +129,14 @@ class SNMPWorker:
 
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
         if not SNMP_OK: return None
-        # Single attempt for fast network discovery
         for attempt in range(1):
-            loop = None
             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 coro = self._async_get(ip, community, oids, port, version, timeout)
-                res = loop.run_until_complete(coro)
+                res = asyncio.run(coro)
                 if res:
                     return res
             except Exception as e:
                 print(f"[SNMP _get error] {ip} (attempt {attempt + 1}): {e}")
-            finally:
-                if loop is not None:
-                    try:
-                        loop.close()
-                    except Exception:
-                        pass
-                    try:
-                        asyncio.set_event_loop(None)
-                    except Exception:
-                        pass
         return None
 
     async def _async_walk(self, ip, community, base_oid, port, version, timeout):
@@ -171,34 +157,47 @@ class SNMPWorker:
 
     def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2):
         if not SNMP_OK: return {}
-        # Retry up to 2 times to prevent random NAT UDP packet loss
         for attempt in range(2):
-            loop = None
             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 coro = self._async_walk(ip, community, base_oid, port, version, timeout)
-                res = loop.run_until_complete(coro)
+                res = asyncio.run(coro)
                 if res:
                     return res
             except Exception:
                 pass
-            finally:
-                if loop is not None:
-                    try:
-                        loop.close()
-                    except Exception:
-                        pass
-                    try:
-                        asyncio.set_event_loop(None)
-                    except Exception:
-                        pass
         return {}
 
     # ─── poll a single device ────────────────────────────────────────
 
     def _ping(self, ip):
-        # 1. Try TCP connection check on common ports (works perfectly through NAT)
+        # 1. Try standard OS Ping first (quickest check if host responds to ICMP)
+        import subprocess
+        import platform
+        is_win = platform.system().lower() == 'windows'
+        param = '-n' if is_win else '-c'
+        timeout_param = '-w' if is_win else '-W'
+        timeout_val = '800' if is_win else '1'
+        
+        cmd = ['ping', param, '1', timeout_param, timeout_val, ip]
+        try:
+            startupinfo = None
+            if is_win:
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            res = subprocess.run(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                startupinfo=startupinfo, 
+                timeout=1.2
+            )
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+        # 2. Fallback to TCP connection check on common ports (if ICMP is blocked)
         import socket
         common_ports = [22, 80, 443, 445]
         for port in common_ports:
@@ -214,31 +213,7 @@ class SNMPWorker:
             except Exception:
                 pass
 
-        # 2. Fallback to standard OS Ping
-        import subprocess
-        import platform
-        is_win = platform.system().lower() == 'windows'
-        param = '-n' if is_win else '-c'
-        timeout_param = '-w' if is_win else '-W'
-        timeout_val = '1000' if is_win else '1'
-        
-        cmd = ['ping', param, '1', timeout_param, timeout_val, ip]
-        try:
-            startupinfo = None
-            if is_win:
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
-            res = subprocess.run(
-                cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE, 
-                startupinfo=startupinfo, 
-                timeout=1.5
-            )
-            return res.returncode == 0
-        except Exception:
-            return False
+        return False
 
     def _get_resource_metrics(self, ip, community, port, version, vendor_lower, descr_lower, sys_obj_id=None):
         cpu_usage = None
@@ -597,9 +572,8 @@ class SNMPWorker:
             is_alive = self._ping(ip)
             with self.db_write_lock:
                 if is_alive:
-                    # Device reachable via ping but SNMP is not responding
-                    upd = {'status': 'up', 'last_polled': now,
-                            'cpu_usage': None, 'memory_usage': None, 'temperature': None}
+                    # Device reachable via ping but SNMP is not responding. Keep existing metrics.
+                    upd = {'status': 'up', 'last_polled': now}
                     if old_st == 'down':
                         upd['last_seen'] = now
                         self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
@@ -653,7 +627,83 @@ class SNMPWorker:
         except Exception:
             port = 161
         version = device.get('snmp_version', '2c') or '2c'
-        
+        cache_key = device['id']
+
+        # Fast path: If the device is down or SNMP is disabled, do not poll OIDs.
+        # Directly format and return cached interface and status info to avoid blocking threads.
+        if device.get('status') == 'down' or not device.get('snmp_enabled'):
+            cached = self._interfaces_cache.get(cache_key)
+            interfaces = []
+            if cached:
+                if_desc = cached.get('if_desc', {})
+                if_type = cached.get('if_type', {})
+                if_speed = cached.get('if_speed', {})
+                if_oper = cached.get('if_oper', {})
+                if_hc_in = cached.get('if_hc_in', {})
+                if_hc_out = cached.get('if_hc_out', {})
+                if_in = cached.get('if_in', {})
+                if_out = cached.get('if_out', {})
+                if_high_speed = cached.get('if_high_speed', {})
+                
+                for oid, name in if_desc.items():
+                    idx = oid.split('.')[-1]
+                    t = if_type.get(f"1.3.6.1.2.1.2.2.1.3.{idx}", "6")
+                    if t == '24': continue
+                    name_lower = str(name).lower()
+                    if 'loopback' in name_lower or name_lower in ('lo','lo0'): continue
+                    
+                    status_val = if_oper.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", "4")
+                    status = 'up' if str(status_val) == '1' else 'down'
+                    
+                    speed_bps = 0
+                    if f"1.3.6.1.31.1.1.1.15.{idx}" in if_high_speed:
+                        try: speed_bps = float(if_high_speed[f"1.3.6.1.31.1.1.1.15.{idx}"]) * 1000000
+                        except ValueError: pass
+                    if speed_bps == 0 and f"1.3.6.1.2.1.31.1.1.1.15.{idx}" in if_high_speed:
+                        try: speed_bps = float(if_high_speed[f"1.3.6.1.2.1.31.1.1.1.15.{idx}"]) * 1000000
+                        except ValueError: pass
+                    if speed_bps == 0:
+                        try: speed_bps = float(if_speed.get(f"1.3.6.1.2.1.2.2.1.5.{idx}", 0))
+                        except ValueError: pass
+                    
+                    rx_bytes = 0
+                    tx_bytes = 0
+                    hc_in_val = if_hc_in.get(f"1.3.6.1.2.1.31.1.1.1.6.{idx}") or if_hc_in.get(f"1.3.6.1.31.1.1.1.6.{idx}")
+                    hc_out_val = if_hc_out.get(f"1.3.6.1.2.1.31.1.1.1.10.{idx}") or if_hc_out.get(f"1.3.6.1.31.1.1.1.10.{idx}")
+                    
+                    if hc_in_val is not None:
+                        try: rx_bytes = int(hc_in_val)
+                        except ValueError: pass
+                    else:
+                        try: rx_bytes = int(if_in.get(f"1.3.6.1.2.1.2.2.1.10.{idx}", 0))
+                        except ValueError: pass
+                    if hc_out_val is not None:
+                        try: tx_bytes = int(hc_out_val)
+                        except ValueError: pass
+                    else:
+                        try: tx_bytes = int(if_out.get(f"1.3.6.1.2.1.2.2.1.16.{idx}", 0))
+                        except ValueError: pass
+                        
+                    interfaces.append({
+                        'index': int(idx),
+                        'name': str(name),
+                        'status': status,
+                        'speed': speed_bps,
+                        'rx_bytes': rx_bytes,
+                        'tx_bytes': tx_bytes
+                    })
+                interfaces.sort(key=lambda x: x['index'])
+
+            return {
+                'uptime': device.get('uptime'),
+                'sys_name': device.get('sys_name') or device.get('name'),
+                'description': device.get('description') or 'Device offline',
+                'cpu_usage': device.get('cpu_usage'),
+                'memory_usage': device.get('memory_usage'),
+                'temperature': device.get('temperature'),
+                'interfaces': interfaces
+            }
+
         # 1. Fetch system details
         res_sys = self._get(ip, community, [
             '1.3.6.1.2.1.1.1.0', # sysDescr
@@ -661,6 +711,80 @@ class SNMPWorker:
             '1.3.6.1.2.1.1.3.0', # sysUpTime
             '1.3.6.1.2.1.1.5.0', # sysName
         ], port=port, version=version)
+        
+        if not res_sys:
+            # SNMP not responding. Return cached status/interfaces instead of trying walks
+            cached = self._interfaces_cache.get(cache_key)
+            interfaces = []
+            if cached:
+                if_desc = cached.get('if_desc', {})
+                if_type = cached.get('if_type', {})
+                if_speed = cached.get('if_speed', {})
+                if_oper = cached.get('if_oper', {})
+                if_hc_in = cached.get('if_hc_in', {})
+                if_hc_out = cached.get('if_hc_out', {})
+                if_in = cached.get('if_in', {})
+                if_out = cached.get('if_out', {})
+                if_high_speed = cached.get('if_high_speed', {})
+                
+                for oid, name in if_desc.items():
+                    idx = oid.split('.')[-1]
+                    t = if_type.get(f"1.3.6.1.2.1.2.2.1.3.{idx}", "6")
+                    if t == '24': continue
+                    name_lower = str(name).lower()
+                    if 'loopback' in name_lower or name_lower in ('lo','lo0'): continue
+                    
+                    status_val = if_oper.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", "4")
+                    status = 'up' if str(status_val) == '1' else 'down'
+                    
+                    speed_bps = 0
+                    if f"1.3.6.1.31.1.1.1.15.{idx}" in if_high_speed:
+                        try: speed_bps = float(if_high_speed[f"1.3.6.1.31.1.1.1.15.{idx}"]) * 1000000
+                        except ValueError: pass
+                    if speed_bps == 0 and f"1.3.6.1.2.1.31.1.1.1.15.{idx}" in if_high_speed:
+                        try: speed_bps = float(if_high_speed[f"1.3.6.1.2.1.31.1.1.1.15.{idx}"]) * 1000000
+                        except ValueError: pass
+                    if speed_bps == 0:
+                        try: speed_bps = float(if_speed.get(f"1.3.6.1.2.1.2.2.1.5.{idx}", 0))
+                        except ValueError: pass
+                    
+                    rx_bytes = 0
+                    tx_bytes = 0
+                    hc_in_val = if_hc_in.get(f"1.3.6.1.2.1.31.1.1.1.6.{idx}") or if_hc_in.get(f"1.3.6.1.31.1.1.1.6.{idx}")
+                    hc_out_val = if_hc_out.get(f"1.3.6.1.2.1.31.1.1.1.10.{idx}") or if_hc_out.get(f"1.3.6.1.31.1.1.1.10.{idx}")
+                    
+                    if hc_in_val is not None:
+                        try: rx_bytes = int(hc_in_val)
+                        except ValueError: pass
+                    else:
+                        try: rx_bytes = int(if_in.get(f"1.3.6.1.2.1.2.2.1.10.{idx}", 0))
+                        except ValueError: pass
+                    if hc_out_val is not None:
+                        try: tx_bytes = int(hc_out_val)
+                        except ValueError: pass
+                    else:
+                        try: tx_bytes = int(if_out.get(f"1.3.6.1.2.1.2.2.1.16.{idx}", 0))
+                        except ValueError: pass
+                        
+                    interfaces.append({
+                        'index': int(idx),
+                        'name': str(name),
+                        'status': status,
+                        'speed': speed_bps,
+                        'rx_bytes': rx_bytes,
+                        'tx_bytes': tx_bytes
+                    })
+                interfaces.sort(key=lambda x: x['index'])
+
+            return {
+                'uptime': device.get('uptime'),
+                'sys_name': device.get('sys_name') or device.get('name'),
+                'description': device.get('description') or 'SNMP request timeout',
+                'cpu_usage': device.get('cpu_usage'),
+                'memory_usage': device.get('memory_usage'),
+                'temperature': device.get('temperature'),
+                'interfaces': interfaces
+            }
         
         sys_obj_id = ""
         uptime = ""
@@ -682,15 +806,10 @@ class SNMPWorker:
         temperature = metrics['temperature']
 
         # 3. Interfaces info (Parallel SNMP Walks) with cache fallback
-        cache_key = device['id']
-        
         new_desc, new_type, new_speed, new_oper = {}, {}, {}, {}
         new_hc_in, new_hc_out, new_in, new_out, new_high_speed = {}, {}, {}, {}, {}
         
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
             async def fetch_all_walks():
                 tasks = [
                     self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=1.5),
@@ -701,11 +820,11 @@ class SNMPWorker:
                     self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.10', port, version, timeout=1.5),
                     self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.10', port, version, timeout=1.5),
                     self._async_walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=1.5),
-                    self._async_walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port, version, timeout=1.5)
+                    self._async_walk(ip, community, '1.3.6.1.31.1.1.1.15', port, version, timeout=1.5)
                 ]
                 return await asyncio.gather(*tasks, return_exceptions=True)
                 
-            results = loop.run_until_complete(fetch_all_walks())
+            results = asyncio.run(fetch_all_walks())
             if results and len(results) == 9:
                 def clean_res(val):
                     return val if isinstance(val, dict) else {}
@@ -720,15 +839,6 @@ class SNMPWorker:
                 new_high_speed = clean_res(results[8])
         except Exception as e:
             print(f"[SNMP Detail] Parallel walks failed: {e}")
-        finally:
-            try:
-                loop.close()
-            except Exception:
-                pass
-            try:
-                asyncio.set_event_loop(None)
-            except Exception:
-                pass
 
         cached = self._interfaces_cache.get(cache_key)
         
@@ -863,6 +973,10 @@ class SNMPWorker:
         if not SNMP_OK:
             return
         did       = device['id']
+        # Fetch latest device status from DB to avoid polling offline/disabled devices
+        latest = self.db.get_device(did)
+        if not latest or latest.get('status') == 'down' or not latest.get('snmp_enabled'):
+            return
         ip        = device.get('ip', '')
         community = device.get('snmp_community', 'public') or 'public'
         try:

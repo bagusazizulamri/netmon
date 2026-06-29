@@ -10,6 +10,11 @@
   <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body>
+<script>
+  if (localStorage.getItem('theme') === 'light') {
+    document.body.classList.add('light-theme');
+  }
+</script>
 
 <!-- ======================================================
      SIDEBAR
@@ -62,6 +67,14 @@
       <span class="sdot unknown"></span>
       <span class="slabel">Unknown</span>
       <span class="sval" id="sb-unk">—</span>
+    </div>
+    <div class="status-row mt-3 pt-2 border-top" style="border-color: var(--border) !important;">
+      <span class="slabel" style="display: flex; align-items: center; gap: 6px;">
+        <i class="bi bi-moon-stars-fill" id="theme-icon-indicator" style="font-size: 13px;"></i> Tampilan
+      </span>
+      <button class="btn btn-sm btn-outline-secondary ms-auto p-0 px-2 d-flex align-items-center gap-1 text-xs" id="theme-toggle-btn" style="font-size: 11px; height: 22px; border-radius: var(--radius-sm); border-color: var(--border); color: var(--text-primary);">
+        <i class="bi bi-brightness-high-fill" id="toggle-icon"></i> <span id="toggle-text">Light</span>
+      </button>
     </div>
     <div class="sidebar-time" id="sb-time"></div>
     <div class="sidebar-conn" id="sb-conn">

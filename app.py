@@ -634,21 +634,28 @@ def background_poll():
     except Exception as e:
         print(f"[Poll] UniFi auto-poll failed: {e}")
 
-    # 2. Poll SNMP/Ping devices
+    # 2. Poll SNMP/Ping devices in parallel
     devices = db.get_all_devices()
-    for device in devices:
-        try:
-            snmp_worker.poll_device(device)
-        except Exception as e:
-            print(f"[Poll] Error polling {device.get('ip')}: {e}")
-
-    # Kumpulkan traffic per-interface untuk semua device SNMP-enabled
-    for device in devices:
-        if device.get('snmp_enabled'):
+    from concurrent.futures import ThreadPoolExecutor
+    
+    with ThreadPoolExecutor(max_workers=min(10, len(devices) or 1)) as executor:
+        futures = [executor.submit(snmp_worker.poll_device, device) for device in devices]
+        for future in futures:
             try:
-                snmp_worker.collect_interface_traffic(device)
+                future.result()
             except Exception as e:
-                print(f"[Traffic] {device.get('ip')}: {e}")
+                print(f"[Poll] Parallel device poll failed: {e}")
+
+    # 3. Kumpulkan traffic per-interface untuk semua device SNMP-enabled in parallel
+    snmp_devices = [d for d in devices if d.get('snmp_enabled')]
+    if snmp_devices:
+        with ThreadPoolExecutor(max_workers=min(10, len(snmp_devices))) as executor:
+            futures = [executor.submit(snmp_worker.collect_interface_traffic, device) for device in snmp_devices]
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"[Traffic] Parallel traffic collection failed: {e}")
 
     # Cleanup data lama (simpan 24 jam terakhir)
     try:
