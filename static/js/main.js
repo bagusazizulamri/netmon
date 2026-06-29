@@ -602,11 +602,35 @@ function updateChartData(iface) {
   if (history) {
     const dt = (currentTimestamp - history.time) / 1000.0;
     if (dt >= 1.0) {
+      let is64bit = (history.rx > 4294967295 || iface.rx_bytes > 4294967295 ||
+                     history.tx > 4294967295 || iface.tx_bytes > 4294967295);
+      
       let diffRx = iface.rx_bytes - history.rx;
       let diffTx = iface.tx_bytes - history.tx;
       
-      if (diffRx < 0) diffRx += Math.pow(2, 32);
-      if (diffTx < 0) diffTx += Math.pow(2, 32);
+      if (diffRx < 0) {
+        if (is64bit) {
+          diffRx = 0;
+        } else {
+          if (history.rx > 3000000000) {
+            diffRx += Math.pow(2, 32);
+          } else {
+            diffRx = 0;
+          }
+        }
+      }
+      
+      if (diffTx < 0) {
+        if (is64bit) {
+          diffTx = 0;
+        } else {
+          if (history.tx > 3000000000) {
+            diffTx += Math.pow(2, 32);
+          } else {
+            diffTx = 0;
+          }
+        }
+      }
       
       if (diffRx >= 0 && diffTx >= 0) {
         rxSpeed = (diffRx * 8) / dt;

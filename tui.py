@@ -286,9 +286,27 @@ class NetMonTUI:
                             diff_rx = rx_bytes - prev['rx']
                             diff_tx = tx_bytes - prev['tx']
                             
-                            # Rollover protection (32-bit & 64-bit safe)
-                            if diff_rx < 0: diff_rx += 2**32
-                            if diff_tx < 0: diff_tx += 2**32
+                            # Check if 64-bit based on values
+                            is_64bit = (rx_bytes > 4294967295 or prev['rx'] > 4294967295 or
+                                        tx_bytes > 4294967295 or prev['tx'] > 4294967295)
+                            
+                            if diff_rx < 0:
+                                if is_64bit:
+                                    diff_rx = 0
+                                else:
+                                    if prev['rx'] > 3000000000:
+                                        diff_rx += 2**32
+                                    else:
+                                        diff_rx = 0
+                                        
+                            if diff_tx < 0:
+                                if is_64bit:
+                                    diff_tx = 0
+                                else:
+                                    if prev['tx'] > 3000000000:
+                                        diff_tx += 2**32
+                                    else:
+                                        diff_tx = 0
                             
                             if diff_rx >= 0 and diff_tx >= 0:
                                 rx_speed = (diff_rx * 8) / dt
