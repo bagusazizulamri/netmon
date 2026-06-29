@@ -492,6 +492,7 @@ class SNMPWorker:
             ], port, version)
 
         if result:
+            # ── SNMP responded: genuine UP with full data ──
             upd = {'status':'up', 'last_polled': now}
             if result.get(OID['sysName']):   upd['sys_name']    = result[OID['sysName']]
             
@@ -554,8 +555,35 @@ class SNMPWorker:
             self.db.update_device(did, upd)
             if upd.get('uptime'):
                 self.db.save_metric(did, 'uptime', upd['uptime'])
+
+        elif snmp_en:
+            # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
+            is_alive = self._ping(ip)
+            if is_alive:
+                # Device reachable via ping but SNMP is not responding
+                upd = {'status': 'up', 'last_polled': now,
+                        'snmp_enabled': 0,
+                        'cpu_usage': None, 'memory_usage': None, 'temperature': None}
+                if old_st == 'down':
+                    upd['last_seen'] = now
+                    self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
+                elif old_st == 'unknown':
+                    upd['last_seen'] = now
+                self._alert(device, 'warning',
+                            f"SNMP unreachable on {device.get('name',ip)} ({ip}) — SNMP disabled, check community/config")
+                print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding, disabling SNMP")
+                self.db.update_device(did, upd)
+            else:
+                self.db.update_device(did, {'status':'down','last_polled':now,
+                                             'cpu_usage': None, 'memory_usage': None, 'temperature': None})
+                if old_st != 'down':
+                    s = self.db.get_settings()
+                    if s.get('alert_on_down','true') == 'true':
+                        self._alert(device, 'critical',
+                                    f"DEVICE DOWN: {device.get('name',ip)} ({ip}) — unreachable")
+
         else:
-            # Fallback to Ping to check if the device is actually online
+            # ── SNMP not enabled: ping-only check ──
             is_alive = self._ping(ip)
             if is_alive:
                 upd = {'status': 'up', 'last_polled': now}
@@ -985,7 +1013,7 @@ class SNMPWorker:
     # ─── network scan ────────────────────────────────────────────────
 
     def scan_network(self, cidr, community='public', version='2c', zone_id=1, method='snmp'):
-        if not SNMP_OK:
+        if method == 'snmp' and not SNMP_OK:
             self.socketio.emit('scan_error', {'error':'puresnmp not installed. Run: pip install puresnmp'})
             return
 
@@ -1010,13 +1038,29 @@ class SNMPWorker:
                 
                 dev = None
                 
-                if method in ('snmp', 'snmp+icmp'):
+                if method == 'snmp':
                     oids = [OID['sysName'], OID['sysDescr'], '1.3.6.1.2.1.1.2.0']
-                    # Try SNMPv2c first with adequate timeout
+                    
+                    # Try with user-provided community string first
                     result = self._get(ip, community, oids, version=version, timeout=2.5)
                     # Fallback to SNMPv1 if v2c failed
                     if not result and version == '2c':
                         result = self._get(ip, community, oids, version='1', timeout=2.5)
+                    
+                    # Try common community strings if user-provided one failed
+                    if not result:
+                        for alt_community in ('public', 'private'):
+                            if alt_community == community:
+                                continue
+                            result = self._get(ip, alt_community, oids, version=version, timeout=2.0)
+                            if result:
+                                # Override community with the one that worked
+                                community_used = alt_community
+                                break
+                        else:
+                            community_used = community
+                    else:
+                        community_used = community
                         
                     if result:
                         name  = result.get(OID['sysName'],'').strip() or ip
@@ -1037,14 +1081,9 @@ class SNMPWorker:
                                'vendor':vendor,
                                'icon':self._guess_icon(descr, vendor=vendor),'description':descr[:200],
                                'sys_name':name,'snmp_enabled':True,
-                               'snmp_community':community,'snmp_version':version,
+                               'snmp_community':community_used,'snmp_version':version,
                                'status':'up','zone_id':zone_id, 'source':'scan'}
-                    elif method == 'snmp+icmp' and not dev:
-                        # SNMP failed, fallback to ICMP ping for this IP
-                        if self._ping(ip):
-                            dev = {'name':ip,'ip':ip,'type':'unknown','vendor':'Unknown','icon':'unknown',
-                                   'description':'Discovered via ICMP (SNMP unreachable)','snmp_enabled':False,
-                                   'status':'up','zone_id':zone_id, 'source':'scan'}
+                        print(f"[Scan] SNMP detected: {ip} → {name} ({vendor})")
                 
                 elif method == 'icmp':
                     ping_cmd = ["ping", "-n", "1", "-w", "500", ip] if os.name == 'nt' else ["ping", "-c", "1", "-W", "1", ip]
@@ -1090,12 +1129,21 @@ class SNMPWorker:
                         existing = self.db.get_device_by_ip(ip)
                         if existing:
                             updates = {'status':'up','zone_id':zone_id}
-                            if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
-                            if 'description' in dev: updates['description'] = dev['description']
-                            if 'vendor' in dev: updates['vendor'] = dev['vendor']
-                            if 'snmp_enabled' in dev: updates['snmp_enabled'] = 1 if dev['snmp_enabled'] else 0
-                            if dev.get('mac'): updates['mac'] = dev['mac']
-                            
+
+                            if method == 'snmp':
+                                # SNMP scan: update all fields including SNMP config
+                                if 'sys_name' in dev: updates['sys_name'] = dev['sys_name']
+                                if 'description' in dev: updates['description'] = dev['description']
+                                if 'vendor' in dev: updates['vendor'] = dev['vendor']
+                                updates['snmp_enabled'] = 1
+                                if dev.get('snmp_community'): updates['snmp_community'] = dev['snmp_community']
+                                if dev.get('snmp_version'): updates['snmp_version'] = dev['snmp_version']
+                            else:
+                                # ICMP/ARP scan: NEVER overwrite snmp_enabled, community,
+                                # version, description, or vendor on existing devices
+                                # to protect data from prior SNMP detection
+                                if dev.get('mac'): updates['mac'] = dev['mac']
+
                             self.db.update_device(existing['id'], updates)
                             dev['id'] = existing['id']
                         else:
