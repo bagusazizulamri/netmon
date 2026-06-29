@@ -81,6 +81,7 @@ class SNMPWorker:
         for attempt in range(2):
             try:
                 loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 coro = self._async_get(ip, community, oids, port, version, timeout)
                 res = loop.run_until_complete(coro)
                 loop.close()
@@ -113,6 +114,7 @@ class SNMPWorker:
         for attempt in range(2):
             try:
                 loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 coro = self._async_walk(ip, community, base_oid, port, version, timeout)
                 res = loop.run_until_complete(coro)
                 loop.close()
