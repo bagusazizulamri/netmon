@@ -74,7 +74,7 @@ class SNMPWorker:
     # ─── low-level helpers ───────────────────────────────────────────
 
     async def _async_get(self, ip, community, oids, port, version, timeout):
-        c = _client(ip, version, community, port, timeout=timeout, retries=0)
+        c = _client(ip, version, community, port, timeout=timeout, retries=1)
         res = {}
         # Try multiget first (single SNMP request for all OIDs — faster & more reliable)
         try:
