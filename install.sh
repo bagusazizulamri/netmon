@@ -308,7 +308,7 @@ print_summary() {
 # =============================================================
 main() {
   local backup_db=false
-  local db_backup_path="/tmp/netmon.db.bak"
+  local db_backup_path="/tmp/db_netmon_backup.db"
 
   banner
   check_root
