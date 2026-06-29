@@ -3,8 +3,15 @@
 NetMon - SNMP Worker (puresnmp 2.x, Python 3.9+)
 """
 
-import threading, socket, time, ipaddress, os, subprocess, re
+import threading, socket, time, ipaddress, os, subprocess, re, sys, asyncio
 from datetime import datetime
+
+# Set Windows Selector Event Loop Policy to prevent IOCP/Proactor event loop issues with UDP in background threads
+if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 try:
     from puresnmp import PyWrapper, Client, V1, V2C
@@ -115,7 +122,6 @@ class SNMPWorker:
 
     def _get(self, ip, community, oids, port=161, version='2c', timeout=2):
         if not SNMP_OK: return None
-        import asyncio
         # Retry up to 2 times to prevent random NAT UDP packet loss
         for attempt in range(2):
             loop = None
@@ -132,6 +138,10 @@ class SNMPWorker:
                 if loop is not None:
                     try:
                         loop.close()
+                    except Exception:
+                        pass
+                    try:
+                        asyncio.set_event_loop(None)
                     except Exception:
                         pass
         return None
@@ -154,7 +164,6 @@ class SNMPWorker:
 
     def _walk(self, ip, community, base_oid, port=161, version='2c', timeout=2):
         if not SNMP_OK: return {}
-        import asyncio
         # Retry up to 2 times to prevent random NAT UDP packet loss
         for attempt in range(2):
             loop = None
@@ -171,6 +180,10 @@ class SNMPWorker:
                 if loop is not None:
                     try:
                         loop.close()
+                    except Exception:
+                        pass
+                    try:
+                        asyncio.set_event_loop(None)
                     except Exception:
                         pass
         return {}
@@ -471,9 +484,12 @@ class SNMPWorker:
 
     def poll_device(self, device):
         did, ip   = device['id'], device['ip']
-        community = device.get('snmp_community', 'public')
-        port      = device.get('snmp_port', 161)
-        version   = device.get('snmp_version', '2c')
+        community = device.get('snmp_community', 'public') or 'public'
+        try:
+            port = int(device.get('snmp_port', 161) or 161)
+        except Exception:
+            port = 161
+        version   = device.get('snmp_version', '2c') or '2c'
         old_st    = device.get('status', 'unknown')
         snmp_en   = bool(device.get('snmp_enabled', 0))
         now       = datetime.now().isoformat()
@@ -610,7 +626,10 @@ class SNMPWorker:
     def get_detailed_stats(self, device):
         ip = device['ip']
         community = device.get('snmp_community', 'public') or 'public'
-        port = device.get('snmp_port', 161) or 161
+        try:
+            port = int(device.get('snmp_port', 161) or 161)
+        except Exception:
+            port = 161
         version = device.get('snmp_version', '2c') or '2c'
         
         # 1. Fetch system details
@@ -647,7 +666,6 @@ class SNMPWorker:
         new_hc_in, new_hc_out, new_in, new_out, new_high_speed = {}, {}, {}, {}, {}
         
         try:
-            import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
@@ -683,6 +701,10 @@ class SNMPWorker:
         finally:
             try:
                 loop.close()
+            except Exception:
+                pass
+            try:
+                asyncio.set_event_loop(None)
             except Exception:
                 pass
 
@@ -821,7 +843,10 @@ class SNMPWorker:
         did       = device['id']
         ip        = device.get('ip', '')
         community = device.get('snmp_community', 'public') or 'public'
-        port      = device.get('snmp_port', 161) or 161
+        try:
+            port = int(device.get('snmp_port', 161) or 161)
+        except Exception:
+            port = 161
         version   = device.get('snmp_version', '2c') or '2c'
 
         if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=2)

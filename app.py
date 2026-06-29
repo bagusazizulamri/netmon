@@ -128,7 +128,10 @@ def detect_device_info():
         
     snmp_community = data.get('snmp_community', 'public') or 'public'
     snmp_version = data.get('snmp_version', '2c') or '2c'
-    snmp_port = int(data.get('snmp_port', 161) or 161)
+    try:
+        snmp_port = int(data.get('snmp_port', 161) or 161)
+    except Exception:
+        snmp_port = 161
     
     # 1. Resolve MAC address via ARP
     mac = ""
@@ -455,8 +458,8 @@ def upload_floorplan():
 def scan_network():
     data = request.json or {}
     network = data.get('network', '192.168.1.0/24')
-    community = data.get('community', 'public')
-    version = data.get('version', '2c')
+    community = data.get('community', 'public') or 'public'
+    version = data.get('version', '2c') or '2c'
     zone_id = int(data.get('zone_id', 1))
     method = data.get('method', 'snmp')
     if snmp_worker.get_scan_status()['running']:
