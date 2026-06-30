@@ -211,6 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.onNewAlert = () => {
     refreshAll();
   };
+  window.onAlertUpdate = () => {
+    refreshAll();
+  };
   
   // Initial load
   refreshAll();
@@ -332,11 +335,23 @@ function renderActiveIncidents(alerts) {
   container.innerHTML = unackAlerts.slice(0, 5).map(a => {
     const sevClass = a.severity === 'critical' ? 'text-danger' : (a.severity === 'warning' ? 'text-warning' : 'text-primary');
     const sevIcon = a.severity === 'critical' ? 'bi-x-circle-fill' : (a.severity === 'warning' ? 'bi-exclamation-circle-fill' : 'bi-info-circle-fill');
+    
+    const isFalseAlarm = a.is_false_alarm === 1;
+    const aiBadge = isFalseAlarm ? '<span class="badge bg-warning-dim text-warning border border-warning-sub border-opacity-20 ms-1" style="font-size: 8.5px; padding: 2px 5px; font-weight: 600;">AI: False Alarm</span>' : '';
+    const aiAnalysisHtml = a.ai_analysis && a.ai_analysis !== 'Valid Alert' ? `
+      <div class="mt-1 p-1.5 rounded text-xs bg-accent-dim text-accent d-flex align-items-start gap-1" style="font-size: 10.5px; line-height: 1.35; border: 1px solid var(--accent-dim);">
+        <i class="bi bi-robot flex-shrink-0" style="font-size:12px;"></i>
+        <span>${esc(a.ai_analysis)}</span>
+      </div>` : '';
+
     return `
-      <div class="d-flex align-items-start gap-2.5 p-2 rounded mb-1" style="background: var(--bg-hover); border: 1px solid var(--border-lt);">
+      <div class="d-flex align-items-start gap-2.5 p-2 rounded mb-1" style="background: var(--bg-hover); border: 1px solid ${isFalseAlarm ? 'rgba(240, 136, 62, 0.2)' : 'var(--border-lt)'};">
         <i class="bi ${sevIcon} ${sevClass} mt-0.5 flex-shrink-0" style="font-size:13px;"></i>
         <div class="flex-grow-1 min-w-0">
-          <div class="fw-500 text-primary text-truncate-2" style="font-size: 12px; line-height: 1.4;">${esc(a.message)}</div>
+          <div class="fw-500 text-primary text-truncate-2" style="font-size: 12px; line-height: 1.4;">
+            ${esc(a.message)} ${aiBadge}
+          </div>
+          ${aiAnalysisHtml}
           <div class="text-muted mt-1 mono-sm d-flex justify-content-between" style="font-size: 10px;">
             <span>${esc(a.device_ip || '')}</span>
             <span>${a.created_at ? relTime(a.created_at) : ''}</span>

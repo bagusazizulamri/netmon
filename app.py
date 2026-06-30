@@ -599,17 +599,21 @@ def sync_unifi():
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     s = db.get_settings()
-    # Never return password in plaintext
+    # Never return password/key in plaintext
     if 'unifi_pass' in s:
         s['unifi_pass'] = '***' if s['unifi_pass'] else ''
+    if 'gemini_api_key' in s:
+        s['gemini_api_key'] = '***' if s['gemini_api_key'] else ''
     return jsonify(s)
 
 @app.route('/api/settings', methods=['POST'])
 def save_settings():
     data = request.json or {}
-    # Don't save masked password
+    # Don't save masked password/key
     if data.get('unifi_pass') == '***':
         data.pop('unifi_pass')
+    if data.get('gemini_api_key') == '***':
+        data.pop('gemini_api_key')
     db.save_settings(data)
     if 'poll_interval' in data:
         try:

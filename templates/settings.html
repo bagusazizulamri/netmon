@@ -69,6 +69,20 @@
     </div>
   </div>
 
+  <!-- ============ AI DETECTOR ============ -->
+  <div class="nm-panel">
+    <div class="panel-header"><span><i class="bi bi-robot me-2 text-accent"></i>AI False Warning Detector</span></div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-md-12">
+          <label class="nm-label">Google Gemini API Key</label>
+          <input type="password" class="nm-input" id="s-gemini-key" placeholder="Leave blank or enter Gemini API Key">
+          <small class="text-muted">NetMon utilizes Gemini 1.5 Flash to automatically detect false alarms (e.g. SNMP timeouts on pingable hosts). If not configured, it will fall back to local rule-based heuristics.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ UNIFI ============ -->
   <div class="nm-panel">
     <div class="panel-header">
@@ -226,6 +240,7 @@ function loadSettings() {
     setVal('s-alert-ret',  s.alert_retention_days || 30);
     setChk('s-alert-down', s.alert_on_down !== 'false');
     setChk('s-alert-up',   s.alert_on_up   !== 'false');
+    setVal('s-gemini-key', s.gemini_api_key || '');
     setVal('s-uf-host',    s.unifi_host || '');
     setVal('s-uf-port',    s.unifi_port || 8443);
     setVal('s-uf-site',    s.unifi_site || 'default');
@@ -261,6 +276,10 @@ function saveAll() {
   };
   const pass = getVal('s-uf-pass');
   if (pass && pass !== '***') data.unifi_pass = pass;
+
+  const gkey = getVal('s-gemini-key');
+  if (gkey && gkey !== '***') data.gemini_api_key = gkey;
+  else if (gkey === '') data.gemini_api_key = '';
 
   fetch('/api/settings', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)

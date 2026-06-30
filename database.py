@@ -79,17 +79,19 @@ class Database:
                 );
 
                 CREATE TABLE IF NOT EXISTS alerts (
-                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                    device_id    INTEGER,
-                    device_name  TEXT DEFAULT '',
-                    device_ip    TEXT DEFAULT '',
-                    severity     TEXT DEFAULT 'info',
-                    message      TEXT NOT NULL,
-                    details      TEXT DEFAULT '{}',
-                    acknowledged INTEGER DEFAULT 0,
-                    ack_by       TEXT DEFAULT '',
-                    ack_at       TEXT,
-                    created_at   TEXT DEFAULT (datetime('now'))
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id      INTEGER,
+                    device_name    TEXT DEFAULT '',
+                    device_ip      TEXT DEFAULT '',
+                    severity       TEXT DEFAULT 'info',
+                    message        TEXT NOT NULL,
+                    details        TEXT DEFAULT '{}',
+                    acknowledged   INTEGER DEFAULT 0,
+                    ack_by         TEXT DEFAULT '',
+                    ack_at         TEXT,
+                    is_false_alarm INTEGER DEFAULT 0,
+                    ai_analysis    TEXT DEFAULT '',
+                    created_at     TEXT DEFAULT (datetime('now'))
                 );
 
                 CREATE TABLE IF NOT EXISTS access_logs (
@@ -176,12 +178,26 @@ class Database:
                 except sqlite3.OperationalError:
                     pass # Column already exists
             
+            # Run alerts migrations for AI false warning detection
+            alerts_cols = {r['name']: r['type'] for r in c.execute("PRAGMA table_info(alerts)").fetchall()}
+            if 'is_false_alarm' not in alerts_cols:
+                try:
+                    c.execute("ALTER TABLE alerts ADD COLUMN is_false_alarm INTEGER DEFAULT 0")
+                except sqlite3.OperationalError:
+                    pass
+            if 'ai_analysis' not in alerts_cols:
+                try:
+                    c.execute("ALTER TABLE alerts ADD COLUMN ai_analysis TEXT DEFAULT ''")
+                except sqlite3.OperationalError:
+                    pass
+
             # Update source for existing unifi devices
             c.execute("UPDATE devices SET source='unifi' WHERE (unifi_id IS NOT NULL AND unifi_id != '') AND source = 'manual'")
 
             # Default settings
             defaults = {
                 'poll_interval': '30',
+                'gemini_api_key': '',
                 'alert_on_down': 'true',
                 'alert_on_up': 'true',
                 'default_community': 'public',

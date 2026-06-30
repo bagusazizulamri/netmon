@@ -1174,6 +1174,13 @@ class SNMPWorker:
                                       'device_name':device.get('name',device.get('ip','')),
                                       'device_ip':device.get('ip',''),
                                       'severity':severity, 'message':message})
+        
+        try:
+            import ai_detector
+            ai_detector.analyze_alert(self.db, self.socketio, aid)
+        except Exception as ae:
+            print(f"[Alert AI] Trigger failed: {ae}")
+
         self.socketio.emit('new_alert', {
             'id':aid,'device_id':device['id'],
             'device_name':device.get('name',''), 'device_ip':device.get('ip',''),

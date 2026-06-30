@@ -56,6 +56,9 @@ socket.on('alert_acked', (d) => {
 socket.on('all_alerts_acked', () => {
   if (typeof window.onAllAlertsAcked === 'function') window.onAllAlertsAcked();
 });
+socket.on('alert_update', (d) => {
+  if (typeof window.onAlertUpdate === 'function') window.onAlertUpdate(d);
+});
 
 socket.on('scan_progress', (d) => {
   if (typeof window.onScanProgress === 'function') window.onScanProgress(d);
