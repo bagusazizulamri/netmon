@@ -210,11 +210,21 @@ const FP = (() => {
   // Status colors
   const COLOR = { up:'#00d4ff', down:'#ff4b4b', warning:'#f0883e', unknown:'#6e7681', critical:'#ff4b4b' };
 
+  let renderRequested = false;
+  function requestDraw() {
+    if (renderRequested) return;
+    renderRequested = true;
+    requestAnimationFrame(() => {
+      draw();
+      renderRequested = false;
+    });
+  }
+
   function resize() {
     const rect = ctr.getBoundingClientRect();
     canvas.width  = rect.width  || 900;
     canvas.height = rect.height || 600;
-    draw();
+    requestDraw();
   }
 
   function fitImageToViewport() {
@@ -227,7 +237,27 @@ const FP = (() => {
     scale = Math.max(0.2, Math.min(1.5, Math.min(scaleX, scaleY) * 0.9));
     offsetX = (cWidth - bgImage.width * scale) / 2;
     offsetY = (cHeight - bgImage.height * scale) / 2;
-    draw();
+    requestDraw();
+  }
+
+  let animFrame = null;
+  function checkAnimationNeed() {
+    const hasDownDevices = zones.some(z => z.status === 'down');
+    if (hasDownDevices || dragging) {
+      if (!animFrame) {
+        const loop = () => {
+          draw();
+          animFrame = requestAnimationFrame(loop);
+        };
+        animFrame = requestAnimationFrame(loop);
+      }
+    } else {
+      if (animFrame) {
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+      }
+      requestDraw();
+    }
   }
 
   function draw() {
@@ -284,11 +314,19 @@ const FP = (() => {
     const color  = COLOR[status] || COLOR.unknown;
     const isDragged = dragging && dragging.id === z.id;
 
-    // Glowing status ring for zones with down devices
+    // Pulsing radar ping for zones with down devices (vector drawn, no software blurs)
     if (status === 'down') {
       const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
-      ctx.shadowColor = '#ff4b4b';
-      ctx.shadowBlur  = 12 + pulse * 8;
+      ctx.beginPath();
+      ctx.arc(x, y, 28 + pulse * 12, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255, 75, 75, 0.15)';
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 28 + pulse * 12, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(255, 75, 75, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
 
     // Outer Circle Node
@@ -299,7 +337,6 @@ const FP = (() => {
     ctx.strokeStyle = isDragged ? '#ffffff' : color;
     ctx.lineWidth = isDragged ? 3 : 2;
     ctx.stroke();
-    ctx.shadowBlur = 0; // Reset shadow
 
     // Inner Text (Device Count)
     ctx.fillStyle = color;
@@ -358,6 +395,7 @@ const FP = (() => {
         dragOffX = cx - z.pos_x;
         dragOffY = cy - z.pos_y;
         canvas.style.cursor = 'grabbing';
+        checkAnimationNeed();
       } else {
         showZoneDetails(z);
       }
@@ -383,11 +421,11 @@ const FP = (() => {
       const maxH = bgImage ? bgImage.height : canvas.height;
       dragging.pos_x = Math.max(28, Math.min(maxW-28,  cx - dragOffX));
       dragging.pos_y = Math.max(28, Math.min(maxH-28, cy - dragOffY));
-      draw();
+      requestDraw();
     } else if (isPanning) {
       offsetX = mx - panStartX;
       offsetY = my - panStartY;
-      draw();
+      requestDraw();
     } else {
       const z = hitTest(cx, cy);
       if (z) {
@@ -404,10 +442,10 @@ const FP = (() => {
     dragging = null;
     isPanning = false;
     canvas.style.cursor = 'default';
-    draw();
+    checkAnimationNeed();
   });
 
-  canvas.addEventListener('mouseleave', () => { dragging = null; isPanning = false; hideTooltip(); });
+  canvas.addEventListener('mouseleave', () => { dragging = null; isPanning = false; hideTooltip(); checkAnimationNeed(); });
 
   // Zoom on Scroll Wheel
   canvas.addEventListener('wheel', e => {
@@ -424,7 +462,7 @@ const FP = (() => {
     offsetY = my - (my - offsetY) * (newScale / scale);
     scale = newScale;
     
-    draw();
+    requestDraw();
   }, { passive: false });
 
   // Touch support for mobile
@@ -440,6 +478,7 @@ const FP = (() => {
         dragging = z;
         dragOffX = cx - z.pos_x;
         dragOffY = cy - z.pos_y;
+        checkAnimationNeed();
       }
     }
   }, { passive: true });
@@ -455,11 +494,11 @@ const FP = (() => {
       const maxH = bgImage ? bgImage.height : canvas.height;
       dragging.pos_x = Math.max(28, Math.min(maxW-28,  cx - dragOffX));
       dragging.pos_y = Math.max(28, Math.min(maxH-28, cy - dragOffY));
-      draw();
+      requestDraw();
     }
   }, { passive: true });
 
-  canvas.addEventListener('touchend', () => { dragging = null; });
+  canvas.addEventListener('touchend', () => { dragging = null; checkAnimationNeed(); });
 
   // Tooltip & details panel UI helpers
   function showTooltip(cx, cy, z) {
@@ -550,18 +589,7 @@ const FP = (() => {
     document.getElementById('zone-detail-card').style.display = 'none';
   }
 
-  // Animation Loop
-  let animFrame;
-  function startAnim() {
-    if (animFrame) {
-      cancelAnimationFrame(animFrame);
-    }
-    function loop() {
-      draw();
-      animFrame = requestAnimationFrame(loop);
-    }
-    loop();
-  }
+  // Animation loop removed, handled dynamically by checkAnimationNeed
 
   // Public methods
   return {
@@ -612,12 +640,13 @@ const FP = (() => {
         img.onload = () => { 
           bgImage = img; 
           fitImageToViewport();
+          checkAnimationNeed();
         };
         img.src = bgUrl;
       } else {
         resize();
+        checkAnimationNeed();
       }
-      startAnim();
     },
 
     updateDevices(devs, zns) {
@@ -631,8 +660,8 @@ const FP = (() => {
       return coords;
     },
 
-    zoomIn() { scale = Math.min(3.0, scale + 0.15); draw(); },
-    zoomOut() { scale = Math.max(0.4, scale - 0.15); draw(); },
+    zoomIn() { scale = Math.min(3.0, scale + 0.15); requestDraw(); },
+    zoomOut() { scale = Math.max(0.4, scale - 0.15); requestDraw(); },
     zoomReset() {
       if (bgImage) {
         fitImageToViewport();
@@ -640,7 +669,7 @@ const FP = (() => {
         scale = 1.0;
         offsetX = 0;
         offsetY = 0;
-        draw();
+        requestDraw();
       }
     },
     hideZoneDetails,
@@ -698,7 +727,7 @@ const FP = (() => {
         });
     },
 
-    clearBg() { bgImage = null; bgUrl = ''; draw(); },
+    clearBg() { bgImage = null; bgUrl = ''; requestDraw(); checkAnimationNeed(); },
   };
 })();
 
