@@ -311,7 +311,7 @@ class Database:
         try:
             with self.conn() as c:
                 existing = c.execute(
-                    'SELECT id FROM devices WHERE ip = ? OR (unifi_id != "" AND unifi_id = ?)',
+                    'SELECT id, client_count FROM devices WHERE ip = ? OR (unifi_id != "" AND unifi_id = ?)',
                     (ip, data.get('unifi_id', ''))
                 ).fetchone()
                 if existing:
@@ -340,7 +340,10 @@ class Database:
                     if data.get('temperature') is not None:
                         c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'temperature', str(data['temperature'])))
                     if data.get('client_count') is not None:
-                        c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'client_count', str(data['client_count'])))
+                        new_count = data['client_count']
+                        old_count = existing['client_count']
+                        if old_count is None or new_count != old_count:
+                            c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'client_count', str(new_count)))
                     return False
                 else:
                     now_str = datetime.now().isoformat()
