@@ -217,6 +217,19 @@ const FP = (() => {
     draw();
   }
 
+  function fitImageToViewport() {
+    if (!bgImage) return;
+    const rect = ctr.getBoundingClientRect();
+    const cWidth = rect.width || 900;
+    const cHeight = rect.height || 600;
+    const scaleX = cWidth / bgImage.width;
+    const scaleY = cHeight / bgImage.height;
+    scale = Math.max(0.2, Math.min(1.5, Math.min(scaleX, scaleY) * 0.9));
+    offsetX = (cWidth - bgImage.width * scale) / 2;
+    offsetY = (cHeight - bgImage.height * scale) / 2;
+    draw();
+  }
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -228,7 +241,7 @@ const FP = (() => {
     // Draw Background
     if (bgImage) {
       ctx.globalAlpha = 0.35;
-      ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bgImage, 0, 0, bgImage.width, bgImage.height);
       ctx.globalAlpha = 1;
     } else {
       ctx.fillStyle = '#0d1117';
@@ -366,8 +379,10 @@ const FP = (() => {
     const cy = (my - offsetY) / scale;
 
     if (dragging) {
-      dragging.pos_x = Math.max(28, Math.min(canvas.width-28,  cx - dragOffX));
-      dragging.pos_y = Math.max(28, Math.min(canvas.height-28, cy - dragOffY));
+      const maxW = bgImage ? bgImage.width : canvas.width;
+      const maxH = bgImage ? bgImage.height : canvas.height;
+      dragging.pos_x = Math.max(28, Math.min(maxW-28,  cx - dragOffX));
+      dragging.pos_y = Math.max(28, Math.min(maxH-28, cy - dragOffY));
       draw();
     } else if (isPanning) {
       offsetX = mx - panStartX;
@@ -436,8 +451,10 @@ const FP = (() => {
       const mx = t.clientX - rect.left, my = t.clientY - rect.top;
       const cx = (mx - offsetX) / scale;
       const cy = (my - offsetY) / scale;
-      dragging.pos_x = Math.max(28, Math.min(canvas.width-28,  cx - dragOffX));
-      dragging.pos_y = Math.max(28, Math.min(canvas.height-28, cy - dragOffY));
+      const maxW = bgImage ? bgImage.width : canvas.width;
+      const maxH = bgImage ? bgImage.height : canvas.height;
+      dragging.pos_x = Math.max(28, Math.min(maxW-28,  cx - dragOffX));
+      dragging.pos_y = Math.max(28, Math.min(maxH-28, cy - dragOffY));
       draw();
     }
   }, { passive: true });
@@ -592,10 +609,14 @@ const FP = (() => {
       if (fp && fp.background_url) {
         bgUrl = fp.background_url;
         const img = new Image();
-        img.onload = () => { bgImage = img; };
+        img.onload = () => { 
+          bgImage = img; 
+          fitImageToViewport();
+        };
         img.src = bgUrl;
+      } else {
+        resize();
       }
-      resize();
       startAnim();
     },
 
@@ -612,7 +633,16 @@ const FP = (() => {
 
     zoomIn() { scale = Math.min(3.0, scale + 0.15); draw(); },
     zoomOut() { scale = Math.max(0.4, scale - 0.15); draw(); },
-    zoomReset() { scale = 1.0; offsetX = 0; offsetY = 0; draw(); },
+    zoomReset() {
+      if (bgImage) {
+        fitImageToViewport();
+      } else {
+        scale = 1.0;
+        offsetX = 0;
+        offsetY = 0;
+        draw();
+      }
+    },
     hideZoneDetails,
 
     toggleEdit() {
@@ -658,7 +688,10 @@ const FP = (() => {
           if (data.url) {
             bgUrl = data.url;
             const img = new Image();
-            img.onload = () => { bgImage = img; };
+            img.onload = () => { 
+              bgImage = img; 
+              fitImageToViewport();
+            };
             img.src = data.url + '?t=' + Date.now();
             showToast('Background uploaded', 'success');
           }
