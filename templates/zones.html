@@ -578,15 +578,24 @@ function doUnifiSync() {
     site: document.getElementById('uf-site').value.trim() || 'default',
     zone_id: parseInt(document.getElementById('uf-zone').value) || 1,
   };
-  document.getElementById('uf-result').innerHTML = '<div class="text-muted text-sm">Connecting…</div>';
+  document.getElementById('uf-result').innerHTML = '<div class="text-muted text-sm"><i class="bi bi-arrow-repeat spin me-1"></i>Connecting…</div>';
   fetch('/api/unifi/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
-    .then(r=>r.json()).then(res => {
+    .then(r => {
+      if (!r.ok) {
+        return r.json().catch(() => ({ status: 'error', message: `HTTP Error ${r.status}` }));
+      }
+      return r.json();
+    })
+    .then(res => {
       if (res.status === 'success') {
-        document.getElementById('uf-result').innerHTML = `<div class="text-success text-sm">${res.devices} devices synced.</div>`;
+        document.getElementById('uf-result').innerHTML = `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>${res.devices} devices synced.</div>`;
         loadZones();
       } else {
-        document.getElementById('uf-result').innerHTML = `<div class="text-danger text-sm">${res.message}</div>`;
+        document.getElementById('uf-result').innerHTML = `<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>${res.message}</div>`;
       }
+    })
+    .catch(err => {
+      document.getElementById('uf-result').innerHTML = `<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>`;
     });
 }
 

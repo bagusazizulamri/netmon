@@ -45,6 +45,15 @@ def format_uptime(seconds):
     return " ".join(parts)
 
 
+def safe_float(val):
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
 class UniFiClient:
     def __init__(self, host, username, password, port=8443, site='default'):
         self.base    = f'https://{host}:{port}'
@@ -160,11 +169,12 @@ class UniFiClient:
             rx_bytes = p.get('rx_bytes', 0) or p.get('rx_bytes-r', 0)
             tx_bytes = p.get('tx_bytes', 0) or p.get('tx_bytes-r', 0)
             
+            spd_val = safe_float(speed_mbps)
             interfaces.append({
                 'index': idx,
                 'name': name,
                 'status': status,
-                'speed': float(speed_mbps) * 1000000,
+                'speed': spd_val * 1000000 if spd_val is not None else 0.0,
                 'rx_bytes': rx_bytes,
                 'tx_bytes': tx_bytes
             })
@@ -248,9 +258,9 @@ class UniFiClient:
             'status':       'up' if d.get('state') == 1 else 'down',
             'uptime':       format_uptime(d.get('uptime', '')),
             'icon':         TYPE_MAP.get(utype, 'device'),
-            'cpu_usage':    float(cpu) if cpu is not None else None,
-            'memory_usage': float(mem) if mem is not None else None,
-            'temperature':  float(temp) if temp is not None else None,
+            'cpu_usage':    safe_float(cpu),
+            'memory_usage': safe_float(mem),
+            'temperature':  safe_float(temp),
             'wan_in':       wan_in,
             'wan_out':      wan_out,
         }

@@ -551,8 +551,10 @@ def sync_unifi():
         })
         socketio.emit('unifi_sync_complete', {'devices': len(devices), 'clients': len(clients), 'added': added})
         return jsonify({'status': 'success', 'devices': len(devices), 'clients': len(clients), 'added': added})
+    except RuntimeError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': f"Unexpected error: {str(e)}"}), 500
 
 # ============================================================
 # API – SETTINGS & STATS
