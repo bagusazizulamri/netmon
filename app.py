@@ -589,13 +589,16 @@ def get_network_traffic_history():
     with db.conn() as c:
         rows = c.execute('''
             SELECT 
-                strftime('%H:%M', sampled_at) AS bucket,
-                SUM(rx_bps) AS rx_sum,
-                SUM(tx_bps) AS tx_sum
-            FROM interface_traffic
-            WHERE sampled_at >= datetime('now', '-1 hours')
+                strftime('%H:%M', m.timestamp) AS bucket,
+                SUM(CASE WHEN m.metric_name = 'wan_in' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS rx_sum,
+                SUM(CASE WHEN m.metric_name = 'wan_out' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS tx_sum
+            FROM snmp_metrics m
+            JOIN devices d ON m.device_id = d.id
+            WHERE d.type = 'router' 
+              AND m.metric_name IN ('wan_in', 'wan_out')
+              AND m.timestamp >= datetime('now', '-1 hours')
             GROUP BY bucket
-            ORDER BY sampled_at ASC
+            ORDER BY m.timestamp ASC
             LIMIT 60
         ''').fetchall()
         
