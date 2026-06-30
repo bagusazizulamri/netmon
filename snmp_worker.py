@@ -176,7 +176,7 @@ class SNMPWorker:
         is_win = platform.system().lower() == 'windows'
         param = '-n' if is_win else '-c'
         timeout_param = '-w' if is_win else '-W'
-        timeout_val = '800' if is_win else '1'
+        timeout_val = '2000' if is_win else '2'
         
         cmd = ['ping', param, '1', timeout_param, timeout_val, ip]
         try:
@@ -190,7 +190,7 @@ class SNMPWorker:
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
                 startupinfo=startupinfo, 
-                timeout=1.2
+                timeout=3.0
             )
             if res.returncode == 0:
                 return True

@@ -691,8 +691,12 @@ def background_poll():
     # 2. Poll SNMP/Ping devices in parallel
     devices = db.get_all_devices()
     from concurrent.futures import ThreadPoolExecutor
+    import platform
+    is_win = platform.system().lower() == 'windows'
     
-    with ThreadPoolExecutor(max_workers=min(10, len(devices) or 1)) as executor:
+    # Limit parallel workers on Windows to prevent socket/process collisions
+    max_poll_workers = 3 if is_win else min(10, len(devices) or 1)
+    with ThreadPoolExecutor(max_workers=max_poll_workers) as executor:
         futures = [executor.submit(snmp_worker.poll_device, device) for device in devices]
         for future in futures:
             try:
@@ -703,7 +707,8 @@ def background_poll():
     # 3. Kumpulkan traffic per-interface untuk semua device SNMP-enabled in parallel
     snmp_devices = [d for d in devices if d.get('snmp_enabled')]
     if snmp_devices:
-        with ThreadPoolExecutor(max_workers=min(10, len(snmp_devices))) as executor:
+        max_traffic_workers = 2 if is_win else min(10, len(snmp_devices))
+        with ThreadPoolExecutor(max_workers=max_traffic_workers) as executor:
             futures = [executor.submit(snmp_worker.collect_interface_traffic, device) for device in snmp_devices]
             for future in futures:
                 try:
