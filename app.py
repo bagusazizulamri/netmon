@@ -693,9 +693,18 @@ def background_poll():
     from concurrent.futures import ThreadPoolExecutor
     import platform
     is_win = platform.system().lower() == 'windows'
+    is_wsl = False
+    if not is_win and os.path.exists('/proc/version'):
+        try:
+            with open('/proc/version', 'r') as f:
+                if 'microsoft' in f.read().lower():
+                    is_wsl = True
+        except:
+            pass
+    is_restricted = is_win or is_wsl
     
-    # Limit parallel workers on Windows to prevent socket/process collisions
-    max_poll_workers = 3 if is_win else min(10, len(devices) or 1)
+    # Limit parallel workers on Windows/WSL to prevent socket/process collisions
+    max_poll_workers = 3 if is_restricted else min(10, len(devices) or 1)
     with ThreadPoolExecutor(max_workers=max_poll_workers) as executor:
         futures = [executor.submit(snmp_worker.poll_device, device) for device in devices]
         for future in futures:
@@ -707,7 +716,7 @@ def background_poll():
     # 3. Kumpulkan traffic per-interface untuk semua device SNMP-enabled in parallel
     snmp_devices = [d for d in devices if d.get('snmp_enabled')]
     if snmp_devices:
-        max_traffic_workers = 2 if is_win else min(10, len(snmp_devices))
+        max_traffic_workers = 2 if is_restricted else min(10, len(snmp_devices))
         with ThreadPoolExecutor(max_workers=max_traffic_workers) as executor:
             futures = [executor.submit(snmp_worker.collect_interface_traffic, device) for device in snmp_devices]
             for future in futures:
