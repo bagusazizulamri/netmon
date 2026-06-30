@@ -226,7 +226,14 @@ class UniFiClient:
         system_status = d.get('system-status', {})
         cpu = sys_stats.get('cpu') or system_status.get('cpu')
         mem = sys_stats.get('mem') or system_status.get('mem')
-        temp = d.get('general_temperature') or d.get('temperatures', [{}])[0].get('value')
+        
+        temp = d.get('general_temperature')
+        temp_list = d.get('temperatures')
+        if not temp and isinstance(temp_list, list) and len(temp_list) > 0:
+            try:
+                temp = temp_list[0].get('value')
+            except Exception:
+                pass
 
         # WAN throughput for UniFi Routers (USG/UDM/UXG)
         wan_in = None
