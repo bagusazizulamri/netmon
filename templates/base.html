@@ -11,8 +11,11 @@
 </head>
 <body>
 <script>
-  if (localStorage.getItem('theme') === 'light') {
+  if (localStorage.getItem('theme') !== 'dark') {
     document.body.classList.add('light-theme');
+    if (!localStorage.getItem('theme')) {
+      localStorage.setItem('theme', 'light');
+    }
   }
 </script>
 

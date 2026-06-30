@@ -834,44 +834,53 @@ body {
 /* ============================================================ LIGHT THEME OVERRIDES */
 body.light-theme {
   --bg-base:       #f5f5f7; /* Apple Off-white */
-  --bg-card:       rgba(255, 255, 255, 0.65);
+  --bg-card:       #ffffff;
   --bg-card-solid: #ffffff;
-  --bg-hover:      rgba(0, 0, 0, 0.05);
-  --border:        rgba(0, 0, 0, 0.08);
-  --border-lt:     rgba(0, 0, 0, 0.04);
+  --bg-hover:      #f4f4f5; /* zinc-100 */
+  --border:        #e4e4e7; /* zinc-200 */
+  --border-lt:     #f4f4f5;
 
   --accent:        #007aff; /* Apple Light Blue */
-  --accent-dim:    rgba(0, 122, 255, 0.1);
+  --accent-dim:    rgba(0, 122, 255, 0.08);
   --green:         #34c759; /* Apple Light Green */
   --green-dim:     rgba(52, 199, 89, 0.1);
-  --yellow:        #ffcc00; /* Apple Light Yellow */
-  --yellow-dim:    rgba(255, 204, 0, 0.15);
+  --yellow:        #ff9500; /* Apple Light Orange */
+  --yellow-dim:    rgba(255, 149, 0, 0.12);
   --red:           #ff3b30; /* Apple Light Red */
   --red-dim:       rgba(255, 59, 48, 0.1);
   --purple:        #af52de;
   --orange:        #ff9500;
 
   --text-primary:   #1d1d1f; /* Apple dark gray */
-  --text-secondary: #6e6e73;
+  --text-secondary: #4b5563; /* zinc-600 */
   --text-muted:     #86868b;
 }
 
 body.light-theme .sidebar {
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
+  border-right: 1px solid #e4e4e7;
+}
+
+body.light-theme .sidebar-logo {
+  border-bottom: 1px solid #f4f4f5;
+}
+
+body.light-theme .sidebar-status {
+  border-top: 1px solid #f4f4f5;
 }
 
 body.light-theme .nm-modal {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.1) !important;
 }
 
 body.light-theme .nm-modal .modal-header {
-  border-color: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 body.light-theme .nm-modal .modal-footer {
-  border-color: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 body.light-theme .modal-backdrop.show {
@@ -892,11 +901,84 @@ body.light-theme .sidebar-logo .bi {
   color: var(--text-primary) !important;
 }
 
+body.light-theme .nav-item {
+  border-radius: 12px !important;
+  margin: 2px 8px !important;
+  padding: 10px 14px !important;
+  color: #4b5563 !important;
+}
+
+body.light-theme .nav-item:hover {
+  background: #f4f4f5 !important;
+  color: #1d1d1f !important;
+}
+
 body.light-theme .nav-item.active {
-  background: var(--accent-dim) !important;
-  color: var(--accent) !important;
+  background: #18181b !important;
+  color: #ffffff !important;
 }
 
 body.light-theme .nm-table th {
-  color: var(--text-secondary);
+  color: #71717a;
+  background: #f8fafc;
 }
+
+body.light-theme .nm-table td {
+  border-bottom: 1px solid #f4f4f5;
+}
+
+/* ============================================================ NEW KPI CARDS DESIGN */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: border-color var(--trans), box-shadow var(--trans);
+}
+body:not(.light-theme) .kpi-card {
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+.kpi-card:hover {
+  border-color: rgba(120, 120, 120, 0.3);
+}
+.kpi-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.kpi-val {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-primary);
+  margin-top: 8px;
+}
+.kpi-lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.kpi-sub {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+/* KPI tones */
+.tone-zinc { background: var(--bg-hover); color: var(--text-primary); }
+.tone-green { background: var(--green-dim); color: var(--green); border-color: rgba(52, 199, 89, 0.2); }
+.tone-amber { background: var(--yellow-dim); color: var(--yellow); border-color: rgba(255, 149, 0, 0.2); }
+.tone-red { background: var(--red-dim); color: var(--red); border-color: rgba(255, 59, 48, 0.2); }
+.tone-blue { background: var(--accent-dim); color: var(--accent); border-color: rgba(0, 122, 255, 0.2); }
+.tone-purple { background: rgba(175, 82, 222, 0.08); color: var(--purple); border-color: rgba(175, 82, 222, 0.2); }
