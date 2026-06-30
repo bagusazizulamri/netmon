@@ -162,6 +162,12 @@ def _analyze(db, socketio, alert_id):
         c.execute('UPDATE alerts SET is_false_alarm = ?, ai_analysis = ? WHERE id = ?',
                   (is_false, explanation, alert_id))
         
+        # If it was marked as a false offline alarm (because the device is currently pingable),
+        # set the device status back to 'up' in the database!
+        if is_false == 1 and is_offline_alert:
+            c.execute("UPDATE devices SET status='up', last_seen=? WHERE id=?", 
+                      (datetime.now().isoformat(), device['id']))
+        
     # 4. Broadcast live update to UI via Socket.IO
     if socketio:
         socketio.emit('alert_update', {
@@ -169,3 +175,11 @@ def _analyze(db, socketio, alert_id):
             'is_false_alarm': is_false,
             'ai_analysis': explanation
         })
+        
+        if is_false == 1 and is_offline_alert:
+            # Emit updated device and stats to refresh the frontend state immediately
+            with db.conn() as c:
+                updated = c.execute('SELECT * FROM devices WHERE id = ?', (device['id'],)).fetchone()
+            if updated:
+                socketio.emit('device_status_update', dict(updated))
+            socketio.emit('stats_update', db.get_dashboard_stats())

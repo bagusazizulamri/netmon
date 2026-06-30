@@ -624,8 +624,8 @@ class Database:
             warning  = c.execute("SELECT COUNT(*) FROM devices WHERE status='warning'").fetchone()[0]
             unknown  = c.execute("SELECT COUNT(*) FROM devices WHERE status='unknown'").fetchone()[0]
             snmp_en  = c.execute("SELECT COUNT(*) FROM devices WHERE snmp_enabled=1").fetchone()[0]
-            unacked  = c.execute("SELECT COUNT(*) FROM alerts WHERE acknowledged=0").fetchone()[0]
-            critical = c.execute("SELECT COUNT(*) FROM alerts WHERE acknowledged=0 AND severity='critical'").fetchone()[0]
+            unacked  = c.execute("SELECT COUNT(*) FROM alerts WHERE acknowledged=0 AND is_false_alarm=0").fetchone()[0]
+            critical = c.execute("SELECT COUNT(*) FROM alerts WHERE acknowledged=0 AND severity='critical' AND is_false_alarm=0").fetchone()[0]
             zones    = c.execute('SELECT COUNT(*) FROM zones').fetchone()[0]
             return {
                 'total': total, 'up': up, 'down': down, 'warning': warning,
