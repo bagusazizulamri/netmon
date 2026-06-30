@@ -622,6 +622,34 @@ def save_settings():
             pass
     return jsonify({'status': 'success'})
 
+@app.route('/api/ai/test', methods=['POST'])
+def test_gemini():
+    import urllib.request
+    data = request.json or {}
+    api_key = data.get('gemini_api_key')
+    if not api_key or api_key == '***':
+        settings = db.get_settings()
+        api_key = settings.get('gemini_api_key', '')
+        
+    if not api_key:
+        return jsonify({'status': 'error', 'message': 'API Key is empty'}), 400
+        
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{"text": "Say 'OK' and nothing else."}]
+            }]
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            text = res_data['candidates'][0]['content']['parts'][0]['text'].strip()
+            return jsonify({'status': 'success', 'message': f"Connected successfully! Response: {text}"})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f"API connection failed: {str(e)}"}), 400
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     return jsonify(db.get_dashboard_stats())

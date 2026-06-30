@@ -71,7 +71,10 @@
 
   <!-- ============ AI DETECTOR ============ -->
   <div class="nm-panel">
-    <div class="panel-header"><span><i class="bi bi-robot me-2 text-accent"></i>AI False Warning Detector</span></div>
+    <div class="panel-header">
+      <span><i class="bi bi-robot me-2 text-accent"></i>AI False Warning Detector</span>
+      <button class="btn-nm btn-sm" onclick="testGemini()"><i class="bi bi-plug-fill me-1"></i>Test Connection</button>
+    </div>
     <div class="panel-body">
       <div class="row g-3">
         <div class="col-md-12">
@@ -80,6 +83,7 @@
           <small class="text-muted">NetMon utilizes Gemini 1.5 Flash to automatically detect false alarms (e.g. SNMP timeouts on pingable hosts). If not configured, it will fall back to local rule-based heuristics.</small>
         </div>
       </div>
+      <div id="gemini-test-result" class="mt-2"></div>
     </div>
   </div>
 
@@ -306,6 +310,30 @@ function testUnifi() {
     }).catch(() => {
       res.innerHTML = '<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>';
     });
+}
+
+function testGemini() {
+  const res = document.getElementById('gemini-test-result');
+  res.innerHTML = '<div class="text-muted text-sm"><i class="bi bi-arrow-repeat spin me-1"></i>Testing Gemini API connection…</div>';
+  const data = {
+    gemini_api_key: getVal('s-gemini-key')
+  };
+  fetch('/api/ai/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.status === 'success') {
+      res.innerHTML = `<div class="text-success text-sm"><i class="bi bi-check-circle-fill me-1"></i>${d.message}</div>`;
+    } else {
+      res.innerHTML = `<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>${d.message}</div>`;
+    }
+  })
+  .catch(() => {
+    res.innerHTML = '<div class="text-danger text-sm"><i class="bi bi-x-circle-fill me-1"></i>Connection failed</div>';
+  });
 }
 
 // ---- Zones ----
