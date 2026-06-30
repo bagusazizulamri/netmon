@@ -109,9 +109,9 @@
           <span class="fw-600 fs-6 text-primary"><i class="bi bi-graph-up me-2 text-accent"></i>Throughput Backbone</span>
           <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Aggregated live traffic inbound/outbound</div>
         </div>
-        <div class="d-flex gap-3 text-xs">
-          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#007aff]"></span> Inbound</span>
-          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#34c759]"></span> Outbound</span>
+        <div class="d-flex gap-3 text-xs fw-500">
+          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#007aff]"></span> <span id="live-throughput-in">Download: —</span></span>
+          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#34c759]"></span> <span id="live-throughput-out">Upload: —</span></span>
         </div>
       </div>
       <div class="panel-body p-3 flex-grow-1 d-flex flex-column justify-content-center">
@@ -411,6 +411,22 @@ function fetchThroughputChartData() {
 function renderTrafficChart(points) {
   const canvas = document.getElementById('throughputChart');
   if (!canvas) return;
+  
+  // Update live legend labels
+  if (points && points.length > 0) {
+    const lastPoint = points[points.length - 1];
+    const formatLiveThroughput = (mbps) => {
+      if (mbps === null || mbps === undefined || isNaN(mbps)) return '0 Mbps';
+      if (mbps >= 1000) {
+        return `${(mbps / 1000).toFixed(1)} Gbps`;
+      }
+      return `${Math.round(mbps)} Mbps`;
+    };
+    const elIn = document.getElementById('live-throughput-in');
+    const elOut = document.getElementById('live-throughput-out');
+    if (elIn) elIn.textContent = `Download: ${formatLiveThroughput(lastPoint.in)}`;
+    if (elOut) elOut.textContent = `Upload: ${formatLiveThroughput(lastPoint.out)}`;
+  }
   
   const ctx = canvas.getContext('2d');
   const labels = points.map(p => p.t);
