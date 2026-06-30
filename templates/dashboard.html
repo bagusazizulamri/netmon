@@ -16,6 +16,28 @@
     color: #ff9500 !important;
     box-shadow: 0 1px 2px rgba(255, 149, 0, 0.02);
   }
+  .tf-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    height: 22px;
+    line-height: 18px;
+  }
+  .tf-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+  .tf-btn.active {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border: 1px solid var(--border-color);
+  }
 </style>
 
 <div class="page-header mb-4">
@@ -104,14 +126,22 @@
   <!-- Left Side: Throughput Backbone Area Chart -->
   <div class="col-12 col-xl-8">
     <div class="nm-panel h-100 p-0 d-flex flex-column" style="min-height: 410px;">
-      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
         <div>
           <span class="fw-600 fs-6 text-primary"><i class="bi bi-graph-up me-2 text-accent"></i>Throughput Backbone</span>
           <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Aggregated live traffic inbound/outbound</div>
         </div>
-        <div class="d-flex gap-3 text-xs fw-500">
-          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#007aff]"></span> <span id="live-throughput-in">Download: —</span></span>
-          <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#34c759]"></span> <span id="live-throughput-out">Upload: —</span></span>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <div class="d-flex align-items-center" style="background: var(--bg-hover); border-radius: 8px; padding: 2px; border: 1px solid var(--border-color);">
+            <button class="tf-btn active" onclick="changeChartTimeframe(1)" id="tf-1">1h</button>
+            <button class="tf-btn" onclick="changeChartTimeframe(24)" id="tf-24">24h</button>
+            <button class="tf-btn" onclick="changeChartTimeframe(72)" id="tf-72">3d</button>
+            <button class="tf-btn" onclick="changeChartTimeframe(168)" id="tf-168">7d</button>
+          </div>
+          <div class="d-flex gap-3 text-xs fw-500">
+            <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#007aff]"></span> <span id="live-throughput-in">Download: —</span></span>
+            <span class="d-flex align-items-center gap-1.5"><span class="w-[8px] h-[8px] rounded-full bg-[#34c759]"></span> <span id="live-throughput-out">Upload: —</span></span>
+          </div>
         </div>
       </div>
       <div class="panel-body p-3 flex-grow-1 d-flex flex-column justify-content-center">
@@ -399,8 +429,22 @@ function renderZoneHealth(zones) {
   }).join('');
 }
 
+let chartTimeframeHours = 1;
+
+function changeChartTimeframe(hours) {
+  chartTimeframeHours = hours;
+  ['tf-1', 'tf-24', 'tf-72', 'tf-168'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.remove('active');
+  });
+  const activeBtn = document.getElementById('tf-' + hours);
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  fetchThroughputChartData();
+}
+
 function fetchThroughputChartData() {
-  fetch('/api/metrics/traffic')
+  fetch('/api/metrics/traffic?hours=' + chartTimeframeHours)
     .then(r => r.json())
     .then(points => {
       renderTrafficChart(points);

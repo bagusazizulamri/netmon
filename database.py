@@ -551,9 +551,11 @@ class Database:
             ''', (device_id, f'-{int(hours)}')).fetchall()
             return [{'name': r[0], 'idx': r[1]} for r in rows]
 
-    def cleanup_interface_traffic(self, retention_hours=24):
+    def cleanup_interface_traffic(self, retention_hours=168):
         with self.conn() as c:
             c.execute("DELETE FROM interface_traffic WHERE sampled_at < datetime('now', ? || ' hours')",
+                      (f'-{int(retention_hours)}',))
+            c.execute("DELETE FROM snmp_metrics WHERE timestamp < datetime('now', ? || ' hours')",
                       (f'-{int(retention_hours)}',))
 
 

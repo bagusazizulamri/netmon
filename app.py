@@ -588,21 +588,36 @@ def get_stats():
 
 @app.route('/api/metrics/traffic', methods=['GET'])
 def get_network_traffic_history():
+    try:
+        hours = max(0.25, min(168, float(request.args.get('hours', 1.0))))
+    except:
+        hours = 1.0
+
+    if hours <= 2:
+        bucket_fmt = "strftime('%H:%M', m.timestamp)"
+        limit = 120
+    elif hours <= 24:
+        bucket_fmt = "strftime('%H:', m.timestamp) || (CASE WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 15 THEN '00' WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 30 THEN '15' WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 45 THEN '30' ELSE '45' END)"
+        limit = 96
+    else:
+        bucket_fmt = "strftime('%m-%d %H:00', m.timestamp)"
+        limit = 50
+
     with db.conn() as c:
-        rows = c.execute('''
+        rows = c.execute(f'''
             SELECT 
-                strftime('%H:%M', m.timestamp) AS bucket,
+                {bucket_fmt} AS bucket,
                 SUM(CASE WHEN m.metric_name = 'wan_in' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS rx_sum,
                 SUM(CASE WHEN m.metric_name = 'wan_out' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS tx_sum
             FROM snmp_metrics m
             JOIN devices d ON m.device_id = d.id
             WHERE d.type = 'router' 
               AND m.metric_name IN ('wan_in', 'wan_out')
-              AND m.timestamp >= datetime('now', '-1 hours')
+              AND m.timestamp >= datetime('now', ? || ' hours')
             GROUP BY bucket
             ORDER BY m.timestamp ASC
-            LIMIT 60
-        ''').fetchall()
+            LIMIT ?
+        ''', (f'-{hours}', limit)).fetchall()
         
         points = [{'t': r['bucket'], 'in': round((r['rx_sum'] or 0) / 1000000.0, 2), 'out': round((r['tx_sum'] or 0) / 1000000.0, 2)} for r in rows]
         
@@ -612,9 +627,11 @@ def get_network_traffic_history():
             import random
             points = []
             base = time.time()
-            for i in range(36):
-                tm = datetime.fromtimestamp(base - (35-i)*60)
-                t_str = tm.strftime('%H:%M')
+            step_min = 15 if hours <= 24 else 240
+            steps = 36 if hours <= 24 else 42
+            for i in range(steps):
+                tm = datetime.fromtimestamp(base - (steps-1-i)*step_min*60)
+                t_str = tm.strftime('%H:%M') if hours <= 24 else tm.strftime('%m-%d %H:00')
                 rx = 920 + math.sin(i/3)*210 + random.random()*140
                 tx = 840 + math.cos(i/2.7)*160 + random.random()*110
                 points.append({'t': t_str, 'in': round(rx, 2), 'out': round(tx, 2)})
@@ -694,9 +711,9 @@ def background_poll():
                 except Exception as e:
                     print(f"[Traffic] Parallel traffic collection failed: {e}")
 
-    # Cleanup data lama (simpan 24 jam terakhir)
+    # Cleanup data lama (simpan 7 hari = 168 jam terakhir secara default)
     try:
-        db.cleanup_interface_traffic(retention_hours=int(db.get_settings().get('traffic_retention_hours', 24)))
+        db.cleanup_interface_traffic(retention_hours=int(db.get_settings().get('traffic_retention_hours', 168)))
     except Exception as e:
         print(f"[Cleanup] {e}")
 
