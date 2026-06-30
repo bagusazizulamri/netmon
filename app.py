@@ -286,11 +286,22 @@ def get_traffic_history(device_id):
     device = db.get_device(device_id)
     if not device:
         return jsonify({'status':'error','message':'Not found'}), 404
-    iface = request.args.get('iface') or None
+        
     try:
         hours = max(0.25, min(24, float(request.args.get('hours', 1))))
     except:
         hours = 1.0
+        
+    unifi_id = device.get('unifi_id') or ''
+    is_unifi = (device.get('type') == 'unifi') or (unifi_id != '') or ('ubiquiti' in str(device.get('vendor') or '').lower())
+    
+    # If the device is UniFi and doesn't have SNMP enabled, return client_count history
+    if is_unifi and not device.get('snmp_enabled'):
+        points = db.get_metric_history(device_id, 'client_count', hours=hours)
+        formatted_points = [{'ts': p['ts'], 'rx_bps': p['value'], 'tx_bps': 0} for p in points]
+        return jsonify({'status':'success', 'is_client_chart': True, 'hours':hours, 'points':formatted_points})
+        
+    iface = request.args.get('iface') or None
     points = db.get_interface_traffic(device_id, iface_name=iface, hours=hours)
     return jsonify({'status':'success','iface':iface,'hours':hours,'points':points})
 
@@ -332,6 +343,7 @@ def get_device_realtime_stats(device_id):
                         'cpu_usage': details.get('cpu_usage'),
                         'memory_usage': details.get('memory_usage'),
                         'temperature': details.get('temperature'),
+                        'client_count': details.get('client_count'),
                         'interfaces': details.get('interfaces', [])
                     })
         except Exception as e:
@@ -363,6 +375,7 @@ def get_device_realtime_stats(device_id):
         'cpu_usage': device.get('cpu_usage'),
         'memory_usage': device.get('memory_usage'),
         'temperature': device.get('temperature'),
+        'client_count': device.get('client_count'),
         'interfaces': []
     })
 

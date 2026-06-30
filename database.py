@@ -64,6 +64,7 @@ class Database:
                     memory_usage  REAL DEFAULT NULL,
                     temperature   REAL DEFAULT NULL,
                     wan_out       REAL DEFAULT NULL,
+                    client_count  INTEGER DEFAULT NULL,
                     created_at    TEXT DEFAULT (datetime('now')),
                     updated_at    TEXT DEFAULT (datetime('now')),
                     source        TEXT DEFAULT 'manual'
@@ -164,6 +165,7 @@ class Database:
                 'temperature': "REAL DEFAULT NULL",
                 'wan_in': "REAL DEFAULT NULL",
                 'wan_out': "REAL DEFAULT NULL",
+                'client_count': "INTEGER DEFAULT NULL",
                 'created_at': "TEXT DEFAULT (datetime('now'))",
                 'updated_at': "TEXT DEFAULT (datetime('now'))",
                 'source': "TEXT DEFAULT 'manual'"
@@ -303,7 +305,7 @@ class Database:
                                            type = CASE WHEN ? NOT IN ('','unifi','unknown') THEN ? ELSE type END,
                                            cpu_usage=?, memory_usage=?, temperature=?, status=?, uptime=?, last_polled=?,
                                            last_seen=CASE WHEN ? = 'up' THEN ? ELSE last_seen END,
-                                           wan_in=?, wan_out=?, source='unifi'
+                                           wan_in=?, wan_out=?, client_count=?, source='unifi'
                         WHERE id=?
                     ''', (data.get('name',''), data.get('mac',''), data.get('vendor','Ubiquiti'),
                           data.get('model',''), data.get('unifi_id',''), zone_id,
@@ -312,15 +314,25 @@ class Database:
                           data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
                           data.get('status','unknown'), data.get('uptime',''), now_str,
                           data.get('status','unknown'), now_str,
-                          data.get('wan_in'), data.get('wan_out'), existing['id']))
+                          data.get('wan_in'), data.get('wan_out'), data.get('client_count'), existing['id']))
+                    
+                    device_id = existing['id']
+                    if data.get('cpu_usage') is not None:
+                        c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'cpu_usage', str(data['cpu_usage'])))
+                    if data.get('memory_usage') is not None:
+                        c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'memory_usage', str(data['memory_usage'])))
+                    if data.get('temperature') is not None:
+                        c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'temperature', str(data['temperature'])))
+                    if data.get('client_count') is not None:
+                        c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'client_count', str(data['client_count'])))
                     return False
                 else:
                     now_str = datetime.now().isoformat()
                     c.execute('''
                         INSERT INTO devices (name, ip, mac, type, vendor, model, unifi_id, zone_id, snmp_enabled, snmp_community, snmp_version, snmp_port, status,
                                              cpu_usage, memory_usage, temperature, uptime, last_polled, last_seen,
-                                             wan_in, wan_out, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unifi')
+                                             wan_in, wan_out, client_count, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unifi')
                     ''', (data.get('name', ip), ip,
                           data.get('mac',''), data.get('type','unifi'),
                           data.get('vendor','Ubiquiti'), data.get('model',''),
@@ -328,7 +340,19 @@ class Database:
                           data.get('cpu_usage'), data.get('memory_usage'), data.get('temperature'),
                           data.get('uptime',''), now_str, 
                           now_str if data.get('status') == 'up' else None,
-                          data.get('wan_in'), data.get('wan_out')))
+                          data.get('wan_in'), data.get('wan_out'), data.get('client_count')))
+                    
+                    new_id = c.execute('SELECT id FROM devices WHERE ip = ?', (ip,)).fetchone()
+                    if new_id:
+                        device_id = new_id['id']
+                        if data.get('cpu_usage') is not None:
+                            c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'cpu_usage', str(data['cpu_usage'])))
+                        if data.get('memory_usage') is not None:
+                            c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'memory_usage', str(data['memory_usage'])))
+                        if data.get('temperature') is not None:
+                            c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'temperature', str(data['temperature'])))
+                        if data.get('client_count') is not None:
+                            c.execute('INSERT INTO snmp_metrics (device_id, metric_name, metric_value) VALUES (?, ?, ?)', (device_id, 'client_count', str(data['client_count'])))
                     return True
 
         except sqlite3.IntegrityError:
@@ -558,6 +582,16 @@ class Database:
             c.execute("DELETE FROM snmp_metrics WHERE timestamp < datetime('now', ? || ' hours')",
                       (f'-{int(retention_hours)}',))
 
+
+    def get_metric_history(self, device_id, name, hours=1):
+        with self.conn() as c:
+            rows = c.execute('''
+                SELECT timestamp, metric_value FROM snmp_metrics
+                WHERE device_id = ? AND metric_name = ?
+                  AND timestamp >= datetime('now', ? || ' hours')
+                ORDER BY timestamp ASC
+            ''', (device_id, name, f'-{float(hours)}')).fetchall()
+            return [{'ts': r[0], 'value': float(r[1]) if r[1] is not None and r[1] != 'None' else 0.0} for r in rows]
 
     # ============================================================
     # DASHBOARD STATS

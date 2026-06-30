@@ -332,6 +332,10 @@ function closeDetailModal() {
     clearInterval(detailPollInterval);
     detailPollInterval = null;
   }
+  if (_histChart) {
+    _histChart.destroy();
+    _histChart = null;
+  }
   activeDetailDeviceId = null;
 }
 
@@ -434,6 +438,67 @@ function fetchRealtimeStats() {
       updateResourceProgress('det-cpu-bar', 'det-cpu-val', res.cpu_usage, '%');
       updateResourceProgress('det-mem-bar', 'det-mem-val', res.memory_usage, '%');
       updateResourceProgress('det-temp-bar', 'det-temp-val', res.temperature, '°C');
+
+      const isClientDev = res.client_count !== null && res.client_count !== undefined;
+      const rtHeader = document.querySelector('#detailModal h6.m-0');
+      if (rtHeader) {
+        rtHeader.innerHTML = isClientDev
+          ? '<i class="bi bi-people-fill me-2 text-accent"></i>Connected Clients'
+          : '<i class="bi bi-activity me-2 text-accent"></i>Real-time Traffic';
+      }
+      
+      const legIn = document.getElementById('det-traffic-in');
+      const legOut = document.getElementById('det-traffic-out');
+      const legInWrapper = legIn ? legIn.closest('div') : null;
+      const legOutWrapper = legOut ? legOut.closest('div') : null;
+      
+      if (isClientDev) {
+        if (legIn) {
+          legIn.textContent = `${Math.round(res.client_count)} clients`;
+          if (legInWrapper) {
+            const labelSpan = legInWrapper.querySelector('.text-xs');
+            if (labelSpan) labelSpan.firstChild.textContent = 'Clients: ';
+          }
+        }
+        if (legOutWrapper) legOutWrapper.style.display = 'none';
+        
+        const selectWrapper = document.getElementById('det-iface-select-wrapper');
+        const interfacesCard = document.getElementById('det-interfaces-card');
+        if (selectWrapper) selectWrapper.style.setProperty('display', 'none', 'important');
+        if (interfacesCard) interfacesCard.style.setProperty('display', 'none', 'important');
+        
+        if (trafficChartInstance) {
+          const timeStr = new Date().toLocaleTimeString();
+          trafficChartInstance.data.datasets[0].label = 'Clients';
+          trafficChartInstance.data.datasets[1].hidden = true;
+          trafficChartInstance.options.scales.y.ticks.callback = function(val) { return val; };
+          
+          chartLabels.push(timeStr);
+          chartRxData.push(res.client_count);
+          chartTxData.push(0);
+          
+          if (chartLabels.length > 10) {
+            chartLabels.shift();
+            chartRxData.shift();
+            chartTxData.shift();
+          }
+          trafficChartInstance.update('none');
+        }
+        return;
+      } else {
+        if (legOutWrapper) legOutWrapper.style.display = 'block';
+        if (legInWrapper) {
+          const labelSpan = legInWrapper.querySelector('.text-xs');
+          if (labelSpan) labelSpan.firstChild.textContent = 'Inbound: ';
+        }
+        if (trafficChartInstance) {
+          trafficChartInstance.data.datasets[0].label = 'Inbound (Download)';
+          trafficChartInstance.data.datasets[1].hidden = false;
+          trafficChartInstance.options.scales.y.ticks.callback = function(value) {
+            return formatBandwidthSimple(value);
+          };
+        }
+      }
       
       const interfaces = res.interfaces || [];
       const select = document.getElementById('det-iface-select');
@@ -695,10 +760,36 @@ function loadHistoryChart(deviceId, ifaceName, hours) {
     const txData = pts.map(p => p.tx_bps || 0);
     const canvas = document.getElementById('historyChart');
     if (!canvas) return;
+
+    const isClient = res.is_client_chart === true;
+    const labelFmt = isClient 
+      ? ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} clients`
+      : ctx => ` ${ctx.dataset.label}: ${formatBandwidthSimple(ctx.parsed.y)}`;
+      
+    const yTickFmt = isClient 
+      ? v => v + ' clients'
+      : v => formatBandwidthSimple(v);
+
+    const histIfaceSelect = document.getElementById('hist-iface-select');
+    if (histIfaceSelect) {
+      histIfaceSelect.style.display = isClient ? 'none' : 'block';
+    }
+    const histTitle = document.querySelector('#history-chart-panel .panel-header > span');
+    if (histTitle) {
+      histTitle.innerHTML = isClient 
+        ? '<i class="bi bi-people-fill me-2 text-accent"></i>Client History'
+        : '<i class="bi bi-graph-up-arrow me-2 text-accent"></i>Traffic History';
+    }
+
     if (_histChart) {
       _histChart.data.labels = labels;
       _histChart.data.datasets[0].data = rxData;
       _histChart.data.datasets[1].data = txData;
+      _histChart.data.datasets[0].label = isClient ? 'Connected Clients' : 'RX (Inbound)';
+      _histChart.data.datasets[1].hidden = isClient;
+      _histChart.options.plugins.tooltip.callbacks.label = labelFmt;
+      _histChart.options.scales.y.ticks.callback = yTickFmt;
+      _histChart.options.plugins.legend.display = !isClient;
       _histChart.update('none');
     } else {
       const isLight = document.body.classList.contains('light-theme');
@@ -708,23 +799,23 @@ function loadHistoryChart(deviceId, ifaceName, hours) {
       _histChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: { labels, datasets: [
-          { label:'RX (Inbound)',  data:rxData, borderColor:'#58a6ff',
+          { label: isClient ? 'Connected Clients' : 'RX (Inbound)',  data:rxData, borderColor:'#58a6ff',
             backgroundColor:'rgba(88,166,255,0.12)', fill:true, tension:0.3,
             borderWidth:2, pointRadius:1 },
           { label:'TX (Outbound)', data:txData, borderColor:'#bc8cff',
             backgroundColor:'rgba(188,140,255,0.12)', fill:true, tension:0.3,
-            borderWidth:2, pointRadius:1 }
+            borderWidth:2, pointRadius:1, hidden: isClient }
         ]},
         options: {
           responsive:true, maintainAspectRatio:false, animation:false,
           plugins: {
-            legend:{ display:true, labels:{color:tickColor,font:{size:11}} },
-            tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${formatBandwidthSimple(ctx.parsed.y)}` } }
+            legend:{ display:!isClient, labels:{color:tickColor,font:{size:11}} },
+            tooltip:{ callbacks:{ label: labelFmt } }
           },
           scales: {
             x:{ grid:{display:false}, ticks:{color:tickColor,font:{size:10},maxTicksLimit:8,maxRotation:0} },
             y:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{size:10},
-                callback: v => formatBandwidthSimple(v)} }
+                callback: yTickFmt } }
           }
         }
       });

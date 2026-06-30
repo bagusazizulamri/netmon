@@ -263,4 +263,5 @@ class UniFiClient:
             'temperature':  safe_float(temp),
             'wan_in':       wan_in,
             'wan_out':      wan_out,
+            'client_count': safe_float(d.get('num_sta')),
         }
