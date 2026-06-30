@@ -334,6 +334,27 @@ def get_device_realtime_stats(device_id):
                 unifi = UniFiClient(host=host, username=username, password=password, port=port, site=site)
                 details = unifi.get_device_details(device.get('ip') or device.get('mac') or device.get('unifi_id'))
                 if details:
+                    # Fetch all connected clients from controller
+                    all_clients = []
+                    try:
+                        all_clients = unifi.get_clients()
+                    except Exception as ce:
+                        print(f"[Realtime] Failed to fetch UniFi clients: {ce}")
+                    
+                    dev_mac = (details.get('mac') or device.get('mac') or '').lower()
+                    connected_clients = []
+                    for c in all_clients:
+                        cap_mac = str(c.get('ap_mac') or '').lower()
+                        csw_mac = str(c.get('sw_mac') or '').lower()
+                        if dev_mac and (cap_mac == dev_mac or csw_mac == dev_mac):
+                            connected_clients.append({
+                                'name': c.get('name') or c.get('hostname') or c.get('mac'),
+                                'ip': c.get('ip') or '—',
+                                'mac': c.get('mac') or '',
+                                'essid': c.get('essid') or 'Wired',
+                                'signal': c.get('signal') or c.get('rssi') or None
+                            })
+                            
                     return jsonify({
                         'status': 'success',
                         'source': 'unifi',
@@ -344,7 +365,8 @@ def get_device_realtime_stats(device_id):
                         'memory_usage': details.get('memory_usage'),
                         'temperature': details.get('temperature'),
                         'client_count': details.get('client_count'),
-                        'interfaces': details.get('interfaces', [])
+                        'interfaces': details.get('interfaces', []),
+                        'clients': connected_clients
                     })
         except Exception as e:
             print(f"[Realtime] UniFi fetch failed: {e}")
@@ -376,7 +398,8 @@ def get_device_realtime_stats(device_id):
         'memory_usage': device.get('memory_usage'),
         'temperature': device.get('temperature'),
         'client_count': device.get('client_count'),
-        'interfaces': []
+        'interfaces': [],
+        'clients': []
     })
 
 # ============================================================

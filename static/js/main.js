@@ -464,8 +464,50 @@ function fetchRealtimeStats() {
         
         const selectWrapper = document.getElementById('det-iface-select-wrapper');
         const interfacesCard = document.getElementById('det-interfaces-card');
+        const tbody = document.getElementById('det-interfaces-tbody');
+        
         if (selectWrapper) selectWrapper.style.setProperty('display', 'none', 'important');
-        if (interfacesCard) interfacesCard.style.setProperty('display', 'none', 'important');
+        if (interfacesCard) {
+          interfacesCard.style.setProperty('display', 'block', 'important');
+          
+          // Update title to Connected Clients List
+          const cardTitle = interfacesCard.querySelector('h6');
+          if (cardTitle) {
+            cardTitle.innerHTML = '<i class="bi bi-people-fill me-2 text-accent"></i>Connected Clients List';
+          }
+          
+          // Update headers
+          const thead = interfacesCard.querySelector('thead');
+          if (thead) {
+            thead.innerHTML = `
+              <tr>
+                <th class="border-0">Client Name</th>
+                <th class="border-0">IP Address</th>
+                <th class="border-0">Connection</th>
+                <th class="border-0">Signal</th>
+                <th class="border-0">MAC Address</th>
+              </tr>
+            `;
+          }
+          
+          // Render clients in tbody
+          if (tbody) {
+            const clients = res.clients || [];
+            if (clients.length === 0) {
+              tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No clients connected.</td></tr>';
+            } else {
+              tbody.innerHTML = clients.map(c => `
+                <tr>
+                  <td class="fw-500">${esc(c.name)}</td>
+                  <td class="mono-sm">${esc(c.ip)}</td>
+                  <td><span class="badge bg-secondary text-xs">${esc(c.essid)}</span></td>
+                  <td class="mono-sm">${c.signal !== null ? `${c.signal} dBm` : '—'}</td>
+                  <td class="mono-sm text-muted">${esc(c.mac)}</td>
+                </tr>
+              `).join('');
+            }
+          }
+        }
         
         if (trafficChartInstance) {
           const timeStr = new Date().toLocaleTimeString();
@@ -497,6 +539,27 @@ function fetchRealtimeStats() {
           trafficChartInstance.options.scales.y.ticks.callback = function(value) {
             return formatBandwidthSimple(value);
           };
+        }
+        
+        // Restore standard interface headers
+        const interfacesCard = document.getElementById('det-interfaces-card');
+        if (interfacesCard) {
+          const cardTitle = interfacesCard.querySelector('h6');
+          if (cardTitle) {
+            cardTitle.innerHTML = '<i class="bi bi-ethernet me-2 text-accent"></i>Interface Status';
+          }
+          const thead = interfacesCard.querySelector('thead');
+          if (thead) {
+            thead.innerHTML = `
+              <tr>
+                <th class="border-0">Port Name</th>
+                <th class="border-0">Status</th>
+                <th class="border-0">Port Speed</th>
+                <th class="border-0">Received (Rx)</th>
+                <th class="border-0">Transmitted (Tx)</th>
+              </tr>
+            `;
+          }
         }
       }
       
