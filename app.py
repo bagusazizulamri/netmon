@@ -692,11 +692,20 @@ def test_groq():
             ],
             "temperature": 0.2
         }
+        import urllib.error
         req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
         with urllib.request.urlopen(req, timeout=5) as response:
             res_data = json.loads(response.read().decode('utf-8'))
             text = res_data['choices'][0]['message']['content'].strip()
             return jsonify({'status': 'success', 'message': f"Connected successfully! Response: {text}"})
+    except urllib.error.HTTPError as he:
+        try:
+            err_body = he.read().decode('utf-8')
+            err_json = json.loads(err_body)
+            msg = err_json.get('error', {}).get('message', he.reason)
+        except Exception:
+            msg = str(he)
+        return jsonify({'status': 'error', 'message': f"Groq API Error: {msg}"}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': f"API connection failed: {str(e)}"}), 400
 
