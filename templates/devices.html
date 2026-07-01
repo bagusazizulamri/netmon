@@ -169,6 +169,13 @@
             </select>
             <small class="text-muted">Kapasitas fisik interface uplink/WAN</small>
           </div>
+          <div class="col-md-3" id="dev-wan-iface-container" style="display: none;">
+            <label class="nm-label">WAN Interface</label>
+            <select class="nm-select w-100" id="dev-wan-iface">
+              <option value="">Auto Detect (Default)</option>
+            </select>
+            <small class="text-muted">Pilih interface WAN secara manual</small>
+          </div>
           <div class="col-12">
             <label class="nm-label">Description / Notes</label>
             <textarea class="nm-input" id="dev-desc" rows="2" placeholder="Optional notes"></textarea>
@@ -521,6 +528,43 @@ function openDeviceModal(device = null) {
   document.getElementById('dev-port').value     = device?.snmp_port || 161;
   document.getElementById('dev-uplink-speed').value = device?.uplink_speed_mbps || 1000;
   document.getElementById('dev-desc').value     = device?.description || '';
+  
+  // Reset and populate the manual WAN interface dropdown
+  const wanSelect = document.getElementById('dev-wan-iface');
+  const wanContainer = document.getElementById('dev-wan-iface-container');
+  wanSelect.innerHTML = '<option value="">Auto Detect (Default)</option>';
+  
+  const typeSelect = document.getElementById('dev-type');
+  const toggleWanDisplay = () => {
+    if (typeSelect.value === 'router') {
+      wanContainer.style.display = 'block';
+    } else {
+      wanContainer.style.display = 'none';
+    }
+  };
+  
+  typeSelect.onchange = toggleWanDisplay;
+  toggleWanDisplay();
+  
+  if (device && device.id && device.type === 'router') {
+    fetch(`/api/devices/${device.id}/traffic_interfaces`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success' && res.interfaces) {
+          res.interfaces.forEach(iface => {
+            const opt = document.createElement('option');
+            opt.value = iface.idx;
+            opt.textContent = `${iface.name} (Index ${iface.idx})`;
+            if (String(device.wan_iface_idx) === String(iface.idx)) {
+              opt.selected = true;
+            }
+            wanSelect.appendChild(opt);
+          });
+        }
+      })
+      .catch(err => console.error("Error loading interfaces:", err));
+  }
+  
   devModal.show();
 }
 
@@ -548,6 +592,7 @@ function saveDevice() {
     snmp_port:      parseInt(document.getElementById('dev-port').value) || 161,
     uplink_speed_mbps: parseInt(document.getElementById('dev-uplink-speed').value) || 1000,
     description:    document.getElementById('dev-desc').value.trim(),
+    wan_iface_idx:  document.getElementById('dev-wan-iface').value
   };
   const url    = id ? `/api/devices/${id}` : '/api/devices';
   const method = id ? 'PUT' : 'POST';

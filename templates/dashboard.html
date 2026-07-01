@@ -163,8 +163,12 @@
           </div>
         </div>
       </div>
-      <div class="panel-body p-3 flex-grow-1 d-flex flex-column justify-content-center">
-        <div style="position: relative; height: 290px; width: 100%;">
+      <div class="panel-body p-3 flex-grow-1 d-flex flex-column justify-content-center" style="position: relative;">
+        <div id="traffic-no-data" class="text-center text-muted py-5" style="display: none; width: 100%;">
+          <i class="bi bi-graph-up text-secondary fs-3 d-block mb-2"></i>
+          <span style="font-size: 13px;">Belum cukup data traffic</span>
+        </div>
+        <div id="traffic-chart-container" style="position: relative; height: 290px; width: 100%;">
           <canvas id="throughputChart"></canvas>
         </div>
       </div>
@@ -655,6 +659,26 @@ function fetchThroughputChartData() {
 }
 
 function renderTrafficChart(points) {
+  const noDataEl = document.getElementById('traffic-no-data');
+  const chartContainerEl = document.getElementById('traffic-chart-container');
+  const hasEnoughData = points && points.length >= 3;
+
+  if (noDataEl && chartContainerEl) {
+    if (!hasEnoughData) {
+      noDataEl.style.display = 'block';
+      chartContainerEl.style.display = 'none';
+      
+      const elIn = document.getElementById('live-throughput-in');
+      const elOut = document.getElementById('live-throughput-out');
+      if (elIn) elIn.textContent = `Download: —`;
+      if (elOut) elOut.textContent = `Upload: —`;
+      return;
+    } else {
+      noDataEl.style.display = 'none';
+      chartContainerEl.style.display = 'block';
+    }
+  }
+
   const canvas = document.getElementById('throughputChart');
   if (!canvas) return;
   

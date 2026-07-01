@@ -182,7 +182,8 @@ class Database:
                 'alerts_enabled': "INTEGER DEFAULT 1",
                 'created_at': "TEXT DEFAULT (datetime('now'))",
                 'updated_at': "TEXT DEFAULT (datetime('now'))",
-                'source': "TEXT DEFAULT 'manual'"
+                'source': "TEXT DEFAULT 'manual'",
+                'wan_iface_idx': "TEXT DEFAULT ''"
             }
             for col, defn in columns_definitions.items():
                 try:
@@ -276,8 +277,8 @@ class Database:
                 INSERT INTO devices
                     (name, ip, mac, type, vendor, model, zone_id,
                      snmp_enabled, snmp_community, snmp_version, snmp_port,
-                     icon, pos_x, pos_y, description, status, source, uplink_speed_mbps, alerts_enabled)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     icon, pos_x, pos_y, description, status, source, uplink_speed_mbps, alerts_enabled, wan_iface_idx)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 data.get('name') or data.get('ip', 'Unknown'),
                 data.get('ip', ''),
@@ -298,6 +299,7 @@ class Database:
                 data.get('source', 'manual'),
                 data.get('uplink_speed_mbps', 1000),
                 1 if data.get('alerts_enabled', True) else 0,
+                data.get('wan_iface_idx', ''),
             ))
             return cur.lastrowid
 
@@ -307,7 +309,7 @@ class Database:
                    'icon', 'pos_x', 'pos_y', 'description', 'status',
                    'last_seen', 'last_polled', 'uptime', 'sys_name',
                    'cpu_usage', 'memory_usage', 'temperature', 'wan_in', 'wan_out',
-                   'uplink_speed_mbps', 'alerts_enabled']
+                   'uplink_speed_mbps', 'alerts_enabled', 'wan_iface_idx']
         fields, values = [], []
         for f in allowed:
             if f in data:
@@ -850,7 +852,7 @@ class Database:
             rx_points = rdata['wan_in']
             total_rx_bytes = 0.0
             max_rx_bps = 0.0
-            rx_sum = 0.0
+            total_rx_dt = 0.0
             
             for i in range(len(rx_points) - 1):
                 t1, v1 = rx_points[i]
@@ -858,21 +860,20 @@ class Database:
                 dt = (t2 - t1).total_seconds()
                 if 0 < dt < 300:
                     total_rx_bytes += (v1 / 8.0) * dt
-                rx_sum += v1
+                    total_rx_dt += dt
                 if v1 > max_rx_bps:
                     max_rx_bps = v1
             if rx_points:
-                rx_sum += rx_points[-1][1]
                 if rx_points[-1][1] > max_rx_bps:
                     max_rx_bps = rx_points[-1][1]
                     
-            avg_rx_bps = rx_sum / len(rx_points) if rx_points else 0.0
+            avg_rx_bps = (total_rx_bytes * 8.0) / total_rx_dt if total_rx_dt > 0 else 0.0
             
             # Calculate tx (wan_out) statistics
             tx_points = rdata['wan_out']
             total_tx_bytes = 0.0
             max_tx_bps = 0.0
-            tx_sum = 0.0
+            total_tx_dt = 0.0
             
             for i in range(len(tx_points) - 1):
                 t1, v1 = tx_points[i]
@@ -880,29 +881,24 @@ class Database:
                 dt = (t2 - t1).total_seconds()
                 if 0 < dt < 300:
                     total_tx_bytes += (v1 / 8.0) * dt
-                tx_sum += v1
+                    total_tx_dt += dt
                 if v1 > max_tx_bps:
                     max_tx_bps = v1
             if tx_points:
-                tx_sum += tx_points[-1][1]
                 if tx_points[-1][1] > max_tx_bps:
                     max_tx_bps = tx_points[-1][1]
                     
-            avg_tx_bps = tx_sum / len(tx_points) if tx_points else 0.0
+            avg_tx_bps = (total_tx_bytes * 8.0) / total_tx_dt if total_tx_dt > 0 else 0.0
             
-            # Fallback mock data generation to demonstrate report content if there is no SNMP metrics data
+            no_data = False
             if not rx_points and not tx_points:
-                import random
-                import hashlib
-                seed_int = int(hashlib.md5(f"{rid}-{month_str}".encode()).hexdigest(), 16) % 10000
-                random.seed(seed_int)
-                
-                total_rx_bytes = random.uniform(80.0, 750.0) * 1e9
-                total_tx_bytes = random.uniform(40.0, 350.0) * 1e9
-                avg_rx_bps = random.uniform(12.0, 85.0) * 1e6
-                avg_tx_bps = random.uniform(6.0, 40.0) * 1e6
-                max_rx_bps = avg_rx_bps * random.uniform(1.8, 3.5)
-                max_tx_bps = avg_tx_bps * random.uniform(1.8, 3.5)
+                total_rx_bytes = 0.0
+                total_tx_bytes = 0.0
+                avg_rx_bps = 0.0
+                avg_tx_bps = 0.0
+                max_rx_bps = 0.0
+                max_tx_bps = 0.0
+                no_data = True
                 
             router_stats = {
                 'id': rid,
@@ -915,6 +911,8 @@ class Database:
                 'peak_rx_mbps': round(max_rx_bps / 1e6, 2),
                 'peak_tx_mbps': round(max_tx_bps / 1e6, 2)
             }
+            if no_data:
+                router_stats['no_data'] = True
             report['routers'].append(router_stats)
             
             total_backbone_rx_bps_sum += avg_rx_bps

@@ -366,7 +366,23 @@ def get_traffic_interfaces(device_id):
     device = db.get_device(device_id)
     if not device:
         return jsonify({'status':'error','message':'Not found'}), 404
-    return jsonify({'status':'success','interfaces': db.get_device_interfaces(device_id, hours=24)})
+    ifaces = db.get_device_interfaces(device_id, hours=24)
+    if not ifaces and device.get('snmp_enabled'):
+        try:
+            ip = device.get('ip', '')
+            community = device.get('snmp_community', 'public') or 'public'
+            port = int(device.get('snmp_port', 161) or 161)
+            version = device.get('snmp_version', '2c') or '2c'
+            walked = snmp_worker._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version, timeout=2)
+            if walked:
+                ifaces = []
+                for oid, name in walked.items():
+                    idx = int(oid.split('.')[-1])
+                    ifaces.append({'name': str(name), 'idx': idx})
+                ifaces.sort(key=lambda x: x['idx'])
+        except Exception as e:
+            print(f"[API] On-demand interface walk failed: {e}")
+    return jsonify({'status':'success','interfaces': ifaces})
 
 @app.route('/api/devices/<int:device_id>/realtime_stats', methods=['GET'])
 def get_device_realtime_stats(device_id):

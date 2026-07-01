@@ -562,7 +562,7 @@ class SNMPWorker:
 
                 # Poll WAN traffic throughput if device type is router
                 if device.get('type') == 'router':
-                    traffic_data = self._poll_router_traffic(did, ip, community, port, version)
+                    traffic_data = self._poll_router_traffic(device, ip, community, port, version)
                     if traffic_data:
                         upd.update(traffic_data)
                         self.db.save_metric(did, 'wan_in', traffic_data['wan_in'])
@@ -1161,32 +1161,42 @@ class SNMPWorker:
                 with self.db_write_lock:
                     self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
 
-    def _poll_router_traffic(self, did, ip, community, port, version):
+    def _poll_router_traffic(self, device, ip, community, port, version):
+        did = device['id']
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
         if_desc = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version)
         if_st = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port, version)
         
         target_idx = None
-        # Look for active interface (OperStatus 1 = UP) with WAN/ether1/sfp/eth0/pppoe description
-        for oid, desc in if_desc.items():
-            idx = oid.split('.')[-1]
-            status = str(if_st.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", ""))
-            if status == '1':
-                desc_lower = str(desc).lower()
-                if 'wan' in desc_lower or 'pppoe' in desc_lower or desc_lower in ('ether1', 'sfpplus1', 'sfp1', 'eth0', 'ge0/0'):
-                    target_idx = idx
-                    break
         
-        # Fallback to first active non-loopback interface if no 'wan' named interface is found
+        # Check if manual WAN interface index is configured and exists
+        configured_idx = device.get('wan_iface_idx', '')
+        if configured_idx:
+            oid_key = f"1.3.6.1.2.1.2.2.1.2.{configured_idx}"
+            if if_desc and oid_key in if_desc:
+                target_idx = str(configured_idx)
+                
         if not target_idx:
-            for oid, status in if_st.items():
-                if str(status) == '1':
-                    idx = oid.split('.')[-1]
-                    desc = if_desc.get(f"1.3.6.1.2.1.2.2.1.2.{idx}", "")
+            # Look for active interface (OperStatus 1 = UP) with WAN/ether1/sfp/eth0/pppoe description
+            for oid, desc in if_desc.items():
+                idx = oid.split('.')[-1]
+                status = str(if_st.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", ""))
+                if status == '1':
                     desc_lower = str(desc).lower()
-                    if 'loopback' not in desc_lower and desc_lower not in ('lo', 'lo0'):
+                    if 'wan' in desc_lower or 'pppoe' in desc_lower or desc_lower in ('ether1', 'sfpplus1', 'sfp1', 'eth0', 'ge0/0'):
                         target_idx = idx
                         break
+            
+            # Fallback to first active non-loopback interface if no 'wan' named interface is found
+            if not target_idx:
+                for oid, status in if_st.items():
+                    if str(status) == '1':
+                        idx = oid.split('.')[-1]
+                        desc = if_desc.get(f"1.3.6.1.2.1.2.2.1.2.{idx}", "")
+                        desc_lower = str(desc).lower()
+                        if 'loopback' not in desc_lower and desc_lower not in ('lo', 'lo0'):
+                            target_idx = idx
+                            break
                         
         if not target_idx:
             return None
