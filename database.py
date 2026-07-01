@@ -653,6 +653,9 @@ class Database:
         from collections import defaultdict
         
         # 1. Fetch all routers
+        settings = self.get_settings()
+        api_key = settings.get('groq_api_key', '')
+
         with self.conn() as c:
             rows = c.execute("SELECT id, name, ip FROM devices WHERE type = 'router'").fetchall()
             routers = [dict(r) for r in rows]
