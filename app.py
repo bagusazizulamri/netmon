@@ -803,21 +803,6 @@ def get_network_traffic_history():
         
         points = [{'t': r['bucket'], 'in': round((r['rx_sum'] or 0) / 1000000.0, 2), 'out': round((r['tx_sum'] or 0) / 1000000.0, 2)} for r in rows]
         
-        if len(points) < 10:
-            import time
-            import math
-            import random
-            points = []
-            base = time.time()
-            step_min = 15 if hours <= 24 else 240
-            steps = 36 if hours <= 24 else 42
-            for i in range(steps):
-                tm = datetime.fromtimestamp(base - (steps-1-i)*step_min*60)
-                t_str = tm.strftime('%H:%M') if hours <= 24 else tm.strftime('%m-%d %H:00')
-                rx = 920 + math.sin(i/3)*210 + random.random()*140
-                tx = 840 + math.cos(i/2.7)*160 + random.random()*110
-                points.append({'t': t_str, 'in': round(rx, 2), 'out': round(tx, 2)})
-                
         return jsonify(points)
 
 # ============================================================
