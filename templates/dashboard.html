@@ -38,6 +38,25 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     border: 1px solid var(--border-color);
   }
+  .btn-ack-list-item {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(48, 209, 88, 0.2);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .btn-ack-list-item:hover {
+    background: var(--green);
+    color: #ffffff;
+    border-color: var(--green);
+  }
 </style>
 
 <div class="page-header mb-4">
@@ -230,6 +249,9 @@
         </div>
       </div>
       <div class="modal-footer">
+        <button class="btn-nm btn-success" id="btn-ack-incident" onclick="ackIncidentFromModal()">
+          <i class="bi bi-check2-all me-1"></i> Acknowledge
+        </button>
         <button class="btn-nm" data-bs-dismiss="modal">Tutup</button>
       </div>
     </div>
@@ -400,9 +422,14 @@ function renderActiveIncidents(alerts) {
             ${esc(a.message)} ${aiBadge}
           </div>
           ${aiAnalysisHtml}
-          <div class="text-muted mt-1 mono-sm d-flex justify-content-between" style="font-size: 10px;">
+          <div class="text-muted mt-1 mono-sm d-flex justify-content-between align-items-center" style="font-size: 10px;">
             <span>${esc(a.device_ip || '')}</span>
-            <span>${a.created_at ? relTime(a.created_at) : ''}</span>
+            <div class="d-flex align-items-center gap-1.5">
+              <span>${a.created_at ? relTime(a.created_at) : ''}</span>
+              <button class="btn-ack-list-item" onclick="ackIncidentFromList(event, ${a.id})" title="Acknowledge">
+                <i class="bi bi-check-lg"></i> Ack
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -410,9 +437,13 @@ function renderActiveIncidents(alerts) {
   }).join('');
 }
 
+let currentModalAlertId = null;
+
 function showIncidentDetail(id) {
   const alert = activeAlertsList.find(a => a.id === id);
   if (!alert) return;
+  
+  currentModalAlertId = id; // Simpan ID alert aktif
   
   document.getElementById('inc-message').textContent = alert.message || '';
   document.getElementById('inc-ip').textContent = alert.device_ip || 'Unknown';
@@ -452,6 +483,70 @@ function showIncidentDetail(id) {
   }
   
   incidentModal.show();
+}
+
+function ackIncidentFromModal() {
+  if (!currentModalAlertId) return;
+  const btn = document.getElementById('btn-ack-incident');
+  if (btn) btn.disabled = true;
+  
+  fetch(`/api/alerts/${currentModalAlertId}/ack`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.status === 'success') {
+      showToast('Insiden berhasil di-acknowledge', 'success');
+      incidentModal.hide();
+      refreshAll(); // Muat ulang data dashboard
+    } else {
+      showToast(res.message || 'Gagal melakukan acknowledge', 'danger');
+    }
+  })
+  .catch(() => showToast('Gagal menghubungi server', 'danger'))
+  .finally(() => {
+    if (btn) btn.disabled = false;
+  });
+}
+
+function ackIncidentFromList(event, id) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const btn = event ? event.currentTarget : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" style="width: 8px; height: 8px; border-width: 1.5px; margin-right: 2px;"></span>...`;
+  }
+  
+  fetch(`/api/alerts/${id}/ack`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.status === 'success') {
+      showToast('Insiden berhasil di-acknowledge', 'success');
+      refreshAll(); // Muat ulang data dashboard
+    } else {
+      showToast(res.message || 'Gagal melakukan acknowledge', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-check-lg"></i> Ack`;
+      }
+    }
+  })
+  .catch(() => {
+    showToast('Gagal menghubungi server', 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="bi bi-check-lg"></i> Ack`;
+    }
+  });
 }
 
 function renderTopTalkers(devices) {
