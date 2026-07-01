@@ -16,6 +16,31 @@ TYPE_MAP = {
     'upd': 'server',
 }
 
+UNIFI_MODEL_MAP = {
+    'US24P250': 'UniFi Switch 24 POE-250W',
+    'US8P60': 'UniFi Switch 8 POE-60W',
+    'US16P150': 'UniFi Switch 16 POE-150W',
+    'USW-Lite-16-PoE': 'UniFi Switch Lite 16 POE',
+    'USW-Lite-8-PoE': 'UniFi Switch Lite 8 POE',
+    'USW-Flex-Mini': 'UniFi Switch Flex Mini',
+    'U7PG2': 'UniFi AP-AC-Lite',
+    'U7Pro': 'UniFi AP-AC-Pro',
+    'U7HD': 'UniFi AP-HD',
+    'U7NHD': 'UniFi AP-nanoHD',
+    'U6Lite': 'UniFi AP-6-Lite',
+    'U6Pro': 'UniFi AP-6-Pro',
+    'U6LR': 'UniFi AP-6-LongRange',
+    'UXG-Lite': 'UniFi Next-Gen Gateway Lite',
+    'USG': 'UniFi Security Gateway',
+    'USG3': 'UniFi Security Gateway 3P',
+    'USG4': 'UniFi Security Gateway 4-Pro',
+    'UDM': 'UniFi Dream Machine',
+    'UDMP': 'UniFi Dream Machine Pro',
+    'UDMSE': 'UniFi Dream Machine Special Edition',
+    'UX': 'UniFi Express',
+}
+
+
 
 def format_uptime(seconds):
     if seconds is None or str(seconds).strip() == '':
@@ -254,11 +279,14 @@ class UniFiClient:
                 except ValueError:
                     pass
 
+        raw_model = d.get('model', '')
+        model_name = UNIFI_MODEL_MAP.get(raw_model, raw_model)
+
         return {
             'name':         d.get('name') or d.get('hostname') or d.get('ip', 'Unknown'),
             'ip':           d.get('ip', ''),
             'mac':          d.get('mac', ''),
-            'model':        d.get('model', ''),
+            'model':        model_name,
             'vendor':       'Ubiquiti',
             'type':         TYPE_MAP.get(utype, 'unknown'),
             'unifi_id':     d.get('_id', ''),

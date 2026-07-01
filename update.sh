@@ -51,10 +51,10 @@ if [[ -d "$INSTALL_DIR" ]]; then
   if command -v rsync &>/dev/null; then
     rsync -rtv --exclude='venv' --exclude='netmon.db' --exclude='*.pyc' --exclude='__pycache__' --exclude='.git' "$SCRIPT_DIR/" "$INSTALL_DIR/"
   else
-    # Fallback to manual copying of safe directories/files
     cp -r "$SCRIPT_DIR"/templates "$INSTALL_DIR/" 2>/dev/null || true
     cp -r "$SCRIPT_DIR"/static "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/*.py "$INSTALL_DIR/" 2>/dev/null || true
+    cp "$SCRIPT_DIR"/*.html "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/requirements.txt "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/update.sh "$INSTALL_DIR/" 2>/dev/null || true
   fi

@@ -269,14 +269,59 @@ def detect_device_info():
         pass
         
     if is_alive:
+        detected_vendor = 'Generic'
+        detected_model = 'Ping Only'
+        detected_type = 'unknown'
+        
+        if mac:
+            mac_clean = mac.replace('-', ':').replace('.', '').lower()
+            parts = mac_clean.split(':')
+            if len(parts) >= 3:
+                oui = ":".join(parts[:3])
+                OUI_MAP = {
+                    '00:27:22': 'Ubiquiti', '04:18:d6': 'Ubiquiti', '24:a4:3c': 'Ubiquiti',
+                    '70:a7:41': 'Ubiquiti', '80:2a:a8': 'Ubiquiti', 'b4:fb:e4': 'Ubiquiti',
+                    'fc:ec:da': 'Ubiquiti', 'f0:9f:c2': 'Ubiquiti', 'e0:63:da': 'Ubiquiti',
+                    'd8:b3:77': 'Ubiquiti', 'ac:8b:03': 'Ubiquiti', 'ac:3b:77': 'Ubiquiti',
+                    '00:1a:8c': 'Ruijie', '00:21:c7': 'Ruijie', '00:26:8a': 'Ruijie',
+                    '1c:34:da': 'Ruijie', 'b0:75:d5': 'Ruijie', '00:01:c9': 'Ruijie',
+                    '00:0a:f7': 'Ruijie', '00:11:95': 'Ruijie', '00:14:fd': 'Ruijie',
+                    '00:0e:3c': 'Ruijie', 'c4:ad:34': 'Ruijie', 'dc:56:e7': 'Ruijie',
+                    'e4:38:83': 'Ruijie', 'f8:15:e7': 'Ruijie', '2c:b2:1a': 'Ruijie',
+                    '00:0c:42': 'MikroTik', '18:fd:74': 'MikroTik', '2c:c8:1b': 'MikroTik',
+                    '4c:5e:0c': 'MikroTik', '64:d1:54': 'MikroTik', '6c:3b:6b': 'MikroTik',
+                    '74:4d:28': 'MikroTik', '78:9a:18': 'MikroTik', 'd4:ca:6d': 'MikroTik',
+                    'e8:28:c1': 'MikroTik',
+                    '00:00:0c': 'Cisco', '00:01:42': 'Cisco', '00:01:43': 'Cisco',
+                    '00:01:63': 'Cisco', '00:01:64': 'Cisco', '00:01:96': 'Cisco',
+                    '00:01:97': 'Cisco', '00:02:16': 'Cisco', '00:02:17': 'Cisco',
+                    '00:02:4a': 'Cisco', '00:02:4b': 'Cisco', '00:02:b9': 'Cisco',
+                    '00:14:1c': 'TP-Link', '00:1f:33': 'TP-Link', '00:25:61': 'TP-Link',
+                    'f8:1a:67': 'TP-Link', '18:e8:29': 'TP-Link', '50:3e:aa': 'TP-Link',
+                    '50:c7:bf': 'TP-Link', '74:da:da': 'TP-Link', '84:16:f9': 'TP-Link',
+                    '84:c9:b2': 'TP-Link', '98:de:d0': 'TP-Link', 'b0:48:7a': 'TP-Link',
+                    '00:18:82': 'Huawei', '00:25:9e': 'Huawei', '00:46:4b': 'Huawei',
+                    '08:19:a6': 'Huawei', '0c:37:dc': 'Huawei', '10:1b:54': 'Huawei',
+                    '10:47:80': 'Huawei', '10:c6:1f': 'Huawei', '14:3c:c9': 'Huawei',
+                    '00:05:69': 'VMware', '00:0c:29': 'VMware', '00:50:56': 'VMware',
+                    '00:15:5d': 'Microsoft',
+                }
+                detected_vendor = OUI_MAP.get(oui, 'Generic')
+                if detected_vendor != 'Generic':
+                    detected_model = f'Ping Only ({detected_vendor})'
+                    if detected_vendor in ('Ubiquiti', 'Ruijie', 'MikroTik', 'Cisco', 'TP-Link', 'Huawei'):
+                        detected_type = 'network_device'
+                    elif detected_vendor in ('VMware', 'Microsoft'):
+                        detected_type = 'server'
+                        
         return jsonify({
             'status': 'success',
             'snmp_enabled': False,
             'name': ip,
             'mac': mac,
-            'vendor': 'Generic',
-            'model': 'Ping Only',
-            'type': 'unknown'
+            'vendor': detected_vendor,
+            'model': detected_model,
+            'type': detected_type
         })
         
     return jsonify({'status': 'error', 'message': 'Device is unreachable or offline'}), 404
