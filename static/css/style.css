@@ -231,6 +231,8 @@ body {
 .btn-ghost:hover { background: var(--bg-hover); border-color: transparent; }
 .btn-success     { background: var(--green-dim); border-color: rgba(48, 209, 88, 0.2); color: var(--green); }
 .btn-success:hover { background: rgba(48, 209, 88, 0.25); }
+.btn-primary     { background: var(--accent-dim); border-color: rgba(10, 132, 255, 0.2); color: var(--accent); }
+.btn-primary:hover { background: rgba(10, 132, 255, 0.25); }
 .btn-danger      { background: var(--red-dim); border-color: rgba(255, 69, 58, 0.2); color: var(--red); }
 .btn-danger:hover { background: rgba(255, 69, 58, 0.25); }
 .btn-icon {

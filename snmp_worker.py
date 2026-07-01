@@ -1160,6 +1160,38 @@ class SNMPWorker:
         
         if not traffic:
             return None
+
+        # 3. Auto-detect physical interface uplink speed
+        try:
+            speed_oids = [
+                f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}", # ifHighSpeed (in Mbps)
+                f"1.3.6.1.2.1.2.2.1.5.{target_idx}"      # ifSpeed (in bps)
+            ]
+            speed_res = self._get(ip, community, speed_oids, port, version)
+            if speed_res:
+                high_speed = speed_res.get(f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}")
+                low_speed = speed_res.get(f"1.3.6.1.2.1.2.2.1.5.{target_idx}")
+                detected_speed_mbps = None
+                
+                if high_speed is not None:
+                    try:
+                        detected_speed_mbps = int(high_speed)
+                    except:
+                        pass
+                elif low_speed is not None:
+                    try:
+                        detected_speed_mbps = int(low_speed) // 1000000
+                    except:
+                        pass
+                
+                if detected_speed_mbps and detected_speed_mbps > 0:
+                    with self.db_write_lock:
+                        cur_dev = self.db.get_device(did)
+                        if cur_dev and cur_dev.get('uplink_speed_mbps') != detected_speed_mbps:
+                            self.db.update_device(did, {'uplink_speed_mbps': detected_speed_mbps})
+                            print(f"[Speed Auto-Detect] Updated {cur_dev.get('name', ip)} uplink speed to {detected_speed_mbps} Mbps")
+        except Exception as se:
+            print(f"[Speed Auto-Detect] Error querying interface speed OIDs: {se}")
             
         try:
             in_octets = None

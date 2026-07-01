@@ -8,6 +8,9 @@
     <p class="page-sub">Manage monitored network devices</p>
   </div>
   <div class="page-actions">
+    <button class="btn-nm btn-sm btn-primary" onclick="pollAll()" title="Poll all SNMP devices">
+      <i class="bi bi-arrow-repeat"></i> Poll All
+    </button>
     <button class="btn-nm btn-sm" onclick="openScanModal()">
       <i class="bi bi-radar"></i> Network Scan
     </button>
@@ -46,9 +49,6 @@
         <option value="warning">Warning</option>
         <option value="unknown">Unknown</option>
       </select>
-      <button class="btn-nm btn-sm btn-ghost" onclick="pollAll()" title="Poll all SNMP devices">
-        <i class="bi bi-arrow-repeat"></i> Poll All
-      </button>
     </div>
   </div>
   <div class="panel-body p-0">
