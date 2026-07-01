@@ -710,6 +710,41 @@ def test_groq():
     except Exception as e:
         return jsonify({'status': 'error', 'message': f"API connection failed: {str(e)}"}), 400
 
+@app.route('/reports')
+def reports_page():
+    return render_template('reports.html')
+
+@app.route('/api/reports/monthly', methods=['GET'])
+def get_monthly_reports():
+    reports = db.get_monthly_reports()
+    import json
+    parsed_reports = []
+    for r in reports:
+        try:
+            r_data = json.loads(r['report_data'])
+        except:
+            r_data = {}
+        parsed_reports.append({
+            'id': r['id'],
+            'report_month': r['report_month'],
+            'generated_at': r['generated_at'],
+            'data': r_data
+        })
+    return jsonify(parsed_reports)
+
+@app.route('/api/reports/generate', methods=['POST'])
+def generate_monthly_report():
+    data = request.json or {}
+    month_str = data.get('month')
+    if not month_str:
+        from datetime import datetime
+        month_str = datetime.now().strftime('%Y-%m')
+    try:
+        report = db.generate_and_save_monthly_report(month_str)
+        return jsonify({'status': 'success', 'report': report})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     return jsonify(db.get_dashboard_stats())
@@ -853,9 +888,9 @@ def background_poll():
                 except Exception as e:
                     print(f"[Traffic] Parallel traffic collection failed: {e}")
 
-    # Cleanup data lama (simpan 7 hari = 168 jam terakhir secara default)
+    # Cleanup data lama (simpan 30 hari = 720 jam terakhir secara default)
     try:
-        db.cleanup_interface_traffic(retention_hours=int(db.get_settings().get('traffic_retention_hours', 168)))
+        db.cleanup_interface_traffic(retention_hours=int(db.get_settings().get('traffic_retention_hours', 720)))
     except Exception as e:
         print(f"[Cleanup] {e}")
 
@@ -863,10 +898,22 @@ def background_poll():
 # MAIN
 # ============================================================
 
+def run_monthly_report_cron():
+    print("[Report Cron] Running monthly report generation...")
+    try:
+        from datetime import datetime
+        month_str = datetime.now().strftime('%Y-%m')
+        db.generate_and_save_monthly_report(month_str)
+        print(f"[Report Cron] Monthly report for {month_str} generated successfully!")
+    except Exception as e:
+        print(f"[Report Cron] Failed to generate monthly report: {e}")
+
 if __name__ == '__main__':
     settings = db.get_settings()
     poll_interval = max(10, int(settings.get('poll_interval', 30)))
     scheduler.add_job(background_poll, 'interval', seconds=poll_interval, id='snmp_poll', max_instances=1)
+    # Automatically generate monthly report at 23:50 on the last day of the month before oldest data prunes
+    scheduler.add_job(run_monthly_report_cron, 'cron', day='last', hour=23, minute=50, id='monthly_report_cron')
     scheduler.start()
     port = int(os.environ.get('PORT', 5000))
     host = os.environ.get('HOST', '0.0.0.0')

@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Bandwidth Reports{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Bandwidth & Throughput Reports</h1>
+    <p class="page-sub">Analisis penggunaan bandwidth bulanan untuk backbone dan uplink router</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-nm btn-sm btn-ghost" onclick="printReport()" style="display: none;" id="print-btn">
+      <i class="bi bi-printer-fill me-1"></i>Cetak / PDF
+    </button>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Side: Controls & History -->
+  <div class="col-md-4">
+    <div class="nm-panel mb-4">
+      <div class="panel-header"><span><i class="bi bi-gear-fill me-2 text-accent"></i>Report Generator</span></div>
+      <div class="panel-body">
+        <label class="nm-label">Pilih Bulan</label>
+        <div class="input-group mb-3">
+          <input type="month" id="report-month-select" class="nm-input" style="height: 38px;">
+          <button class="btn-nm btn-primary" onclick="generateReport()" style="border-top-left-radius: 0; border-bottom-left-radius: 0; height: 38px;">
+            Generate
+          </button>
+        </div>
+        <small class="text-muted d-block" style="font-size: 11px; line-height: 1.4;">
+          Sistem secara otomatis mengumpulkan metrik lalu lintas data 30 hari terakhir. Laporan bulanan otomatis disimpan pada akhir bulan sebelum pembersihan retensi data.
+        </small>
+      </div>
+    </div>
+
+    <div class="nm-panel">
+      <div class="panel-header"><span><i class="bi bi-archive-fill me-2 text-accent"></i>Daftar Laporan Bulanan</span></div>
+      <div class="panel-body p-0">
+        <div class="list-group list-group-flush" id="reports-list">
+          <div class="text-center text-muted py-4 text-xs">Memuat daftar laporan...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side: Report View -->
+  <div class="col-md-8">
+    <div class="nm-panel" id="report-view-panel" style="display: none;">
+      <div class="panel-header border-bottom d-flex justify-content-between align-items-center">
+        <span class="fw-700 text-primary" id="active-report-title">Laporan Bulanan</span>
+        <span class="badge bg-secondary-dim text-secondary mono-sm" id="report-timestamp" style="font-size: 11px;"></span>
+      </div>
+      <div class="panel-body p-4" id="printable-area">
+        
+        <!-- Document Header (Shown in Print) -->
+        <div class="print-header text-center mb-4 d-none">
+          <h2 class="mb-1" style="color: var(--primary);">NetMon Network Management</h2>
+          <p class="text-muted mb-0">Laporan Penggunaan Bandwidth & Throughput</p>
+          <hr style="border-top: 1px solid #e5e5ea;">
+        </div>
+
+        <!-- Section 1: Backbone Summary -->
+        <div class="mb-4">
+          <h5 class="fw-700 text-primary mb-3"><i class="bi bi-graph-up me-2 text-accent"></i>Ringkasan Throughput Backbone (Agregat)</h5>
+          
+          <div class="row g-3 mb-4">
+            <!-- Total RX -->
+            <div class="col-sm-6 col-lg-3">
+              <div class="p-3 rounded bg-hover" style="border: 1px solid var(--border-lt);">
+                <div class="text-muted text-xs font-semibold mb-1">Total Download</div>
+                <div class="fs-4 fw-700 text-primary" id="bb-total-rx">—</div>
+                <div class="text-xs text-muted mt-1">Volume (GB)</div>
+              </div>
+            </div>
+            <!-- Total TX -->
+            <div class="col-sm-6 col-lg-3">
+              <div class="p-3 rounded bg-hover" style="border: 1px solid var(--border-lt);">
+                <div class="text-muted text-xs font-semibold mb-1">Total Upload</div>
+                <div class="fs-4 fw-700 text-primary" id="bb-total-tx">—</div>
+                <div class="text-xs text-muted mt-1">Volume (GB)</div>
+              </div>
+            </div>
+            <!-- Avg Throughput -->
+            <div class="col-sm-6 col-lg-3">
+              <div class="p-3 rounded bg-hover" style="border: 1px solid var(--border-lt);">
+                <div class="text-muted text-xs font-semibold mb-1">Rata-Rata Throughput</div>
+                <div class="fs-5 fw-700 text-success" id="bb-avg-rates">—</div>
+                <div class="text-xs text-muted mt-1">Down / Up (Mbps)</div>
+              </div>
+            </div>
+            <!-- Peak Throughput -->
+            <div class="col-sm-6 col-lg-3">
+              <div class="p-3 rounded bg-hover" style="border: 1px solid var(--border-lt);">
+                <div class="text-muted text-xs font-semibold mb-1">Puncak Throughput</div>
+                <div class="fs-5 fw-700 text-warning" id="bb-peak-rates">—</div>
+                <div class="text-xs text-muted mt-1">Down / Up (Mbps)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Uplink Detail per Router -->
+        <div>
+          <h5 class="fw-700 text-primary mb-3"><i class="bi bi-hdd-network-fill me-2 text-accent"></i>Detail Uplink per Router</h5>
+          
+          <div class="table-responsive" style="border: 1px solid var(--border-lt); border-radius: 8px;">
+            <table class="table table-hover align-middle mb-0 text-xs">
+              <thead style="background: var(--bg-hover);">
+                <tr>
+                  <th style="font-weight:600; padding: 12px;">Router</th>
+                  <th style="font-weight:600; padding: 12px;">Total Download</th>
+                  <th style="font-weight:600; padding: 12px;">Total Upload</th>
+                  <th style="font-weight:600; padding: 12px; text-align: center;">Rata-Rata (Down/Up)</th>
+                  <th style="font-weight:600; padding: 12px; text-align: center;">Puncak (Down/Up)</th>
+                </tr>
+              </thead>
+              <tbody id="router-uplink-rows">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="nm-panel text-center py-5" id="report-empty-state">
+      <i class="bi bi-file-earmark-bar-graph-fill text-muted fs-1 d-block mb-3"></i>
+      <h5 class="fw-600 text-primary">Belum Ada Laporan Terpilih</h5>
+      <p class="text-muted text-xs max-w-md mx-auto">Silakan pilih laporan bulanan dari daftar arsip di sebelah kiri, atau generate laporan baru.</p>
+    </div>
+  </div>
+</div>
+
+<style>
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-area, #printable-area * {
+    visibility: visible;
+  }
+  #printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #fff;
+    color: #000;
+  }
+  .print-header {
+    display: block !important;
+  }
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentMonthReports = [];
+let activeReport = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Set default month in input to current month
+  const now = new Date();
+  const monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  document.getElementById('report-month-select').value = monthVal;
+  
+  loadReportsList();
+});
+
+function loadReportsList() {
+  fetch('/api/reports/monthly')
+    .then(r => r.json())
+    .then(reports => {
+      currentMonthReports = reports;
+      renderReportsList();
+    })
+    .catch(err => console.error("Error fetching monthly reports list:", err));
+}
+
+function renderReportsList() {
+  const container = document.getElementById('reports-list');
+  if (currentMonthReports.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-muted py-5 text-xs">
+        <i class="bi bi-file-earmark-lock d-block mb-2 fs-4"></i>
+        Tidak ada arsip laporan tersimpan
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = currentMonthReports.map(r => {
+    const isActive = activeReport && activeReport.id === r.id;
+    const dateObj = new Date(r.generated_at);
+    const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    
+    // Format month title (e.g. 2026-06 -> Juni 2026)
+    const [year, month] = r.report_month.split('-');
+    const monthsName = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const monthTitle = `${monthsName[parseInt(month) - 1]} ${year}`;
+
+    return `
+      <a href="#" class="list-group-item list-group-item-action border-0 p-3 rounded mb-1 d-flex justify-content-between align-items-center ${isActive ? 'bg-primary text-white' : 'bg-hover'}" onclick="selectReport(${r.id}); return false;">
+        <div>
+          <div class="fw-600 text-sm ${isActive ? 'text-white' : 'text-primary'}">${monthTitle}</div>
+          <div class="text-xs mt-0.5 ${isActive ? 'text-light' : 'text-muted'}">Dibuat: ${dateStr}</div>
+        </div>
+        <i class="bi bi-chevron-right text-xs"></i>
+      </a>
+    `;
+  }).join('');
+}
+
+function selectReport(id) {
+  const report = currentMonthReports.find(r => r.id === id);
+  if (!report) return;
+
+  activeReport = report;
+  renderReportsList(); // Refresh active background
+
+  document.getElementById('report-empty-state').style.display = 'none';
+  document.getElementById('report-view-panel').style.display = 'block';
+  document.getElementById('print-btn').style.display = 'inline-block';
+
+  // Format month title
+  const [year, month] = report.report_month.split('-');
+  const monthsName = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  const monthTitle = `Laporan Throughput Bulan ${monthsName[parseInt(month) - 1]} ${year}`;
+  
+  document.getElementById('active-report-title').textContent = monthTitle;
+  
+  const genDate = new Date(report.generated_at);
+  document.getElementById('report-timestamp').textContent = `Dibuat: ${genDate.toLocaleDateString('id-ID')} ${genDate.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}`;
+
+  const data = report.data;
+
+  // Render Backbone KPI values
+  document.getElementById('bb-total-rx').textContent = `${data.backbone.total_in_gb.toLocaleString('id-ID')} GB`;
+  document.getElementById('bb-total-tx').textContent = `${data.backbone.total_out_gb.toLocaleString('id-ID')} GB`;
+  document.getElementById('bb-avg-rates').innerHTML = `<i class="bi bi-arrow-down text-success me-1"></i>${data.backbone.avg_in_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span> <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${data.backbone.avg_out_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span>`;
+  document.getElementById('bb-peak-rates').innerHTML = `<i class="bi bi-arrow-down text-warning me-1"></i>${data.backbone.peak_in_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span> <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${data.backbone.peak_out_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span>`;
+
+  // Render routers rows
+  const tbody = document.getElementById('router-uplink-rows');
+  if (!data.routers || data.routers.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Tidak ada data router pada laporan ini</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.routers.map(router => {
+    return `
+      <tr>
+        <td style="padding: 12px;">
+          <div class="fw-600 text-primary">${esc(router.name)}</div>
+          <div class="text-muted mono-sm" style="font-size: 10px;">${esc(router.ip)}</div>
+        </td>
+        <td style="padding: 12px; font-weight: 500;">${router.total_rx_gb.toLocaleString('id-ID')} GB</td>
+        <td style="padding: 12px; font-weight: 500;">${router.total_tx_gb.toLocaleString('id-ID')} GB</td>
+        <td style="padding: 12px; text-align: center;">
+          <span class="text-success"><i class="bi bi-arrow-down me-0.5"></i>${router.avg_rx_mbps} Mbps</span>
+          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${router.avg_tx_mbps} Mbps</span>
+        </td>
+        <td style="padding: 12px; text-align: center;">
+          <span class="text-warning"><i class="bi bi-arrow-down me-0.5"></i>${router.peak_rx_mbps} Mbps</span>
+          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${router.peak_tx_mbps} Mbps</span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function generateReport() {
+  const monthVal = document.getElementById('report-month-select').value;
+  if (!monthVal) {
+    alert("Pilih bulan laporan terlebih dahulu!");
+    return;
+  }
+
+  fetch('/api/reports/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ month: monthVal })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.status === 'success') {
+      showToast('Laporan berhasil dibuat!', 'success');
+      loadReportsList();
+      // Auto select newly generated report
+      setTimeout(() => {
+        const found = currentMonthReports.find(r => r.report_month === monthVal);
+        if (found) selectReport(found.id);
+      }, 500);
+    } else {
+      alert("Gagal men-generate laporan: " + res.message);
+    }
+  })
+  .catch(err => {
+    console.error("Error generating report:", err);
+    alert("Koneksi gagal saat men-generate laporan.");
+  });
+}
+
+function printReport() {
+  window.print();
+}
+
+function esc(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}
