@@ -74,14 +74,6 @@ if [[ -d "$INSTALL_DIR" ]]; then
     chmod -R 755 "$INSTALL_DIR"
   fi
   
-  # Restart service
-  if [[ $OS == "Linux" ]] && command -v systemctl &>/dev/null; then
-    if systemctl list-unit-files | grep -q "netmon.service"; then
-      step "Restarting systemd service: netmon"
-      systemctl daemon-reload
-      systemctl restart netmon
-      success "NetMon systemd service restarted successfully!"
-    fi
   fi
 else
   # If running in local directory (development or custom setup)
@@ -90,6 +82,21 @@ else
     ./venv/bin/pip install --upgrade pip -q
     ./venv/bin/pip install -r requirements.txt -q
     success "Local venv dependencies updated"
+  fi
+fi
+
+# Restart service (systemd or sysvinit fallback)
+if [[ $OS == "Linux" ]]; then
+  step "Restarting NetMon service..."
+  if command -v systemctl &>/dev/null; then
+    step "Restarting via systemd..."
+    systemctl daemon-reload || true
+    systemctl restart netmon && success "NetMon service restarted successfully via systemd!" || warn "Could not restart via systemd. Try manually: sudo systemctl restart netmon"
+  elif command -v service &>/dev/null; then
+    step "Restarting via sysvinit..."
+    service netmon restart && success "NetMon service restarted successfully via sysvinit!" || warn "Could not restart via service command."
+  else
+    warn "No service manager (systemd or sysvinit) found. Please restart NetMon manually."
   fi
 fi
 
