@@ -17,6 +17,9 @@ Real-time network monitoring with SNMP auto-discovery, interactive floor plan al
 | **Alert Log** | Timestamped alert history with severity, acknowledgement, and filtering |
 | **Access Log** | Full audit trail of who accessed the dashboard and what actions ran |
 | **Real-time Dashboard** | WebSocket-powered live stats, device table, and alert feed |
+| **Bandwidth Reports** | Monthly reports on backbone & uplink throughput with AI anomaly filtering and PDF export |
+| **Per-Device Muting** | Mute/unmute alerts from individual devices with a single click to prevent alert spam |
+| **Double-Check Offline** | Two-step offline validation (SNMP re-poll + ping) to ensure high-accuracy alerts |
 
 ---
 

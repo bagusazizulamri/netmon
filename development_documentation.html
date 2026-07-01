@@ -211,6 +211,17 @@
           </ul>
         </td>
       </tr>
+      <tr>
+        <td><strong>1 Juli 2026</strong></td>
+        <td>
+          <ul>
+            <li><strong>Monthly Bandwidth & Throughput Reports</strong>: Modul laporan bulanan gabungan untuk backbone dan uplink router dengan filter anomali traffic (skip >5 Gbps, AI/heuristik filter 1-5 Gbps) dan ekspor PDF client-side via html2pdf.js.</li>
+            <li><strong>Device Uplink Speed Configuration</strong>: Konfigurasi per-perangkat untuk kapasitas bandwidth fisik uplink (hingga 100 Gbps) guna menyesuaikan batas filter anomali dan visualisasi puncak (Mbps vs Gbps).</li>
+            <li><strong>Per-Device Alert Muting</strong>: Tombol bisukan (mute) alert pada daftar perangkat untuk meredam alarm dari perangkat berisik.</li>
+            <li><strong>Double-Check Offline Verification</strong>: Prosedur verifikasi bertahap (retrial SNMP + ping fallback) untuk meniadakan alarm offline palsu akibat kemacetan jaringan sesaat.</li>
+          </ul>
+        </td>
+      </tr>
     </tbody>
   </table>
 
@@ -354,6 +365,47 @@
         <li>Mengintegrasikan proses restart otomatis yang cerdas di akhir eksekusi skrip pembaruan.</li>
         <li>Menggunakan <code>systemctl</code> untuk daemon-reload dan restart service <code>netmon</code> pada sistem dengan systemd.</li>
         <li>Menyediakan fallback otomatis ke perintah <code>service netmon restart</code> jika systemd tidak aktif (misalnya pada WSL non-systemd), serta penanganan eror yang ramah (tidak menggagalkan eksekusi skrip jika service tidak terdaftar).</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.8 Generator Laporan Bandwidth Bulanan & Ekspor PDF</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>database.py</code>, <code>app.py</code>, <code>templates/reports.html</code> (Baru), <code>templates/base.html</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li><strong>Retensi Data 30 Hari</strong>: Mengubah default <code>traffic_retention_hours</code> menjadi 720 jam (30 hari) agar data telemetri historis bandwidth tersedia lengkap untuk pelaporan bulanan.</li>
+        <li><strong>Penyaringan Anomali Cerdas (AI & Heuristic)</strong>: Integrasi filter ketat terhadap lonjakan traffic palsu. Nilai di atas kapasitas fisik uplink (misal >5 Gbps untuk link 5G/10G) langsung dibuang secara heuristik. Sementara nilai di atas 50% kapasitas link dikirim ke Groq AI (Llama 3.3) untuk dikonfirmasi kelayakannya sebelum direcord dalam laporan bulanan.</li>
+        <li><strong>Ekspor Dokumen PDF</strong>: Mengintegrasikan pustaka <code>html2pdf.js</code> pada antarmuka web, memungkinkan pengguna mengunduh berkas laporan bulanan gabungan (Backbone + Uplink individual router) dalam format PDF pixel-perfect yang siap cetak langsung dari sisi klien.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.9 Fitur Mute/Unmute Alert Per Perangkat</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>database.py</code>, <code>snmp_worker.py</code>, <code>app.py</code>, <code>templates/devices.html</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li>Menambahkan kolom <code>alerts_enabled INTEGER DEFAULT 1</code> pada tabel <code>devices</code>.</li>
+        <li>Menerapkan guard check pada baris terdepan metode <code>_alert()</code> di <code>snmp_worker.py</code>. Jika device berstatus muted (<code>alerts_enabled = 0</code>), pembuatan log alert, analisis AI, dan broadcast Socket.IO akan sepenuhnya di-bypass.</li>
+        <li>Menambahkan tombol toggle interaktif (ikon lonceng 🔔 / 🔕) pada halaman perangkat beserta route API <code>POST /api/devices/<id>/toggle_alerts</code> untuk mempermudah operasional bisu suara perangkat secara manual.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.10 Prosedur Verifikasi Deteksi Offline Ganda</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>snmp_worker.py</code>, <code>app.py</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li>Untuk menekan alarm palsu akibat jitter atau packet loss sesaat, dikembangkan alur verifikasi bertahap. Ketika deteksi awal mengindikasikan perangkat offline:
+          <ul>
+            <li>Aplikasi melakukan jeda 1 detik lalu melakukan SNMP polling sekali lagi ke perangkat.</li>
+            <li>Jika SNMP masih tidak merespon, sistem menjalankan prosedur ping (ICMP + TCP Connect fallback).</li>
+            <li>Status <code>down</code> dan alarm ke dashboard hanya dirilis apabila seluruh langkah uji ulang di atas tidak menghasilkan respon.</li>
+          </ul>
+        </li>
+        <li>Mengubah respons offline Device Detection endpoint dari status 404 menjadi 400 guna meniadakan error warning resource loading pada konsol browser.</li>
       </ul>
     </li>
   </ul>
