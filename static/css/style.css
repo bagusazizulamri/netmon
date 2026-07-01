@@ -51,9 +51,7 @@ body {
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: rgba(37, 37, 37, 0.85); /* macOS Sidebar graphite */
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  background: #252525; /* Solid dark macOS Sidebar */
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -481,27 +479,23 @@ body {
 
 /* ============================================================ MODALS */
 .nm-modal {
-  background: rgba(28, 28, 30, 0.75) !important;
-  backdrop-filter: blur(30px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: #2c2c2e !important; /* Solid macOS dark gray modal */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: var(--text-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75) !important;
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
 }
 .nm-modal .modal-header { border-color: rgba(255, 255, 255, 0.08); padding: 14px 18px; }
 .nm-modal .modal-footer { border-color: rgba(255, 255, 255, 0.08); padding: 12px 18px; }
 .nm-modal .modal-body   { padding: 18px; }
 
-/* Frosted glass hardblur backdrop overlay */
+/* Clean flat backdrop overlay */
 .modal-backdrop {
   background-color: #000000 !important;
   transition: opacity 0.15s linear;
 }
 .modal-backdrop.show {
-  opacity: 0.65 !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  opacity: 0.50 !important; /* Soft solid flat dimming overlay */
 }
 
 /* ============================================================ TABS */
@@ -867,7 +861,7 @@ body.light-theme {
 }
 
 body.light-theme .sidebar {
-  background: rgba(235, 235, 235, 0.85); /* macOS Light Sidebar */
+  background: #f1f1f1; /* Solid cool light macOS Sidebar */
   border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -880,9 +874,9 @@ body.light-theme .sidebar-status {
 }
 
 body.light-theme .nm-modal {
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: #ffffff !important; /* Solid clean light macOS Modal */
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
 }
 
 body.light-theme .nm-modal .modal-header {
@@ -894,7 +888,7 @@ body.light-theme .nm-modal .modal-footer {
 }
 
 body.light-theme .modal-backdrop.show {
-  opacity: 0.15 !important;
+  opacity: 0.20 !important; /* Soft flat light mode overlay */
   background-color: #000000 !important;
 }
 
