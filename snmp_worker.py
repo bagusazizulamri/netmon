@@ -500,6 +500,17 @@ class SNMPWorker:
                 OID['sysUpTime'], 
                 OID['sysName']
             ], port, version)
+            
+            # Jika offline (SNMP gagal), lakukan polling SNMP sekali lagi sebelum menyatakan offline
+            if not result:
+                import time
+                time.sleep(1.0)
+                result = self._get(ip, community, [
+                    OID['sysDescr'], 
+                    '1.3.6.1.2.1.1.2.0',
+                    OID['sysUpTime'], 
+                    OID['sysName']
+                ], port, version)
 
         if result:
             # ── SNMP responded: genuine UP with full data ──
@@ -595,6 +606,17 @@ class SNMPWorker:
         else:
             # ── SNMP not enabled: ping-only check ──
             is_alive = self._ping(ip)
+            if not is_alive:
+                # Jika offline via ping, lakukan polling SNMP sebelum melempar alert
+                snmp_check = self._get(ip, community, [OID['sysDescr']], port, '2c')
+                if snmp_check:
+                    is_alive = True
+                else:
+                    # Jika masih offline, lakukan prosedur ping ulang
+                    import time
+                    time.sleep(1.0)
+                    is_alive = self._ping(ip)
+                    
             with self.db_write_lock:
                 if is_alive:
                     upd = {'status': 'up', 'last_polled': now}
