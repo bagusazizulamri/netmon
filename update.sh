@@ -55,6 +55,7 @@ if [[ -d "$INSTALL_DIR" ]]; then
     cp -r "$SCRIPT_DIR"/static "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/*.py "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/*.html "$INSTALL_DIR/" 2>/dev/null || true
+    cp "$SCRIPT_DIR"/*.sh "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/requirements.txt "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/update.sh "$INSTALL_DIR/" 2>/dev/null || true
   fi
