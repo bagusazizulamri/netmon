@@ -335,7 +335,7 @@ def detect_device_info():
             'type': detected_type
         })
         
-    return jsonify({'status': 'error', 'message': 'Device is unreachable or offline'}), 404
+    return jsonify({'status': 'error', 'message': 'Device is unreachable or offline'}), 400
 
 @app.route('/api/devices/<int:device_id>/traffic_history', methods=['GET'])
 def get_traffic_history(device_id):
