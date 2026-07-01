@@ -265,6 +265,62 @@
     <li>Klik tombol hijau <strong>Save All Settings</strong> di kanan atas untuk menyimpan konfigurasi secara permanen.</li>
   </ol>
 
+  <!-- Physical page break for MS Word / Google Docs -->
+  <div style="page-break-before: always;"></div>
+
+  <h2>6. Rincian Detail Pengerjaan Teknis (Technical Work Details)</h2>
+  <p><em>Halaman ini menjelaskan rincian berkas yang dimodifikasi, potongan kode kunci, dan solusi masalah teknis secara mendalam.</em></p>
+
+  <h3>6.1 Optimasi Kinerja Floor Plan Canvas (Sisi Klien)</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>templates/floorplan.html</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li>Sebelumnya, loop animasi dijalankan tanpa henti (<code>loop()</code> memanggil <code>draw()</code> dan mendaftar dirinya ke <code>requestAnimationFrame</code>). Pada denah gambar resolusi tinggi, browser harus merender jutaan piksel secara konstan yang memicu <em>spiking</em> penggunaan CPU hingga 80%.</li>
+        <li>Saya merancang bendera <code>renderRequested</code> untuk membatasi pemanggilan gambar ulang hanya ketika ada perubahan visual nyata (Zoom, Pan, Dragging, atau pembaruan status data).</li>
+        <li>Metode <code>checkAnimationNeed()</code> memindai status seluruh zona. Jika tidak ada perangkat yang berstatus <code>down</code> dan tidak sedang terjadi dragging, loop animasi dihentikan sepenuhnya.</li>
+        <li>Efek pendar peringatan merah yang menggunakan <code>ctx.shadowBlur</code> digantikan dengan riak radar vektor berlapis. Ini memindahkan kalkulasi blur dari CPU ke GPU (Hardware-Accelerated rendering), menurunkan CPU browser ke &lt;1% dalam kondisi idle.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.2 Sistem Pendeteksi Peringatan Palsu AI (AI False Warning Detector)</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>ai_detector.py</code> (Baru), <code>snmp_worker.py</code>, <code>database.py</code>, <code>app.py</code>, <code>templates/settings.html</code>, <code>templates/dashboard.html</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li><strong>Ping Ulang Asinkron</strong>: Saat pemicu alert offline mendeteksi kegagalan, <code>ai_detector.py</code> memanggil thread baru untuk ping terisolasi. Jika ping ini sukses, status langsung dipulihkan ke <code>up</code>.</li>
+        <li><strong>REST Client Tanpa Dependensi</strong>: Menggunakan <code>urllib.request</code> bawaan untuk mengirim JSON payload ke endpoint model <code>gemini-1.5-flash</code> Google API, menghindari pembengkakan <code>requirements.txt</code>.</li>
+        <li><strong>Korelasi Alert Spikes</strong>: Logika deteksi menghitung alert bersamaan dalam rentang waktu 15 detik terakhir. Jika ada lonjakan kegagalan multi-perangkat, heuristik menyimpulkan adanya kemacetan port/switch WSL virtual daripada kematian perangkat fisik.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.3 Peningkatan TUI (Terminal User Interface) Interaktif</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>tui.py</code>, <code>app.py</code>, <code>database.py</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li>Mengimplementasikan rendering grafis berbasis karakter ANSI pada terminal menggunakan pustaka bawaan <code>curses</code>.</li>
+        <li>Membuat grafik lalu lintas RX/TX real-time terpisah menggunakan karakter <em>half-block</em> Unicode (<code>▄</code> dan <code>▀</code>) untuk menampilkan data visual resolusi tinggi dalam kisi-kisi terminal teks.</li>
+        <li>Pemuatan data antrean dan penangkapan data berjalan pada thread latar belakang terpisah untuk mencegah hambatan <em>freeze</em> masukan navigasi keyboard (tombol panah, esc).</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.4 Penanganan Counter Rollover & Traffic Spikes</h3>
+  <ul>
+    <li><strong>Berkas yang Dimodifikasi</strong>: <code>snmp_worker.py</code>, <code>database.py</code></li>
+    <li><strong>Detail Teknis</strong>:
+      <ul>
+        <li>Perangkat jaringan memiliki register counter byte data 32-bit (maksimal ~4.29 GB). Jika lalu lintas tinggi, counter ini akan cepat penuh dan kembali ke 0 (<em>rollover</em>).</li>
+        <li>Logika perhitungan lama melakukan pengurangan langsung yang menghasilkan angka negatif besar atau lonjakan data palsu (spike) hingga belasan Gbps.</li>
+        <li>Saya mengimplementasikan rumus rollover math: <code>traffic = (max_counter - old_value) + new_value</code> jika <code>new_value &lt; old_value</code>.</li>
+        <li>Menambahkan pembersih database mandiri (<code>database_self_healing</code>) untuk membersihkan data spike historis di atas 100 Gbps agar skala grafik kembali normal.</li>
+      </ul>
+    </li>
+  </ul>
+
   <div class="footer">
     <p>NetMon Network Monitoring System &bull; Dokumentasi Internal &bull; Juni - Juli 2026</p>
   </div>
