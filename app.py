@@ -745,6 +745,14 @@ def generate_monthly_report():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/reports/<int:report_id>', methods=['DELETE'])
+def delete_monthly_report(report_id):
+    try:
+        db.delete_monthly_report(report_id)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     return jsonify(db.get_dashboard_stats())

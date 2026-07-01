@@ -687,8 +687,73 @@ class Database:
                 ORDER BY timestamp ASC
             ''').fetchall()
             
+        # AI & Heuristic Anomaly Filtering
+        discard_timestamps = set()
+        candidates = []
+        for r in rows:
+            val = r['val'] or 0.0
+            if val > 5e9:  # Directly skip if > 5 Gbps
+                discard_timestamps.add(r['timestamp'])
+            elif val >= 1e9:  # Candidate for AI analysis (1 to 5 Gbps)
+                candidates.append({
+                    'timestamp': r['timestamp'],
+                    'device_id': r['device_id'],
+                    'metric_name': r['metric_name'],
+                    'value_gbps': round(val / 1e9, 2)
+                })
+
+        if api_key and candidates:
+            try:
+                import urllib.request
+                sub_candidates = candidates[:50]
+                prompt = (
+                    f"Analisis log telemetri traffic jaringan berikut (dalam Gbps) yang berada di rentang 1-5 Gbps.\n"
+                    f"Tentukan timestamp mana saja yang merupakan lonjakan anomali/palsu (spike akibat error SNMP / counter rollover) sehingga harus DIHAPUS dari perhitungan laporan bulanan.\n"
+                    f"Data:\n{json.dumps(sub_candidates, indent=2)}\n\n"
+                    f"Kembalikan respon JSON dalam format persis seperti ini:\n"
+                    f'{{"discard_timestamps": ["YYYY-MM-DD HH:MM:SS", ...]}}'
+                )
+                
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a network traffic analyst. Respond ONLY with a raw JSON object containing \"discard_timestamps\" as a list of strings."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    "temperature": 0.1
+                }
+                
+                req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    res_data = json.loads(response.read().decode('utf-8'))
+                    text_resp = res_data['choices'][0]['message']['content'].strip()
+                    ai_res = json.loads(text_resp)
+                    for ts in ai_res.get('discard_timestamps', []):
+                        discard_timestamps.add(ts)
+            except Exception as e:
+                print(f"[AI Report Filter] Groq API call failed: {e}")
+                # Fallback local heuristic: discard any candidate > 3 Gbps
+                for cnd in candidates:
+                    if cnd['value_gbps'] > 3.0:
+                        discard_timestamps.add(cnd['timestamp'])
+
         device_data = defaultdict(lambda: {'wan_in': [], 'wan_out': []})
         for r in rows:
+            if r['timestamp'] in discard_timestamps:
+                continue
             did = r['device_id']
             mname = r['metric_name']
             ts_str = r['timestamp']
@@ -803,3 +868,7 @@ class Database:
         with self.conn() as c:
             rows = c.execute('SELECT * FROM monthly_reports ORDER BY report_month DESC').fetchall()
             return [dict(r) for r in rows]
+
+    def delete_monthly_report(self, report_id):
+        with self.conn() as c:
+            c.execute('DELETE FROM monthly_reports WHERE id = ?', (report_id,))

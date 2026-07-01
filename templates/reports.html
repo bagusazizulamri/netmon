@@ -185,6 +185,14 @@ function loadReportsList() {
     .catch(err => console.error("Error fetching monthly reports list:", err));
 }
 
+const formatMbps = (mbps) => {
+  if (mbps === null || mbps === undefined || isNaN(mbps)) return '0 Mbps';
+  if (mbps >= 1000) {
+    return `${(mbps / 1000).toFixed(2)} Gbps`;
+  }
+  return `${mbps} Mbps`;
+};
+
 function renderReportsList() {
   const container = document.getElementById('reports-list');
   if (currentMonthReports.length === 0) {
@@ -207,13 +215,15 @@ function renderReportsList() {
     const monthTitle = `${monthsName[parseInt(month) - 1]} ${year}`;
 
     return `
-      <a href="#" class="list-group-item list-group-item-action border-0 p-3 rounded mb-1 d-flex justify-content-between align-items-center ${isActive ? 'bg-primary text-white' : 'bg-hover'}" onclick="selectReport(${r.id}); return false;">
+      <div class="list-group-item border-0 p-3 rounded mb-1 d-flex justify-content-between align-items-center ${isActive ? 'bg-primary text-white' : 'bg-hover'}" style="cursor: pointer;" onclick="selectReport(${r.id})">
         <div>
           <div class="fw-600 text-sm ${isActive ? 'text-white' : 'text-primary'}">${monthTitle}</div>
           <div class="text-xs mt-0.5 ${isActive ? 'text-light' : 'text-muted'}">Dibuat: ${dateStr}</div>
         </div>
-        <i class="bi bi-chevron-right text-xs"></i>
-      </a>
+        <button class="btn btn-sm btn-link p-1 text-danger border-0" onclick="deleteReport(${r.id}, '${monthTitle}', event)" title="Hapus Laporan" style="background:transparent; line-height: 1;">
+          <i class="bi bi-trash3-fill" style="font-size: 13px;"></i>
+        </button>
+      </div>
     `;
   }).join('');
 }
@@ -245,8 +255,8 @@ function selectReport(id) {
   // Render Backbone KPI values
   document.getElementById('bb-total-rx').textContent = `${data.backbone.total_in_gb.toLocaleString('id-ID')} GB`;
   document.getElementById('bb-total-tx').textContent = `${data.backbone.total_out_gb.toLocaleString('id-ID')} GB`;
-  document.getElementById('bb-avg-rates').innerHTML = `<i class="bi bi-arrow-down text-success me-1"></i>${data.backbone.avg_in_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span> <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${data.backbone.avg_out_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span>`;
-  document.getElementById('bb-peak-rates').innerHTML = `<i class="bi bi-arrow-down text-warning me-1"></i>${data.backbone.peak_in_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span> <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${data.backbone.peak_out_mbps} <span class="text-muted fw-400" style="font-size:11px;">Mbps</span>`;
+  document.getElementById('bb-avg-rates').innerHTML = `<i class="bi bi-arrow-down text-success me-1"></i>${formatMbps(data.backbone.avg_in_mbps)} <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${formatMbps(data.backbone.avg_out_mbps)}`;
+  document.getElementById('bb-peak-rates').innerHTML = `<i class="bi bi-arrow-down text-warning me-1"></i>${formatMbps(data.backbone.peak_in_mbps)} <i class="bi bi-arrow-up text-primary ms-2 me-1"></i>${formatMbps(data.backbone.peak_out_mbps)}`;
 
   // Render routers rows
   const tbody = document.getElementById('router-uplink-rows');
@@ -265,12 +275,12 @@ function selectReport(id) {
         <td style="padding: 12px; font-weight: 500;">${router.total_rx_gb.toLocaleString('id-ID')} GB</td>
         <td style="padding: 12px; font-weight: 500;">${router.total_tx_gb.toLocaleString('id-ID')} GB</td>
         <td style="padding: 12px; text-align: center;">
-          <span class="text-success"><i class="bi bi-arrow-down me-0.5"></i>${router.avg_rx_mbps} Mbps</span>
-          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${router.avg_tx_mbps} Mbps</span>
+          <span class="text-success"><i class="bi bi-arrow-down me-0.5"></i>${formatMbps(router.avg_rx_mbps)}</span>
+          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${formatMbps(router.avg_tx_mbps)}</span>
         </td>
         <td style="padding: 12px; text-align: center;">
-          <span class="text-warning"><i class="bi bi-arrow-down me-0.5"></i>${router.peak_rx_mbps} Mbps</span>
-          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${router.peak_tx_mbps} Mbps</span>
+          <span class="text-warning"><i class="bi bi-arrow-down me-0.5"></i>${formatMbps(router.peak_rx_mbps)}</span>
+          <span class="text-primary ms-2"><i class="bi bi-arrow-up me-0.5"></i>${formatMbps(router.peak_tx_mbps)}</span>
         </td>
       </tr>
     `;
@@ -311,6 +321,33 @@ function generateReport() {
 
 function printReport() {
   window.print();
+}
+
+function deleteReport(id, monthTitle, event) {
+  if (event) event.stopPropagation();
+  if (!confirm(`Apakah Anda yakin ingin menghapus Laporan Bulanan ${monthTitle}?`)) return;
+  
+  fetch(`/api/reports/${id}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(res => {
+      if (res.status === 'success') {
+        showToast('Laporan berhasil dihapus!', 'info');
+        if (activeReport && activeReport.id === id) {
+          activeReport = null;
+          document.getElementById('report-empty-state').style.display = 'block';
+          document.getElementById('report-view-panel').style.display = 'none';
+          document.getElementById('print-btn').style.display = 'none';
+          document.getElementById('pdf-btn').style.display = 'none';
+        }
+        loadReportsList();
+      } else {
+        alert("Gagal menghapus laporan: " + res.message);
+      }
+    })
+    .catch(err => {
+      console.error("Error deleting report:", err);
+      alert("Koneksi gagal saat menghapus laporan.");
+    });
 }
 
 function downloadPDF() {
