@@ -1169,6 +1169,9 @@ class SNMPWorker:
         return 'ok'
 
     def _alert(self, device, severity, message):
+        # Skip if alerts are muted for this device
+        if not device.get('alerts_enabled', 1):
+            return
         with self.db_write_lock:
             aid = self.db.add_alert({'device_id':device['id'],
                                       'device_name':device.get('name',device.get('ip','')),

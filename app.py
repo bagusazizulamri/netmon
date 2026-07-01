@@ -116,6 +116,17 @@ def poll_device_now(device_id):
         return jsonify({'status': 'polling'})
     return jsonify({'status': 'error', 'message': 'Device not found'}), 404
 
+@app.route('/api/devices/<int:device_id>/toggle_alerts', methods=['POST'])
+def toggle_device_alerts(device_id):
+    device = db.get_device(device_id)
+    if not device:
+        return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+    new_state = 0 if device.get('alerts_enabled', 1) else 1
+    db.update_device(device_id, {'alerts_enabled': new_state})
+    dev = db.get_device(device_id)
+    socketio.emit('device_updated', dev)
+    return jsonify({'status': 'success', 'alerts_enabled': new_state})
+
 @app.route('/api/devices/detect', methods=['POST'])
 def detect_device_info():
     import subprocess

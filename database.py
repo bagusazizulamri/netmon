@@ -66,6 +66,7 @@ class Database:
                     wan_out       REAL DEFAULT NULL,
                     client_count  INTEGER DEFAULT NULL,
                     uplink_speed_mbps INTEGER DEFAULT 1000,
+                    alerts_enabled INTEGER DEFAULT 1,
                     created_at    TEXT DEFAULT (datetime('now')),
                     updated_at    TEXT DEFAULT (datetime('now')),
                     source        TEXT DEFAULT 'manual'
@@ -178,6 +179,7 @@ class Database:
                 'wan_out': "REAL DEFAULT NULL",
                 'client_count': "INTEGER DEFAULT NULL",
                 'uplink_speed_mbps': "INTEGER DEFAULT 1000",
+                'alerts_enabled': "INTEGER DEFAULT 1",
                 'created_at': "TEXT DEFAULT (datetime('now'))",
                 'updated_at': "TEXT DEFAULT (datetime('now'))",
                 'source': "TEXT DEFAULT 'manual'"
@@ -274,8 +276,8 @@ class Database:
                 INSERT INTO devices
                     (name, ip, mac, type, vendor, model, zone_id,
                      snmp_enabled, snmp_community, snmp_version, snmp_port,
-                     icon, pos_x, pos_y, description, status, source, uplink_speed_mbps)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     icon, pos_x, pos_y, description, status, source, uplink_speed_mbps, alerts_enabled)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 data.get('name') or data.get('ip', 'Unknown'),
                 data.get('ip', ''),
@@ -295,6 +297,7 @@ class Database:
                 data.get('status', 'unknown'),
                 data.get('source', 'manual'),
                 data.get('uplink_speed_mbps', 1000),
+                1 if data.get('alerts_enabled', True) else 0,
             ))
             return cur.lastrowid
 
@@ -304,7 +307,7 @@ class Database:
                    'icon', 'pos_x', 'pos_y', 'description', 'status',
                    'last_seen', 'last_polled', 'uptime', 'sys_name',
                    'cpu_usage', 'memory_usage', 'temperature', 'wan_in', 'wan_out',
-                   'uplink_speed_mbps']
+                   'uplink_speed_mbps', 'alerts_enabled']
         fields, values = [], []
         for f in allowed:
             if f in data:
