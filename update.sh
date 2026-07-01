@@ -73,8 +73,6 @@ if [[ -d "$INSTALL_DIR" ]]; then
     chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
     chmod -R 755 "$INSTALL_DIR"
   fi
-  
-  fi
 else
   # If running in local directory (development or custom setup)
   step "Running in-place local update"
