@@ -193,13 +193,60 @@
   </div>
 </div>
 
+<!-- Incident Detail Modal (macOS Solid Flat UI Style) -->
+<div class="modal fade" id="incidentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content nm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="incidentModalTitle"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Detail Insiden</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="nm-label">Pesan Insiden</label>
+          <div id="inc-message" class="fw-500 text-sm p-2.5 rounded bg-hover" style="border: 1px solid var(--border-lt); font-size:12.5px; line-height:1.45;"></div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-6">
+            <label class="nm-label">IP Perangkat</label>
+            <div id="inc-ip" class="mono-sm font-semibold text-primary" style="font-size:12px;"></div>
+          </div>
+          <div class="col-6">
+            <label class="nm-label">Waktu Kejadian</label>
+            <div id="inc-time" class="mono-sm text-secondary" style="font-size:12px;"></div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Tingkat Keparahan (Severity)</label>
+          <div id="inc-severity"></div>
+        </div>
+        <div class="mb-3">
+          <label class="nm-label">Penyaringan AI & Analisis</label>
+          <div id="inc-ai-status" class="mb-2"></div>
+          <div id="inc-ai-analysis" class="p-3 rounded text-xs bg-accent-dim text-accent d-flex align-items-start gap-2" style="border: 1px solid var(--accent-dim); line-height: 1.45;">
+            <i class="bi bi-robot flex-shrink-0" style="font-size:15px; margin-top:1px;"></i>
+            <span id="inc-ai-analysis-text"></span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-nm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 let throughputChart = null;
+let activeAlertsList = [];
+let incidentModal;
 
 document.addEventListener('DOMContentLoaded', () => {
+  incidentModal = new bootstrap.Modal(document.getElementById('incidentModal'));
+
   // Setup window Socket.IO hooks
   window.onStatsUpdate = (s) => {
     updateKPIs(s);
@@ -321,6 +368,7 @@ function renderActiveIncidents(alerts) {
   const countBadge = document.getElementById('active-incidents-count');
   
   const unackAlerts = (alerts || []).filter(a => !a.acknowledged);
+  activeAlertsList = unackAlerts;
   countBadge.textContent = unackAlerts.length;
   
   if (unackAlerts.length === 0) {
@@ -345,7 +393,7 @@ function renderActiveIncidents(alerts) {
       </div>` : '';
 
     return `
-      <div class="d-flex align-items-start gap-2.5 p-2 rounded mb-1" style="background: var(--bg-hover); border: 1px solid ${isFalseAlarm ? 'rgba(240, 136, 62, 0.2)' : 'var(--border-lt)'};">
+      <div class="d-flex align-items-start gap-2.5 p-2 rounded mb-1" style="cursor: pointer; background: var(--bg-hover); border: 1px solid ${isFalseAlarm ? 'rgba(240, 136, 62, 0.2)' : 'var(--border-lt)'};" onclick="showIncidentDetail(${a.id})">
         <i class="bi ${sevIcon} ${sevClass} mt-0.5 flex-shrink-0" style="font-size:13px;"></i>
         <div class="flex-grow-1 min-w-0">
           <div class="fw-500 text-primary text-truncate-2" style="font-size: 12px; line-height: 1.4;">
@@ -360,6 +408,50 @@ function renderActiveIncidents(alerts) {
       </div>
     `;
   }).join('');
+}
+
+function showIncidentDetail(id) {
+  const alert = activeAlertsList.find(a => a.id === id);
+  if (!alert) return;
+  
+  document.getElementById('inc-message').textContent = alert.message || '';
+  document.getElementById('inc-ip').textContent = alert.device_ip || 'Unknown';
+  
+  let formattedTime = 'Unknown';
+  if (alert.created_at) {
+    try {
+      formattedTime = new Date(alert.created_at).toLocaleString('id-ID');
+    } catch(e) {
+      formattedTime = alert.created_at;
+    }
+  }
+  document.getElementById('inc-time').textContent = formattedTime;
+  
+  // Severity pill
+  const sevEl = document.getElementById('inc-severity');
+  const sevClass = alert.severity === 'critical' ? 'bg-danger text-white' : (alert.severity === 'warning' ? 'bg-warning text-dark' : 'bg-primary text-white');
+  const sevLabel = alert.severity === 'critical' ? 'CRITICAL' : (alert.severity === 'warning' ? 'WARNING' : 'INFO');
+  sevEl.innerHTML = `<span class="badge ${sevClass}" style="font-size: 10px; padding: 4px 8px; font-weight:600; border-radius: 4px;">${sevLabel}</span>`;
+  
+  // AI status & analysis
+  const aiStatusEl = document.getElementById('inc-ai-status');
+  const aiAnalysisBox = document.getElementById('inc-ai-analysis');
+  const aiAnalysisText = document.getElementById('inc-ai-analysis-text');
+  
+  if (alert.is_false_alarm === 1) {
+    aiStatusEl.innerHTML = `<span class="status-dot warning"><i class="bi bi-exclamation-triangle-fill"></i>Terdeteksi False Warning</span>`;
+  } else {
+    aiStatusEl.innerHTML = `<span class="status-dot up"><i class="bi bi-shield-check"></i>Valid Alarm (Aktif)</span>`;
+  }
+  
+  if (alert.ai_analysis) {
+    aiAnalysisBox.style.display = 'flex';
+    aiAnalysisText.textContent = alert.ai_analysis;
+  } else {
+    aiAnalysisBox.style.display = 'none';
+  }
+  
+  incidentModal.show();
 }
 
 function renderTopTalkers(devices) {

@@ -29,6 +29,18 @@ def _ping_device(ip):
     except Exception:
         return False
 
+def _snmp_ping(ip, community='public', version='2c'):
+    if not ip:
+        return False
+    try:
+        from puresnmp import Client, V2C, V1
+        ver = V2C if version == '2c' else V1
+        client = Client(ip, community, port=161, version=ver, timeout=1.0, retries=0)
+        res = client.get('1.3.6.1.2.1.1.2.0')
+        return res is not None
+    except Exception:
+        return False
+
 def analyze_alert(db, socketio, alert_id):
     # Run analysis in a background thread to prevent blocking Flask
     def _run():
@@ -87,7 +99,12 @@ def _analyze(db, socketio, alert_id):
         if currently_pingable:
             is_false = 1
             if "snmp" in alert_msg_lower:
-                explanation = "False Warning: Perangkat aktif via Ping, query SNMP mengalami timeout (kemungkinan beban CPU atau WSL socket drops)."
+                # Proactively verify if SNMP works now
+                snmp_works = _snmp_ping(device.get('ip'), device.get('snmp_community', 'public'), device.get('snmp_version', '2c'))
+                if snmp_works:
+                    explanation = "False Warning: Query SNMP berhasil pulih saat dites ulang. Koneksi perangkat ke SNMP server stabil."
+                else:
+                    explanation = "False Warning: Perangkat aktif via Ping, query SNMP mengalami timeout (kemungkinan beban CPU atau WSL socket drops)."
             else:
                 explanation = "False Warning: Perangkat merespon Ping saat dites ulang. Gangguan sebelumnya bersifat sementara (transient packet loss)."
         
