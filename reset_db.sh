@@ -64,10 +64,12 @@ try:
     c.execute('DELETE FROM access_logs')
     c.execute('DELETE FROM monthly_reports')
     
-    # Reclaim unused disk space
+    conn.commit()  # Selesaikan transaksi delete terlebih dahulu
+    
+    # Jalankan VACUUM di luar transaksi aktif (Autocommit mode)
+    conn.isolation_level = None
     c.execute('VACUUM')
     
-    conn.commit()
     conn.close()
     print("SUCCESS")
 except Exception as e:
