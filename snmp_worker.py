@@ -581,20 +581,56 @@ class SNMPWorker:
         elif snmp_en:
             # ── SNMP enabled but SNMP FAILED: check ping, mark SNMP as broken ──
             is_alive = self._ping(ip)
-            with self.db_write_lock:
-                if is_alive:
-                    # Device reachable via ping but SNMP is not responding. Keep existing metrics.
+            
+            # Jika terdeteksi offline (ping gagal), lakukan prosedur verifikasi ganda sebelum alarm dilempar
+            if not is_alive:
+                import time
+                print(f"[Verification] {ip} seems offline via SNMP and Ping. Retrying SNMP poll...")
+                time.sleep(2.0)
+                verify_snmp = self._get(ip, community, [OID['sysDescr'], '1.3.6.1.2.1.1.2.0'], port, version)
+                if verify_snmp:
+                    print(f"[Verification] SNMP responded on retry for {ip}. Keeping device UP.")
+                    result = verify_snmp
+                    upd = {'status': 'up', 'last_polled': now}
+                    if old_st == 'down':
+                        upd['last_seen'] = now
+                        self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE")
+                    self.db.update_device(did, upd)
+                    is_alive = True
+                else:
+                    # SNMP still offline, do robust ping procedure (3 retry pings)
+                    print(f"[Verification] SNMP still offline on {ip}. Executing ping procedure...")
+                    ping_ok = False
+                    for attempt in range(3):
+                        time.sleep(1.0)
+                        if self._ping(ip):
+                            ping_ok = True
+                            break
+                    if ping_ok:
+                        print(f"[Verification] Ping procedure succeeded on attempt {attempt+1} for {ip}. Device is alive.")
+                        is_alive = True
+                    else:
+                        print(f"[Verification] Ping procedure failed. {ip} is confirmed OFFLINE.")
+                        is_alive = False
+
+            if is_alive:
+                # Device reachable via ping but SNMP is not responding (or revived above). Keep existing metrics.
+                with self.db_write_lock:
                     upd = {'status': 'up', 'last_polled': now}
                     if old_st == 'down':
                         upd['last_seen'] = now
                         self._alert(device, 'info', f"{device.get('name',ip)} ({ip}) is back ONLINE (ping only)")
                     elif old_st == 'unknown':
                         upd['last_seen'] = now
-                    self._alert(device, 'warning',
-                                f"SNMP unreachable on {device.get('name',ip)} ({ip}) — check community/config")
+                    # Only alert if SNMP was the one that actually failed (we didn't revive SNMP in verify block)
+                    if not result:
+                        self._alert(device, 'warning',
+                                    f"SNMP unreachable on {device.get('name',ip)} ({ip}) — check community/config")
                     print(f"[SNMP] FAILED for {ip} — device alive via ping but SNMP not responding")
                     self.db.update_device(did, upd)
-                else:
+            else:
+                # Genuinely offline -> lempar notifikasi perangkat offline ke dashboard
+                with self.db_write_lock:
                     self.db.update_device(did, {'status':'down','last_polled':now,
                                                  'cpu_usage': None, 'memory_usage': None, 'temperature': None})
                     if old_st != 'down':
@@ -607,15 +643,28 @@ class SNMPWorker:
             # ── SNMP not enabled: ping-only check ──
             is_alive = self._ping(ip)
             if not is_alive:
-                # Jika offline via ping, lakukan polling SNMP sebelum melempar alert
-                snmp_check = self._get(ip, community, [OID['sysDescr']], port, '2c')
+                # Sebelum melempar notifikasi offline, lakukan polling SNMP ke perangkat
+                print(f"[Verification Ping-Only] {ip} offline via ping. Polling SNMP...")
+                snmp_check = self._get(ip, community, [OID['sysObjectID']], port, '2c')
                 if snmp_check:
+                    print(f"[Verification Ping-Only] {ip} responded to SNMP query. Mark as UP.")
                     is_alive = True
                 else:
-                    # Jika masih offline, lakukan prosedur ping ulang
-                    import time
-                    time.sleep(1.0)
-                    is_alive = self._ping(ip)
+                    # Jika masih offline, lakukan prosedur ping ulang dengan 3 kali percobaan
+                    print(f"[Verification Ping-Only] SNMP failed on {ip}. Executing ping procedure...")
+                    ping_ok = False
+                    for attempt in range(3):
+                        import time
+                        time.sleep(1.0)
+                        if self._ping(ip):
+                            ping_ok = True
+                            break
+                    if ping_ok:
+                        print(f"[Verification Ping-Only] Ping procedure succeeded on attempt {attempt+1} for {ip}.")
+                        is_alive = True
+                    else:
+                        print(f"[Verification Ping-Only] Ping procedure failed. {ip} is confirmed OFFLINE.")
+                        is_alive = False
                     
             with self.db_write_lock:
                 if is_alive:
