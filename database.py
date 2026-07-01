@@ -630,7 +630,7 @@ class Database:
     # DASHBOARD STATS
     # ============================================================
 
-        def get_dashboard_stats(self):
+    def get_dashboard_stats(self):
         with self.conn() as c:
             total    = c.execute('SELECT COUNT(*) FROM devices').fetchone()[0]
             up       = c.execute("SELECT COUNT(*) FROM devices WHERE status='up'").fetchone()[0]
