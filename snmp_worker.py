@@ -1163,35 +1163,58 @@ class SNMPWorker:
 
         # 3. Auto-detect physical interface uplink speed
         try:
-            speed_oids = [
-                f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}", # ifHighSpeed (in Mbps)
-                f"1.3.6.1.2.1.2.2.1.5.{target_idx}"      # ifSpeed (in bps)
-            ]
-            speed_res = self._get(ip, community, speed_oids, port, version)
-            if speed_res:
-                high_speed = speed_res.get(f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}")
-                low_speed = speed_res.get(f"1.3.6.1.2.1.2.2.1.5.{target_idx}")
-                detected_speed_mbps = None
+            # Pindai seluruh nama, status, dan kecepatan interface aktif
+            if_names = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.2', port, version)
+            if_statuses = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.8', port, version)
+            if_high_speeds = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port, version) # ifHighSpeed (Mbps)
+            if_low_speeds = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port, version)     # ifSpeed (bps)
+            
+            max_detected_speed = 0
+            
+            if if_names and if_statuses:
+                for oid, name in if_names.items():
+                    idx = oid.split('.')[-1]
+                    status = str(if_statuses.get(f"1.3.6.1.2.1.2.2.1.8.{idx}", ""))
+                    if status == '1': # Hanya interface aktif (OperStatus UP)
+                        name_lower = str(name).lower()
+                        
+                        # Kecualikan port virtual/tunnel/loopback/bridge yang melaporkan kecepatan palsu
+                        if any(x in name_lower for x in ('loopback', 'lo0', 'lo ', 'bridge', 'br-', 'tunnel', 'tun', 'tap', 'gre', 'l2tp', 'ovpn', 'sstp', 'wg', 'vlan', 'docker', 'pppoe')):
+                            continue
+                            
+                        # Dapatkan kecepatan link
+                        h_speed = if_high_speeds.get(f"1.3.6.1.2.1.31.1.1.1.15.{idx}")
+                        l_speed = if_low_speeds.get(f"1.3.6.1.2.1.2.2.1.5.{idx}")
+                        
+                        speed_mbps = 0
+                        if h_speed is not None:
+                            try: speed_mbps = int(h_speed)
+                            except: pass
+                        elif l_speed is not None:
+                            try: speed_mbps = int(l_speed) // 1000000
+                            except: pass
+                            
+                        if speed_mbps > max_detected_speed:
+                            max_detected_speed = speed_mbps
+            
+            if max_detected_speed > 0:
+                # Bulatkan ke standar kecepatan fisik umum (100M, 1G, 2.5G, 5G, 10G, 25G, 40G, 100G)
+                standard_speeds = [100, 1000, 2500, 5000, 10000, 25000, 40000, 100000]
+                closest_speed = min(standard_speeds, key=lambda x: abs(x - max_detected_speed))
                 
-                if high_speed is not None:
-                    try:
-                        detected_speed_mbps = int(high_speed)
-                    except:
-                        pass
-                elif low_speed is not None:
-                    try:
-                        detected_speed_mbps = int(low_speed) // 1000000
-                    except:
-                        pass
-                
-                if detected_speed_mbps and detected_speed_mbps > 0:
-                    with self.db_write_lock:
-                        cur_dev = self.db.get_device(did)
-                        if cur_dev and cur_dev.get('uplink_speed_mbps') != detected_speed_mbps:
-                            self.db.update_device(did, {'uplink_speed_mbps': detected_speed_mbps})
-                            print(f"[Speed Auto-Detect] Updated {cur_dev.get('name', ip)} uplink speed to {detected_speed_mbps} Mbps")
+                # Toleransi pembulatan 20%
+                if abs(closest_speed - max_detected_speed) / closest_speed <= 0.2:
+                    final_speed = closest_speed
+                else:
+                    final_speed = max_detected_speed
+
+                with self.db_write_lock:
+                    cur_dev = self.db.get_device(did)
+                    if cur_dev and cur_dev.get('uplink_speed_mbps') != final_speed:
+                        self.db.update_device(did, {'uplink_speed_mbps': final_speed})
+                        print(f"[Speed Auto-Detect] Updated {cur_dev.get('name', ip)} uplink capacity to {final_speed} Mbps (raw max: {max_detected_speed} Mbps)")
         except Exception as se:
-            print(f"[Speed Auto-Detect] Error querying interface speed OIDs: {se}")
+            print(f"[Speed Auto-Detect] Error scanning active physical interface speeds: {se}")
             
         try:
             in_octets = None
