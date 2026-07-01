@@ -65,6 +65,7 @@ class Database:
                     temperature   REAL DEFAULT NULL,
                     wan_out       REAL DEFAULT NULL,
                     client_count  INTEGER DEFAULT NULL,
+                    uplink_speed_mbps INTEGER DEFAULT 1000,
                     created_at    TEXT DEFAULT (datetime('now')),
                     updated_at    TEXT DEFAULT (datetime('now')),
                     source        TEXT DEFAULT 'manual'
@@ -176,6 +177,7 @@ class Database:
                 'wan_in': "REAL DEFAULT NULL",
                 'wan_out': "REAL DEFAULT NULL",
                 'client_count': "INTEGER DEFAULT NULL",
+                'uplink_speed_mbps': "INTEGER DEFAULT 1000",
                 'created_at': "TEXT DEFAULT (datetime('now'))",
                 'updated_at': "TEXT DEFAULT (datetime('now'))",
                 'source': "TEXT DEFAULT 'manual'"
@@ -272,8 +274,8 @@ class Database:
                 INSERT INTO devices
                     (name, ip, mac, type, vendor, model, zone_id,
                      snmp_enabled, snmp_community, snmp_version, snmp_port,
-                     icon, pos_x, pos_y, description, status, source)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     icon, pos_x, pos_y, description, status, source, uplink_speed_mbps)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 data.get('name') or data.get('ip', 'Unknown'),
                 data.get('ip', ''),
@@ -292,6 +294,7 @@ class Database:
                 data.get('description', ''),
                 data.get('status', 'unknown'),
                 data.get('source', 'manual'),
+                data.get('uplink_speed_mbps', 1000),
             ))
             return cur.lastrowid
 
@@ -300,7 +303,8 @@ class Database:
                    'snmp_enabled', 'snmp_community', 'snmp_version', 'snmp_port',
                    'icon', 'pos_x', 'pos_y', 'description', 'status',
                    'last_seen', 'last_polled', 'uptime', 'sys_name',
-                   'cpu_usage', 'memory_usage', 'temperature', 'wan_in', 'wan_out']
+                   'cpu_usage', 'memory_usage', 'temperature', 'wan_in', 'wan_out',
+                   'uplink_speed_mbps']
         fields, values = [], []
         for f in allowed:
             if f in data:
@@ -657,7 +661,7 @@ class Database:
         api_key = settings.get('groq_api_key', '')
 
         with self.conn() as c:
-            rows = c.execute("SELECT id, name, ip FROM devices WHERE type = 'router'").fetchall()
+            rows = c.execute("SELECT id, name, ip, uplink_speed_mbps FROM devices WHERE type = 'router'").fetchall()
             routers = [dict(r) for r in rows]
             
         report = {
@@ -690,19 +694,31 @@ class Database:
                 ORDER BY timestamp ASC
             ''').fetchall()
             
-        # AI & Heuristic Anomaly Filtering
+        # AI & Heuristic Anomaly Filtering (per-device based on uplink speed)
+        # Build lookup: device_id -> uplink_speed in bps
+        device_uplink_bps = {}
+        for router in routers:
+            speed_mbps = router.get('uplink_speed_mbps') or 1000
+            device_uplink_bps[router['id']] = speed_mbps * 1e6  # convert to bps
+
         discard_timestamps = set()
         candidates = []
         for r in rows:
             val = r['val'] or 0.0
-            if val > 5e9:  # Directly skip if > 5 Gbps
+            did = r['device_id']
+            uplink_bps = device_uplink_bps.get(did, 1e9)  # default 1 Gbps
+
+            # Hard cap: anything exceeding the device uplink capacity is anomalous
+            if val > uplink_bps:
                 discard_timestamps.add(r['timestamp'])
-            elif val >= 1e9:  # Candidate for AI analysis (1 to 5 Gbps)
+            # Candidate zone: values in the top 50% of link capacity need AI review
+            elif val >= uplink_bps * 0.5:
                 candidates.append({
                     'timestamp': r['timestamp'],
-                    'device_id': r['device_id'],
+                    'device_id': did,
                     'metric_name': r['metric_name'],
-                    'value_gbps': round(val / 1e9, 2)
+                    'value_gbps': round(val / 1e9, 2),
+                    'uplink_gbps': round(uplink_bps / 1e9, 2)
                 })
 
         if api_key and candidates:
@@ -710,13 +726,15 @@ class Database:
                 import urllib.request
                 sub_candidates = candidates[:50]
                 prompt = (
-                    f"Analisis log telemetri traffic jaringan berikut (dalam Gbps) yang berada di rentang 1-5 Gbps.\n"
-                    f"Tentukan timestamp mana saja yang merupakan lonjakan anomali/palsu (spike akibat error SNMP / counter rollover) sehingga harus DIHAPUS dari perhitungan laporan bulanan.\n"
+                    f"Analisis log telemetri traffic jaringan berikut.\n"
+                    f"Setiap record memiliki 'value_gbps' (throughput tercatat) dan 'uplink_gbps' (kapasitas uplink fisik perangkat).\n"
+                    f"Tentukan timestamp mana yang merupakan lonjakan anomali/palsu (spike akibat error SNMP / counter rollover) sehingga harus DIHAPUS.\n"
+                    f"Traffic yang wajar dan di bawah kapasitas uplink JANGAN dihapus.\n"
                     f"Data:\n{json.dumps(sub_candidates, indent=2)}\n\n"
                     f"Kembalikan respon JSON dalam format persis seperti ini:\n"
                     f'{{"discard_timestamps": ["YYYY-MM-DD HH:MM:SS", ...]}}'
                 )
-                
+
                 url = "https://api.groq.com/openai/v1/chat/completions"
                 headers = {
                     "Content-Type": "application/json",
@@ -738,7 +756,7 @@ class Database:
                     ],
                     "temperature": 0.1
                 }
-                
+
                 req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
                 with urllib.request.urlopen(req, timeout=8) as response:
                     res_data = json.loads(response.read().decode('utf-8'))
@@ -748,9 +766,9 @@ class Database:
                         discard_timestamps.add(ts)
             except Exception as e:
                 print(f"[AI Report Filter] Groq API call failed: {e}")
-                # Fallback local heuristic: discard any candidate > 3 Gbps
+                # Fallback: discard candidates exceeding 80% of uplink capacity
                 for cnd in candidates:
-                    if cnd['value_gbps'] > 3.0:
+                    if cnd['value_gbps'] > cnd['uplink_gbps'] * 0.8:
                         discard_timestamps.add(cnd['timestamp'])
 
         device_data = defaultdict(lambda: {'wan_in': [], 'wan_out': []})
@@ -761,7 +779,7 @@ class Database:
             mname = r['metric_name']
             ts_str = r['timestamp']
             val = r['val'] or 0.0
-            
+
             try:
                 ts = datetime.fromisoformat(ts_str.replace(' ', 'T'))
             except Exception:

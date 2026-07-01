@@ -155,6 +155,20 @@
             <label class="nm-label">SNMP Port</label>
             <input type="number" class="nm-input" id="dev-port" value="161">
           </div>
+          <div class="col-md-3">
+            <label class="nm-label">Uplink Speed</label>
+            <select class="nm-select w-100" id="dev-uplink-speed">
+              <option value="100">100 Mbps</option>
+              <option value="1000" selected>1 Gbps</option>
+              <option value="2500">2.5 Gbps</option>
+              <option value="5000">5 Gbps</option>
+              <option value="10000">10 Gbps</option>
+              <option value="25000">25 Gbps</option>
+              <option value="40000">40 Gbps</option>
+              <option value="100000">100 Gbps</option>
+            </select>
+            <small class="text-muted">Kapasitas fisik interface uplink/WAN</small>
+          </div>
           <div class="col-12">
             <label class="nm-label">Description / Notes</label>
             <textarea class="nm-input" id="dev-desc" rows="2" placeholder="Optional notes"></textarea>
@@ -504,6 +518,7 @@ function openDeviceModal(device = null) {
   document.getElementById('dev-community').value = device?.snmp_community || 'public';
   document.getElementById('dev-version').value  = device?.snmp_version || '2c';
   document.getElementById('dev-port').value     = device?.snmp_port || 161;
+  document.getElementById('dev-uplink-speed').value = device?.uplink_speed_mbps || 1000;
   document.getElementById('dev-desc').value     = device?.description || '';
   devModal.show();
 }
@@ -530,6 +545,7 @@ function saveDevice() {
     snmp_community: document.getElementById('dev-community').value.trim(),
     snmp_version:   document.getElementById('dev-version').value,
     snmp_port:      parseInt(document.getElementById('dev-port').value) || 161,
+    uplink_speed_mbps: parseInt(document.getElementById('dev-uplink-speed').value) || 1000,
     description:    document.getElementById('dev-desc').value.trim(),
   };
   const url    = id ? `/api/devices/${id}` : '/api/devices';
