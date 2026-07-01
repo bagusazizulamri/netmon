@@ -206,7 +206,7 @@
             <li><strong>Floor Plan Aspect Ratio</strong>: Auto-fit viewport canvas dan penggambaran denah sesuai dimensi asli gambar untuk mencegah distorsi koordinat.</li>
             <li><strong>7-Day Telemetry Retention</strong>: Penyimpanan data traffic 7 hari lengkap dengan filter visual jangka waktu (1h, 24h, 3d, 7d).</li>
             <li><strong>Floor Plan CPU Optimizations</strong>: Penggambaran berbasis event (<code>requestDraw()</code>) dan penggantian software <code>shadowBlur</code> dengan riak radar akselerasi GPU.</li>
-            <li><strong>AI False Warning Detector</strong>: Integrasi Gemini 1.5 Flash dan heuristik lokal untuk menyaring alarm palsu secara asinkron, dengan uji ping proaktif dan pemulihan otomatis status perangkat ke <code>up</code>.</li>
+            <li><strong>AI False Warning Detector</strong>: Integrasi Groq (llama-3.3-70b-versatile) dan heuristik lokal untuk menyaring alarm palsu secara asinkron, dengan uji ping proaktif dan pemulihan otomatis status perangkat ke <code>up</code>.</li>
             <li><strong>macOS Flat UI Redesign</strong>: Desain antarmuka baru macOS Flat UI dengan font SF Pro, sidebar kapsul transparan blur, halo pendar fokus, dan mikro-animasi tekan tombol.</li>
           </ul>
         </td>
@@ -226,7 +226,7 @@
         <li>Memeriksa Flapping: jika ada >= 2 alert sejenis dalam 15 menit terakhir, ditandai sebagai *Koneksi Flapping/Jitter*.</li>
       </ul>
     </li>
-    <li>Jika Google Gemini API Key tersedia, prompt komprehensif dikirim ke Gemini 1.5 Flash untuk mengevaluasi data jaringan secara holistik.</li>
+    <li>Jika Groq API Key tersedia, prompt komprehensif dikirim ke Groq (Llama-3.3-70b-versatile) untuk mengevaluasi data jaringan secara holistik.</li>
     <li>Jika status terkonfirmasi sebagai <strong>False Warning</strong>:
       <ul>
         <li>Update kolom <code>is_false_alarm = 1</code> dan tulis alasan AI di tabel <code>alerts</code>.</li>
@@ -241,7 +241,7 @@
     <li><code>app.py</code>: Mengatur rute API REST, memancarkan event Socket.IO, dan mengelola scheduler background.</li>
     <li><code>database.py</code>: Berisi skema database SQLite, logika migrasi otomatis kolom tabel, pencatatan deret waktu, dan kunci penulisan konkuren.</li>
     <li><code>snmp_worker.py</code>: Berisi mesin polling SNMP walk asinkron, rollover counter, dan log pings.</li>
-    <li><code>ai_detector.py</code>: Berisi modul pendeteksi alarm palsu AI (integrasi REST API Gemini via urllib & aturan heuristik).</li>
+    <li><code>ai_detector.py</code>: Berisi modul pendeteksi alarm palsu AI (integrasi REST API Groq via urllib & aturan heuristik).</li>
     <li><code>unifi_client.py</code>: Berisi handler API UniFi Controller dan parsing data station klien.</li>
   </ul>
 
@@ -258,10 +258,10 @@
 
   <h2>5. Panduan Konfigurasi AI False Warning Detector</h2>
   <ol>
-    <li>Navigasi ke <strong>Google AI Studio</strong> dan buat API Key gratis untuk model Gemini.</li>
+    <li>Navigasi ke <strong>Groq Console</strong> dan buat API Key gratis.</li>
     <li>Buka halaman <strong>Settings</strong> di menu navigasi sidebar kiri NetMon.</li>
-    <li>Masukkan API Key Anda pada kolom input <strong>Google Gemini API Key</strong> di panel *AI False Warning Detector*.</li>
-    <li>Klik tombol <strong>Test Connection</strong>. Sistem akan mengetes koneksi ke server Gemini dan menampilkan respons sukses berwarna hijau.</li>
+    <li>Masukkan API Key Anda pada kolom input <strong>Groq API Key</strong> di panel *AI False Warning Detector*.</li>
+    <li>Klik tombol <strong>Test Connection</strong>. Sistem akan mengetes koneksi ke server Groq dan menampilkan respons sukses berwarna hijau.</li>
     <li>Klik tombol hijau <strong>Save All Settings</strong> di kanan atas untuk menyimpan konfigurasi secara permanen.</li>
   </ol>
 
@@ -290,7 +290,7 @@
     <li><strong>Detail Teknis</strong>:
       <ul>
         <li><strong>Ping Ulang Asinkron</strong>: Saat pemicu alert offline mendeteksi kegagalan, <code>ai_detector.py</code> memanggil thread baru untuk ping terisolasi. Jika ping ini sukses, status langsung dipulihkan ke <code>up</code>.</li>
-        <li><strong>REST Client Tanpa Dependensi</strong>: Menggunakan <code>urllib.request</code> bawaan untuk mengirim JSON payload ke endpoint model <code>gemini-1.5-flash</code> Google API, menghindari pembengkakan <code>requirements.txt</code>.</li>
+        <li><strong>REST Client Tanpa Dependensi</strong>: Menggunakan <code>urllib.request</code> bawaan untuk mengirim JSON payload ke endpoint model <code>llama-3.3-70b-versatile</code> Groq API, menghindari pembengkakan <code>requirements.txt</code>.</li>
         <li><strong>Korelasi Alert Spikes</strong>: Logika deteksi menghitung alert bersamaan dalam rentang waktu 15 detik terakhir. Jika ada lonjakan kegagalan multi-perangkat, heuristik menyimpulkan adanya kemacetan port/switch WSL virtual daripada kematian perangkat fisik.</li>
       </ul>
     </li>

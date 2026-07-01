@@ -197,7 +197,7 @@ class Database:
             # Default settings
             defaults = {
                 'poll_interval': '30',
-                'gemini_api_key': '',
+                'groq_api_key': '',
                 'alert_on_down': 'true',
                 'alert_on_up': 'true',
                 'default_community': 'public',

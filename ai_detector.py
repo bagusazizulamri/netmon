@@ -101,9 +101,9 @@ def _analyze(db, socketio, alert_id):
             is_false = 1
             explanation = f"False Warning: Terdeteksi Flapping ({alert_history_count} kali alert dalam 15 menit). Konektivitas tidak stabil/jitter."
 
-    # 2. Try Google Gemini API if key is configured
+    # 2. Try Groq API if key is configured
     settings = db.get_settings()
-    api_key = settings.get('gemini_api_key', '')
+    api_key = settings.get('groq_api_key', '')
     
     if api_key:
         try:
@@ -131,31 +131,40 @@ def _analyze(db, socketio, alert_id):
                 f"Konteks Sekitar (Zona yang Sama):\n"
                 f"{json.dumps(other_devs, indent=2)}\n\n"
                 f"Tentukan apakah alert ini adalah False Warning. Kembalikan respon JSON dalam format persis seperti ini: "
-                f'{{"is_false_alarm": 0 atau 1, "explanation": "Penjelasan singkat maks 2 kalimat dalam bahasa Indonesia"}}\n'
-                f"PENTING: Jangan sertakan markdown wrapper ```json atau teks lain, kembalikan hanya string JSON mentah."
+                f'{{"is_false_alarm": 0 atau 1, "explanation": "Penjelasan singkat maks 2 kalimat dalam bahasa Indonesia"}}'
             )
             
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-            headers = {"Content-Type": "application/json"}
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
             payload = {
-                "contents": [{
-                    "parts": [{"text": prompt}]
-                }],
-                "generationConfig": {
-                    "responseMimeType": "application/json"
-                }
+                "model": "llama-3.3-70b-versatile",
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a network analysis assistant. Respond ONLY with a raw JSON object containing \"is_false_alarm\" (0 or 1) and \"explanation\" (string in Indonesian, max 2 sentences)."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.2
             }
             
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
             with urllib.request.urlopen(req, timeout=8) as response:
                 res_data = json.loads(response.read().decode('utf-8'))
-                text_resp = res_data['candidates'][0]['content']['parts'][0]['text'].strip()
+                text_resp = res_data['choices'][0]['message']['content'].strip()
                 ai_res = json.loads(text_resp)
                 
                 is_false = int(ai_res.get('is_false_alarm', is_false))
                 explanation = ai_res.get('explanation', explanation)
         except Exception as e:
-            print(f"[AI Detector] Gemini API call failed, fallback to advanced local heuristics: {e}")
+            print(f"[AI Detector] Groq API call failed, fallback to advanced local heuristics: {e}")
             
     # 3. Update database
     with db.conn() as c:

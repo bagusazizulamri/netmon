@@ -647,8 +647,8 @@ def get_settings():
     # Never return password/key in plaintext
     if 'unifi_pass' in s:
         s['unifi_pass'] = '***' if s['unifi_pass'] else ''
-    if 'gemini_api_key' in s:
-        s['gemini_api_key'] = '***' if s['gemini_api_key'] else ''
+    if 'groq_api_key' in s:
+        s['groq_api_key'] = '***' if s['groq_api_key'] else ''
     return jsonify(s)
 
 @app.route('/api/settings', methods=['POST'])
@@ -657,8 +657,8 @@ def save_settings():
     # Don't save masked password/key
     if data.get('unifi_pass') == '***':
         data.pop('unifi_pass')
-    if data.get('gemini_api_key') == '***':
-        data.pop('gemini_api_key')
+    if data.get('groq_api_key') == '***':
+        data.pop('groq_api_key')
     db.save_settings(data)
     if 'poll_interval' in data:
         try:
@@ -668,29 +668,34 @@ def save_settings():
     return jsonify({'status': 'success'})
 
 @app.route('/api/ai/test', methods=['POST'])
-def test_gemini():
+def test_groq():
     import urllib.request
     data = request.json or {}
-    api_key = data.get('gemini_api_key')
+    api_key = data.get('groq_api_key')
     if not api_key or api_key == '***':
         settings = db.get_settings()
-        api_key = settings.get('gemini_api_key', '')
+        api_key = settings.get('groq_api_key', '')
         
     if not api_key:
         return jsonify({'status': 'error', 'message': 'API Key is empty'}), 400
         
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        headers = {"Content-Type": "application/json"}
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
         payload = {
-            "contents": [{
-                "parts": [{"text": "Say 'OK' and nothing else."}]
-            }]
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "user", "content": "Say 'OK' and nothing else."}
+            ],
+            "temperature": 0.2
         }
         req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
         with urllib.request.urlopen(req, timeout=5) as response:
             res_data = json.loads(response.read().decode('utf-8'))
-            text = res_data['candidates'][0]['content']['parts'][0]['text'].strip()
+            text = res_data['choices'][0]['message']['content'].strip()
             return jsonify({'status': 'success', 'message': f"Connected successfully! Response: {text}"})
     except Exception as e:
         return jsonify({'status': 'error', 'message': f"API connection failed: {str(e)}"}), 400
