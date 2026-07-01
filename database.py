@@ -91,6 +91,7 @@ class Database:
                     ack_at         TEXT,
                     is_false_alarm INTEGER DEFAULT 0,
                     ai_analysis    TEXT DEFAULT '',
+                    replica_count  INTEGER DEFAULT 0,
                     created_at     TEXT DEFAULT (datetime('now'))
                 );
 
@@ -188,6 +189,11 @@ class Database:
             if 'ai_analysis' not in alerts_cols:
                 try:
                     c.execute("ALTER TABLE alerts ADD COLUMN ai_analysis TEXT DEFAULT ''")
+                except sqlite3.OperationalError:
+                    pass
+            if 'replica_count' not in alerts_cols:
+                try:
+                    c.execute("ALTER TABLE alerts ADD COLUMN replica_count INTEGER DEFAULT 0")
                 except sqlite3.OperationalError:
                     pass
 
