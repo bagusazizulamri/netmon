@@ -7,9 +7,12 @@
     <h1 class="page-title">Bandwidth & Throughput Reports</h1>
     <p class="page-sub">Analisis penggunaan bandwidth bulanan untuk backbone dan uplink router</p>
   </div>
-  <div class="page-actions">
+  <div class="page-actions d-flex gap-2">
     <button class="btn-nm btn-sm btn-ghost" onclick="printReport()" style="display: none;" id="print-btn">
-      <i class="bi bi-printer-fill me-1"></i>Cetak / PDF
+      <i class="bi bi-printer-fill me-1"></i>Cetak
+    </button>
+    <button class="btn-nm btn-sm btn-success" onclick="downloadPDF()" style="display: none;" id="pdf-btn">
+      <i class="bi bi-file-pdf-fill me-1"></i>Unduh PDF
     </button>
   </div>
 </div>
@@ -158,6 +161,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 let currentMonthReports = [];
 let activeReport = null;
@@ -224,6 +228,7 @@ function selectReport(id) {
   document.getElementById('report-empty-state').style.display = 'none';
   document.getElementById('report-view-panel').style.display = 'block';
   document.getElementById('print-btn').style.display = 'inline-block';
+  document.getElementById('pdf-btn').style.display = 'inline-block';
 
   // Format month title
   const [year, month] = report.report_month.split('-');
@@ -306,6 +311,32 @@ function generateReport() {
 
 function printReport() {
   window.print();
+}
+
+function downloadPDF() {
+  if (!activeReport) return;
+  const element = document.getElementById('printable-area');
+  
+  // Temporary show print-header for PDF generation
+  const printHeader = element.querySelector('.print-header');
+  if (printHeader) printHeader.classList.remove('d-none');
+  
+  // Format file name
+  const [year, month] = activeReport.report_month.split('-');
+  const filename = `NetMon_Laporan_Bandwidth_${year}_${month}.pdf`;
+  
+  const opt = {
+    margin:       0.4,
+    filename:     filename,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, logging: false, useCORS: true },
+    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+  };
+  
+  html2pdf().set(opt).from(element).save().then(() => {
+    // Hide print-header again
+    if (printHeader) printHeader.classList.add('d-none');
+  });
 }
 
 function esc(str) {
