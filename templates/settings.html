@@ -27,6 +27,11 @@
           <small class="text-muted">Min 10s. How often SNMP-enabled devices are queried.</small>
         </div>
         <div class="col-md-6">
+          <label class="nm-label">Traffic Poll Interval (seconds)</label>
+          <input type="number" class="nm-input" id="s-traffic-poll" min="5" max="3600" value="10">
+          <small class="text-muted">Min 5s. How often interface traffic statistics are queried.</small>
+        </div>
+        <div class="col-md-6">
           <label class="nm-label">Default SNMP Community</label>
           <input type="text" class="nm-input" id="s-community" value="public">
         </div>
@@ -239,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function loadSettings() {
   fetch('/api/settings').then(r=>r.json()).then(s => {
     setVal('s-poll',       s.poll_interval || 30);
+    setVal('s-traffic-poll', s.traffic_poll_interval || 10);
     setVal('s-community',  s.default_community || 'public');
     setVal('s-version',    s.default_snmp_version || '2c');
     setVal('s-alert-ret',  s.alert_retention_days || 30);
@@ -268,6 +274,7 @@ function loadAbout() {
 function saveAll() {
   const data = {
     poll_interval:        getVal('s-poll'),
+    traffic_poll_interval: getVal('s-traffic-poll'),
     default_community:    getVal('s-community'),
     default_snmp_version: getVal('s-version'),
     alert_retention_days: getVal('s-alert-ret'),

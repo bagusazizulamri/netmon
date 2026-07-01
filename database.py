@@ -595,14 +595,22 @@ class Database:
                 ''', (device_id, iface_name, f'-{int(hours)}', limit)).fetchall()
             else:
                 rows = c.execute('''
-                    SELECT
-                        strftime('%Y-%m-%dT%H:%M:',sampled_at) ||
-                        (CAST(CAST(strftime('%S',sampled_at) AS INTEGER)/30 AS INTEGER)*30) || 'Z' AS bucket,
-                        SUM(rx_bps), SUM(tx_bps)
-                    FROM interface_traffic
-                    WHERE device_id=?
-                      AND sampled_at >= datetime('now', ? || ' hours')
-                    GROUP BY bucket ORDER BY bucket ASC LIMIT ?
+                    WITH iface_bucket AS (
+                        SELECT
+                            iface_name,
+                            strftime('%Y-%m-%dT%H:%M:', sampled_at) ||
+                            (CAST(CAST(strftime('%S', sampled_at) AS INTEGER)/30 AS INTEGER)*30) || 'Z' AS bucket,
+                            AVG(rx_bps) AS avg_rx,
+                            AVG(tx_bps) AS avg_tx
+                        FROM interface_traffic
+                        WHERE device_id=?
+                          AND sampled_at >= datetime('now', ? || ' hours')
+                        GROUP BY iface_name, bucket
+                    )
+                    SELECT bucket, SUM(avg_rx), SUM(avg_tx)
+                    FROM iface_bucket
+                    GROUP BY bucket
+                    ORDER BY bucket ASC LIMIT ?
                 ''', (device_id, f'-{int(hours)}', limit)).fetchall()
             return [{'ts': r[0], 'rx_bps': r[1], 'tx_bps': r[2]} for r in rows]
 

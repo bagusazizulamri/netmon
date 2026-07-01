@@ -1069,6 +1069,10 @@ class SNMPWorker:
             is_64bit = False
 
         now_ts = time.time()
+        settings = self.db.get_settings()
+        traffic_interval = max(5, int(settings.get('traffic_poll_interval', 10)))
+        logged_gap = False
+
         for oid, name in if_desc.items():
             idx = oid.split('.')[-1]
             if str(name).lower() in ('lo', 'lo0') or 'loopback' in str(name).lower():
@@ -1092,6 +1096,9 @@ class SNMPWorker:
                 dt = now_ts - prev['ts']
                 if dt <= 0:
                     continue
+                if dt > 3 * traffic_interval and not logged_gap:
+                    print(f"[Traffic] Gap polling terdeteksi device_id={did} dt={dt:.1f}s (expected ~{traffic_interval}s)")
+                    logged_gap = True
                 d_rx = rx - prev['rx']
                 d_tx = tx - prev['tx']
                 
@@ -1243,6 +1250,10 @@ class SNMPWorker:
                     return None
                 delta_t = now_ts - last_data["ts"]
                 if delta_t > 0:
+                    settings = self.db.get_settings()
+                    poll_interval = max(10, int(settings.get('poll_interval', 30)))
+                    if delta_t > 3 * poll_interval:
+                        print(f"[Traffic] Gap polling terdeteksi device_id={did} dt={delta_t:.1f}s (expected ~{poll_interval}s)")
                     delta_in = in_octets - last_data["in"]
                     delta_out = out_octets - last_data["out"]
                     

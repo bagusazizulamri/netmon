@@ -676,6 +676,11 @@ def save_settings():
             scheduler.reschedule_job('snmp_poll', trigger='interval', seconds=max(10, int(data['poll_interval'])))
         except Exception:
             pass
+    if 'traffic_poll_interval' in data:
+        try:
+            scheduler.reschedule_job('traffic_poll', trigger='interval', seconds=max(5, int(data['traffic_poll_interval'])))
+        except Exception:
+            pass
     return jsonify({'status': 'success'})
 
 @app.route('/api/ai/test', methods=['POST'])
@@ -823,7 +828,7 @@ def handle_connect():
 # BACKGROUND POLLING
 # ============================================================
 
-def background_poll():
+def poll_device_status():
     # 1. Sync UniFi telemetries if configured
     try:
         settings = db.get_settings()
@@ -880,9 +885,24 @@ def background_poll():
             except Exception as e:
                 print(f"[Poll] Parallel device poll failed: {e}")
 
-    # 3. Kumpulkan traffic per-interface untuk semua device SNMP-enabled in parallel
+def poll_traffic():
+    devices = db.get_all_devices()
+    import platform
+    is_win = platform.system().lower() == 'windows'
+    is_wsl = False
+    if not is_win and os.path.exists('/proc/version'):
+        try:
+            with open('/proc/version', 'r') as f:
+                if 'microsoft' in f.read().lower():
+                    is_wsl = True
+        except:
+            pass
+    is_restricted = is_win or is_wsl
+
+    # Kumpulkan traffic per-interface untuk semua device SNMP-enabled in parallel
     snmp_devices = [d for d in devices if d.get('snmp_enabled')]
     if snmp_devices:
+        from concurrent.futures import ThreadPoolExecutor
         max_traffic_workers = 2 if is_restricted else min(10, len(snmp_devices))
         with ThreadPoolExecutor(max_workers=max_traffic_workers) as executor:
             futures = [executor.submit(snmp_worker.collect_interface_traffic, device) for device in snmp_devices]
@@ -915,7 +935,9 @@ def run_monthly_report_cron():
 if __name__ == '__main__':
     settings = db.get_settings()
     poll_interval = max(10, int(settings.get('poll_interval', 30)))
-    scheduler.add_job(background_poll, 'interval', seconds=poll_interval, id='snmp_poll', max_instances=1)
+    traffic_poll_interval = max(5, int(settings.get('traffic_poll_interval', 10)))
+    scheduler.add_job(poll_device_status, 'interval', seconds=poll_interval, id='snmp_poll', max_instances=1)
+    scheduler.add_job(poll_traffic, 'interval', seconds=traffic_poll_interval, id='traffic_poll', max_instances=1)
     # Automatically generate monthly report at 23:50 on the last day of the month before oldest data prunes
     scheduler.add_job(run_monthly_report_cron, 'cron', day='last', hour=23, minute=50, id='monthly_report_cron')
     scheduler.start()
@@ -923,6 +945,7 @@ if __name__ == '__main__':
     host = os.environ.get('HOST', '0.0.0.0')
     print(f"\n{'='*50}")
     print(f"  NetMon starting → http://{host}:{port}")
-    print(f"  SNMP poll every {poll_interval}s")
+    print(f"  SNMP poll status every {poll_interval}s")
+    print(f"  SNMP poll traffic every {traffic_poll_interval}s")
     print(f"{'='*50}\n")
     socketio.run(app, host=host, port=port, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
