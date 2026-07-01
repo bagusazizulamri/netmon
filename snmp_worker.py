@@ -1068,6 +1068,9 @@ class SNMPWorker:
             hc_out = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.16', port, version, timeout=2)
             is_64bit = False
 
+        if_high_speed = self._walk(ip, community, '1.3.6.1.2.1.31.1.1.1.15', port, version, timeout=2)
+        if_speed = self._walk(ip, community, '1.3.6.1.2.1.2.2.1.5', port, version, timeout=2)
+
         now_ts = time.time()
         settings = self.db.get_settings()
         traffic_interval = max(5, int(settings.get('traffic_poll_interval', 10)))
@@ -1102,30 +1105,61 @@ class SNMPWorker:
                 d_rx = rx - prev['rx']
                 d_tx = tx - prev['tx']
                 
-                # Rollover / Reboot protection
+                # Get link capacity
+                speed_bps = 0
+                if if_high_speed:
+                    h_speed = if_high_speed.get(f"1.3.6.1.2.1.31.1.1.1.15.{idx}") or if_high_speed.get(f"1.3.6.1.31.1.1.1.15.{idx}")
+                    if h_speed is not None:
+                        try:
+                            speed_bps = float(h_speed) * 1e6
+                        except ValueError:
+                            pass
+                if speed_bps == 0 and if_speed:
+                    l_speed = if_speed.get(f"1.3.6.1.2.1.2.2.1.5.{idx}")
+                    if l_speed is not None:
+                        try:
+                            speed_bps = float(l_speed)
+                        except ValueError:
+                            pass
+                
+                limit_bps = speed_bps * 1.05 if speed_bps > 0 else 100e9
+                
+                # Rollover / Reboot protection for 32-bit counters
                 if d_rx < 0:
                     if is_64bit:
                         d_rx = 0
                     else:
-                        if prev['rx'] > 3000000000:
+                        is_short_dt = dt < (2 * traffic_interval)
+                        is_large_negative_delta = (prev['rx'] - rx) > 2**31
+                        if is_short_dt and is_large_negative_delta:
+                            # Rollover asli: counter 32-bit habis
                             d_rx += 2**32
                         else:
+                            # Reboot device atau gap: reset ke 0
                             d_rx = 0
                             
                 if d_tx < 0:
                     if is_64bit:
                         d_tx = 0
                     else:
-                        if prev['tx'] > 3000000000:
+                        is_short_dt = dt < (2 * traffic_interval)
+                        is_large_negative_delta = (prev['tx'] - tx) > 2**31
+                        if is_short_dt and is_large_negative_delta:
                             d_tx += 2**32
                         else:
                             d_tx = 0
                             
                 rx_bps = (d_rx * 8) / dt
                 tx_bps = (d_tx * 8) / dt
-                if rx_bps <= 100e9 and tx_bps <= 100e9:
-                    with self.db_write_lock:
-                        self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
+                
+                if rx_bps > limit_bps or tx_bps > limit_bps:
+                    cap_mbps = (speed_bps / 1e6) if speed_bps > 0 else 100000.0
+                    print(f"[Traffic] Spike terdeteksi pada device_id={did} interface={name} (rx_bps={rx_bps:.1f}, tx_bps={tx_bps:.1f} melebihi kapasitas link {cap_mbps:.1f} Mbps)")
+                    rx_bps = 0.0
+                    tx_bps = 0.0
+                
+                with self.db_write_lock:
+                    self.db.save_interface_traffic(did, str(name), int(idx), rx_bps, tx_bps)
 
     def _poll_router_traffic(self, did, ip, community, port, version):
         # 1. Walk ifDescr and ifOperStatus to find the best WAN interface
@@ -1157,12 +1191,14 @@ class SNMPWorker:
         if not target_idx:
             return None
             
-        # 2. Query ifHCInOctets/ifHCOutOctets (64-bit) first, fallback to ifInOctets/ifOutOctets (32-bit)
+        # 2. Query traffic and link capacity (ifHighSpeed/ifSpeed) in a single request
         traffic = self._get(ip, community, [
             f"1.3.6.1.2.1.31.1.1.1.6.{target_idx}",  # ifHCInOctets
             f"1.3.6.1.2.1.31.1.1.1.10.{target_idx}", # ifHCOutOctets
             f"1.3.6.1.2.1.2.2.1.10.{target_idx}",    # ifInOctets
-            f"1.3.6.1.2.1.2.2.1.16.{target_idx}"     # ifOutOctets
+            f"1.3.6.1.2.1.2.2.1.16.{target_idx}",    # ifOutOctets
+            f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}", # ifHighSpeed
+            f"1.3.6.1.2.1.2.2.1.5.{target_idx}"      # ifSpeed
         ], port, version)
         
         if not traffic:
@@ -1257,21 +1293,27 @@ class SNMPWorker:
                     delta_in = in_octets - last_data["in"]
                     delta_out = out_octets - last_data["out"]
                     
-                    # Rollover / Reboot protection
+                    # Rollover / Reboot protection for 32-bit counters
                     if delta_in < 0:
                         if is_64bit:
                             delta_in = 0
                         else:
-                            if last_data["in"] > 3000000000:
+                            is_short_dt = delta_t < (2 * poll_interval)
+                            is_large_negative_delta = (last_data["in"] - in_octets) > 2**31
+                            if is_short_dt and is_large_negative_delta:
+                                # Rollover asli
                                 delta_in += 2**32
                             else:
+                                # Reboot device atau gap: reset ke 0
                                 delta_in = 0
                                 
                     if delta_out < 0:
                         if is_64bit:
                             delta_out = 0
                         else:
-                            if last_data["out"] > 3000000000:
+                            is_short_dt = delta_t < (2 * poll_interval)
+                            is_large_negative_delta = (last_data["out"] - out_octets) > 2**31
+                            if is_short_dt and is_large_negative_delta:
                                 delta_out += 2**32
                             else:
                                 delta_out = 0
@@ -1279,9 +1321,28 @@ class SNMPWorker:
                     wan_in_bps = (delta_in * 8) / delta_t
                     wan_out_bps = (delta_out * 8) / delta_t
                     
-                    # Spike protection: ignore values that are physically impossible (> 100 Gbps)
-                    if wan_in_bps > 100e9: wan_in_bps = 0
-                    if wan_out_bps > 100e9: wan_out_bps = 0
+                    # Determine speed_bps
+                    speed_bps = 0
+                    h_speed = traffic.get(f"1.3.6.1.2.1.31.1.1.1.15.{target_idx}")
+                    l_speed = traffic.get(f"1.3.6.1.2.1.2.2.1.5.{target_idx}")
+                    if h_speed is not None:
+                        try:
+                            speed_bps = float(h_speed) * 1e6
+                        except ValueError:
+                            pass
+                    if speed_bps == 0 and l_speed is not None:
+                        try:
+                            speed_bps = float(l_speed)
+                        except ValueError:
+                            pass
+                    
+                    limit_bps = speed_bps * 1.05 if speed_bps > 0 else 100e9
+                    
+                    if wan_in_bps > limit_bps or wan_out_bps > limit_bps:
+                        cap_mbps = (speed_bps / 1e6) if speed_bps > 0 else 100000.0
+                        print(f"[Traffic] Spike terdeteksi pada device_id={did} WAN interface={target_idx} (wan_in={wan_in_bps:.1f}, wan_out={wan_out_bps:.1f} melebihi kapasitas link {cap_mbps:.1f} Mbps)")
+                        wan_in_bps = 0.0
+                        wan_out_bps = 0.0
                     
                     return {"wan_in": wan_in_bps, "wan_out": wan_out_bps}
         except Exception:
