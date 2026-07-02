@@ -697,15 +697,22 @@ class Database:
                           (month_str, json.dumps(report)))
             return report
             
-        # 2. Query metrics from the last 30 days
+        # Parse month_str to calendar month bounds
+        year, mon = month_str.split('-')
+        year, mon = int(year), int(mon)
+        month_start = f"{year:04d}-{mon:02d}-01 00:00:00"
+        next_year, next_mon = (year + 1, 1) if mon == 12 else (year, mon + 1)
+        month_end = f"{next_year:04d}-{next_mon:02d}-01 00:00:00"
+
+        # 2. Query metrics for the specified calendar month
         with self.conn() as c:
             rows = c.execute('''
                 SELECT device_id, metric_name, timestamp, CAST(metric_value AS REAL) as val
                 FROM snmp_metrics
                 WHERE metric_name IN ('wan_in', 'wan_out')
-                  AND timestamp >= datetime('now', '-30 days')
+                  AND timestamp >= ? AND timestamp < ?
                 ORDER BY timestamp ASC
-            ''').fetchall()
+            ''', (month_start, month_end)).fetchall()
             
         # Build lookup: device_id -> uplink_speed in bps
         device_uplink_bps = {}
@@ -754,7 +761,7 @@ class Database:
 
             # Hard cap: anything exceeding the device uplink capacity is anomalous
             if val > uplink_bps:
-                discard_timestamps.add(r['timestamp'])
+                discard_timestamps.add((did, mname, r['timestamp']))
                 continue
 
             # Statistical filter: median + (6 * MAD)
@@ -772,6 +779,10 @@ class Database:
                 })
 
         if candidates:
+            candidate_by_ts = defaultdict(list)
+            for cnd in candidates:
+                candidate_by_ts[cnd['timestamp']].append((cnd['device_id'], cnd['metric_name']))
+
             if api_key:
                 try:
                     import urllib.request
@@ -814,19 +825,20 @@ class Database:
                         text_resp = res_data['choices'][0]['message']['content'].strip()
                         ai_res = json.loads(text_resp)
                         for ts in ai_res.get('discard_timestamps', []):
-                            discard_timestamps.add(ts)
+                            for (d, m) in candidate_by_ts.get(ts, []):
+                                discard_timestamps.add((d, m, ts))
                 except Exception as e:
                     print(f"[AI Report Filter] Groq API call failed: {e}")
                     for cnd in candidates:
-                        discard_timestamps.add(cnd['timestamp'])
+                        discard_timestamps.add((cnd['device_id'], cnd['metric_name'], cnd['timestamp']))
             else:
                 # No API key: discard all statistical candidates directly
                 for cnd in candidates:
-                    discard_timestamps.add(cnd['timestamp'])
+                    discard_timestamps.add((cnd['device_id'], cnd['metric_name'], cnd['timestamp']))
 
         device_data = defaultdict(lambda: {'wan_in': [], 'wan_out': []})
         for r in rows:
-            if r['timestamp'] in discard_timestamps:
+            if (r['device_id'], r['metric_name'], r['timestamp']) in discard_timestamps:
                 continue
             did = r['device_id']
             mname = r['metric_name']

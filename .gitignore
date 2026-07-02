@@ -154,3 +154,6 @@ static/img/floorplan.jpg
 static/img/floorplan.jpeg
 static/img/floorplan.gif
 static/img/floorplan.svg
+
+# Security audit report (sensitive — do not commit)
+report.html
