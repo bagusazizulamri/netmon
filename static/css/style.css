@@ -1810,9 +1810,17 @@ body.theme-winxp {
   --bg-card-solid: #ece9d8;
   --bg-hover: #d6d2c2;
   --border: #aca899;
-  --border-lt: #ffffff;
+  --border-lt: #d6d2c2;
   --accent: #003399;
-  --accent-dim: rgba(0, 51, 153, 0.15);
+  --accent-dim: rgba(0, 51, 153, 0.12);
+  --green: #008000;
+  --green-dim: rgba(0, 128, 0, 0.12);
+  --yellow: #cc8800;
+  --yellow-dim: rgba(204, 136, 0, 0.12);
+  --red: #cc0000;
+  --red-dim: rgba(204, 0, 0, 0.10);
+  --purple: #663399;
+  --orange: #cc6600;
   --text-primary: #000000;
   --text-secondary: #222222;
   --text-muted: #555555;
@@ -1822,28 +1830,33 @@ body.theme-winxp {
   color: #000000 !important;
   font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
 }
+/* Force font on all elements */
+body.theme-winxp *:not(.bi):not([class*="bi-"]) {
+  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
+}
+/* General text colors on card background */
 body.theme-winxp .text-muted,
 body.theme-winxp .text-secondary,
 body.theme-winxp .about-lbl,
 body.theme-winxp .kpi-lbl,
 body.theme-winxp .kpi-sub,
-body.theme-winxp .page-sub,
 body.theme-winxp .nm-label,
 body.theme-winxp .about-val {
-  color: #333333 !important;
+  color: #444444 !important;
 }
 body.theme-winxp .logo-text,
-body.theme-winxp h1,
 body.theme-winxp h2,
 body.theme-winxp h3,
 body.theme-winxp h4,
 body.theme-winxp th,
 body.theme-winxp td,
-body.theme-winxp .nav-item span {
+body.theme-winxp .stat-val,
+body.theme-winxp .kpi-val,
+body.theme-winxp .custom-confirm-title,
+body.theme-winxp .custom-confirm-message {
   color: #000000 !important;
-  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
 }
-/* XP blue title bar on page headers */
+/* === Page header: white text on blue desktop bg === */
 body.theme-winxp h1,
 body.theme-winxp .page-title {
   color: #ffffff !important;
@@ -1853,6 +1866,15 @@ body.theme-winxp .page-sub {
   color: #b4d6fb !important;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5) !important;
 }
+body.theme-winxp .page-actions .btn-nm {
+  border-color: rgba(255,255,255,0.5) !important;
+  text-shadow: none !important;
+}
+/* === Page header sticky background === */
+body.theme-winxp .page-header {
+  background: #3a6ea5 !important;
+}
+/* === Panel headers: XP blue title bar === */
 body.theme-winxp .panel-header {
   background: linear-gradient(180deg, #0a246a 0%, #3a6ea5 50%, #0a246a 100%) !important;
   color: #ffffff !important;
@@ -1862,10 +1884,20 @@ body.theme-winxp .panel-header {
 }
 body.theme-winxp .panel-header *,
 body.theme-winxp .panel-header span,
-body.theme-winxp .panel-header i {
+body.theme-winxp .panel-header i,
+body.theme-winxp .panel-header .btn-nm {
   color: #ffffff !important;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6) !important;
 }
+body.theme-winxp .panel-header .btn-nm {
+  background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.05) 100%) !important;
+  border: 1px solid rgba(255,255,255,0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3) !important;
+}
+body.theme-winxp .panel-header .btn-nm:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.15) 100%) !important;
+}
+/* === Modal headers === */
 body.theme-winxp .modal-header,
 body.theme-winxp .nm-modal .modal-header {
   background: linear-gradient(180deg, #0a246a 0%, #3a6ea5 50%, #0a246a 100%) !important;
@@ -1900,18 +1932,86 @@ body.theme-winxp .modal-header .btn-close:hover,
 body.theme-winxp .modal-header .btn-close-white:hover {
   background-color: #e7756a !important;
 }
+/* === SIDEBAR: dark blue gradient — ALL text/icons must be white/light === */
 body.theme-winxp .sidebar {
   background: linear-gradient(180deg, #003399 0%, #225eb8 40%, #003399 100%) !important;
   border-right: 2px solid #0a246a !important;
 }
-body.theme-winxp .sidebar .logo-text,
-body.theme-winxp .sidebar .nav-item span,
-body.theme-winxp .sidebar .sidebar-status {
+body.theme-winxp .sidebar .logo-text {
   color: #ffffff !important;
 }
+body.theme-winxp .sidebar .sidebar-logo .bi {
+  color: #7eb4f0 !important;
+}
+body.theme-winxp .sidebar .live-badge {
+  background: rgba(0, 200, 0, 0.2) !important;
+  color: #80ff80 !important;
+}
+body.theme-winxp .sidebar .pulse {
+  background: #80ff80 !important;
+}
+body.theme-winxp .sidebar .nav-item {
+  color: #d0e4fc !important;
+}
+body.theme-winxp .sidebar .nav-item span {
+  color: #d0e4fc !important;
+}
 body.theme-winxp .sidebar .nav-item i {
+  color: #7eb4f0 !important;
+}
+body.theme-winxp .sidebar .nav-item:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+body.theme-winxp .sidebar .nav-item:hover span {
+  color: #ffffff !important;
+}
+body.theme-winxp .sidebar .nav-item:hover i {
+  color: #ffffff !important;
+}
+body.theme-winxp .nav-item.active {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 3px !important;
+  font-weight: 600;
+}
+body.theme-winxp .nav-item.active span {
+  color: #ffffff !important;
+}
+body.theme-winxp .nav-item.active i {
+  color: #ffffff !important;
+}
+/* Sidebar status area */
+body.theme-winxp .sidebar .sidebar-status {
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+body.theme-winxp .sidebar .slabel {
   color: #b4d6fb !important;
 }
+body.theme-winxp .sidebar .sval {
+  color: #ffffff !important;
+}
+body.theme-winxp .sidebar .sidebar-time {
+  color: #7eb4f0 !important;
+}
+body.theme-winxp .sidebar .sidebar-conn {
+  color: #7eb4f0 !important;
+}
+body.theme-winxp .sidebar .sdot.up { background: #44dd44 !important; }
+body.theme-winxp .sidebar .sdot.down { background: #ff5555 !important; }
+body.theme-winxp .sidebar .sdot.warn { background: #ffcc44 !important; }
+body.theme-winxp .sidebar .sdot.unknown { background: #8899aa !important; }
+/* Theme toggle btn in sidebar */
+body.theme-winxp .sidebar #theme-toggle-btn {
+  border-color: rgba(255,255,255,0.3) !important;
+  color: #d0e4fc !important;
+  background: rgba(255,255,255,0.08) !important;
+}
+body.theme-winxp .sidebar #theme-toggle-btn:hover {
+  background: rgba(255,255,255,0.18) !important;
+  color: #ffffff !important;
+}
+/* === Panels & cards === */
 body.theme-winxp .nm-panel,
 body.theme-winxp .modal-content,
 body.theme-winxp .custom-confirm-dialog,
@@ -1922,13 +2022,60 @@ body.theme-winxp .custom-loading-dialog {
   box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset, 2px 2px 4px rgba(0, 0, 0, 0.25) !important;
   overflow: hidden;
 }
+body.theme-winxp .nm-modal {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+}
+body.theme-winxp .nm-modal .modal-header {
+  border-color: #0a246a !important;
+}
+body.theme-winxp .nm-modal .modal-footer {
+  border-color: #aca899 !important;
+  background: #ece9d8 !important;
+}
+body.theme-winxp .nm-card {
+  background: #ffffff !important;
+  border: 1px solid #aca899 !important;
+  border-radius: 3px !important;
+}
+/* === Tables === */
+body.theme-winxp .nm-table th {
+  background: #d6d2c2 !important;
+  color: #333333 !important;
+  border-bottom: 1px solid #aca899 !important;
+}
+body.theme-winxp .nm-table td {
+  color: #000000 !important;
+  border-bottom: 1px solid #d6d2c2 !important;
+}
+body.theme-winxp .nm-table tbody tr:hover {
+  background: #dae9fd !important;
+}
+/* === KPI cards === */
+body.theme-winxp .kpi-card {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+  border-radius: 3px !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .kpi-icon-box {
+  border: 1px solid #aca899 !important;
+  border-radius: 3px !important;
+}
+/* === Stat cards === */
+body.theme-winxp .stat-card {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+  border-radius: 3px !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+/* === Buttons === */
 body.theme-winxp .btn-nm {
   background: linear-gradient(180deg, #ffffff 0%, #ece9d8 60%, #d6d2c2 100%) !important;
   border: 1px solid #003399 !important;
   border-radius: 3px !important;
   box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
   color: #000000 !important;
-  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
 }
 body.theme-winxp .btn-nm:hover {
   background: linear-gradient(180deg, #dae9fd 0%, #b4d6fb 60%, #8ab9e5 100%) !important;
@@ -1958,6 +2105,7 @@ body.theme-winxp .btn-confirm-cancel {
   border: 1px solid #808080 !important;
   box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
 }
+/* === Form controls === */
 body.theme-winxp .nm-input,
 body.theme-winxp .nm-select {
   background: #ffffff !important;
@@ -1966,15 +2114,133 @@ body.theme-winxp .nm-select {
   color: #000000 !important;
   box-shadow: 1px 1px 0 #808080 inset !important;
 }
-body.theme-winxp .nav-item.active {
-  background: rgba(255, 255, 255, 0.25) !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 3px !important;
-  font-weight: 600;
+body.theme-winxp .nm-input:focus,
+body.theme-winxp .nm-select:focus {
+  border-color: #003399 !important;
+  box-shadow: 1px 1px 0 #808080 inset, 0 0 0 2px rgba(0, 51, 153, 0.25) !important;
 }
+body.theme-winxp .nm-search {
+  background: #ffffff !important;
+  border: 1px solid #7f9db9 !important;
+  color: #000000 !important;
+  box-shadow: 1px 1px 0 #808080 inset !important;
+}
+/* === Close button helper === */
 body.theme-winxp .btn-close-white {
   filter: none !important;
 }
+/* === Toggle switch === */
+body.theme-winxp .nm-slider {
+  background: #aca899 !important;
+}
+body.theme-winxp .nm-toggle input:checked + .nm-slider {
+  background: #003399 !important;
+}
+/* === Toast notifications === */
+body.theme-winxp .nm-toast {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset, 2px 2px 4px rgba(0,0,0,0.25) !important;
+  color: #000000 !important;
+}
+body.theme-winxp .nm-toast.success { border-left: 3px solid #008000 !important; color: #006600 !important; }
+body.theme-winxp .nm-toast.danger  { border-left: 3px solid #cc0000 !important; color: #990000 !important; }
+body.theme-winxp .nm-toast.warning { border-left: 3px solid #cc8800 !important; color: #996600 !important; }
+body.theme-winxp .nm-toast.info    { border-left: 3px solid #003399 !important; color: #003399 !important; }
+/* === Status badges (on card bg) === */
+body.theme-winxp .status-dot.up      { background: rgba(0,128,0,0.15) !important; color: #006600 !important; }
+body.theme-winxp .status-dot.down    { background: rgba(204,0,0,0.12) !important; color: #990000 !important; }
+body.theme-winxp .status-dot.warning { background: rgba(204,136,0,0.15) !important; color: #886600 !important; }
+body.theme-winxp .status-dot.unknown { background: rgba(0,0,0,0.08) !important; color: #555555 !important; }
+/* === Severity badges === */
+body.theme-winxp .sev-badge.bg-danger { background: rgba(204,0,0,0.12) !important; color: #990000 !important; }
+body.theme-winxp .sev-badge.bg-warn   { background: rgba(204,136,0,0.15) !important; color: #886600 !important; }
+body.theme-winxp .sev-badge.bg-info   { background: rgba(0,51,153,0.12) !important; color: #003399 !important; }
+/* === Type pills === */
+body.theme-winxp .type-pill.access { background: rgba(0,51,153,0.12) !important; color: #003399 !important; }
+body.theme-winxp .type-pill.scan   { background: rgba(102,51,153,0.12) !important; color: #663399 !important; }
+body.theme-winxp .type-pill.sync   { background: rgba(0,128,0,0.12) !important; color: #006600 !important; }
+body.theme-winxp .type-pill.info   { background: #d6d2c2 !important; color: #444444 !important; }
+/* === Badge SNMP === */
+body.theme-winxp .badge-snmp.on  { background: rgba(0,51,153,0.12) !important; color: #003399 !important; }
+body.theme-winxp .badge-snmp.off { background: #d6d2c2 !important; color: #555555 !important; }
+/* === Zone pills & tabs === */
+body.theme-winxp .zone-tab {
+  background: #ece9d8 !important;
+  border: 1px solid #aca899 !important;
+  color: #333333 !important;
+}
+body.theme-winxp .zone-tab:hover {
+  background: #d6d2c2 !important;
+  color: #000000 !important;
+}
+body.theme-winxp .zone-tab.active {
+  background: #dae9fd !important;
+  color: #003399 !important;
+  border-color: #003399 !important;
+}
+/* === Type sub-nav tabs === */
+body.theme-winxp .type-tab {
+  background: #ece9d8 !important;
+  border: 1px solid #aca899 !important;
+  color: #333333 !important;
+  border-radius: 3px !important;
+}
+body.theme-winxp .type-tab:hover {
+  background: #d6d2c2 !important;
+  color: #000000 !important;
+}
+body.theme-winxp .type-tab.active {
+  background: #dae9fd !important;
+  color: #003399 !important;
+  border-color: #003399 !important;
+}
+/* === Accent text helpers – ensure readable on light bg === */
+body.theme-winxp .text-accent { color: #003399 !important; }
+body.theme-winxp .text-success { color: #006600 !important; }
+body.theme-winxp .text-danger { color: #cc0000 !important; }
+body.theme-winxp .text-warning { color: #cc8800 !important; }
+body.theme-winxp .text-info { color: #003399 !important; }
+/* === Uptime badge === */
+body.theme-winxp .uptime-badge {
+  background: #d6d2c2 !important;
+  border: 1px solid #aca899 !important;
+  color: #333333 !important;
+}
+/* === Progress bars === */
+body.theme-winxp .nm-progress {
+  background: #d6d2c2 !important;
+  border: 1px solid #aca899 !important;
+}
+body.theme-winxp .nm-progress-bar {
+  background: #003399 !important;
+}
+body.theme-winxp .nm-progress-bar.bg-danger {
+  background: #cc0000 !important;
+}
+/* === Alert banner === */
+body.theme-winxp .alert-banner {
+  background: rgba(204, 0, 0, 0.1) !important;
+  border: 1px solid rgba(204, 0, 0, 0.3) !important;
+  color: #990000 !important;
+}
+/* === Detail modal description === */
+body.theme-winxp #det-desc {
+  background: #ffffff !important;
+  color: #333333 !important;
+  border: 1px solid #aca899 !important;
+}
+/* === Scrollbar: XP style === */
+body.theme-winxp ::-webkit-scrollbar { width: 16px; height: 16px; }
+body.theme-winxp ::-webkit-scrollbar-track { background: #ece9d8; border: 1px solid #aca899; }
+body.theme-winxp ::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #ece9d8 0%, #d6d2c2 50%, #ece9d8 100%);
+  border: 1px solid #aca899;
+  border-radius: 0;
+}
+body.theme-winxp ::-webkit-scrollbar-thumb:hover { background: #c4c0b0; }
+body.theme-winxp ::-webkit-scrollbar-button { display: block; height: 16px; background: #ece9d8; border: 1px solid #aca899; }
+/* === Zone cards === */
 body.theme-winxp .zone-card {
   background: #ece9d8 !important;
   border: 2px solid #aca899 !important;
@@ -1985,6 +2251,13 @@ body.theme-winxp .zone-card:hover {
   border-color: #003399 !important;
   background: #d6d2c2 !important;
 }
+body.theme-winxp .zone-card * {
+  color: #000000;
+}
+body.theme-winxp .zone-status-pill.up   { background: rgba(0,128,0,0.15) !important; color: #006600 !important; }
+body.theme-winxp .zone-status-pill.down { background: rgba(204,0,0,0.12) !important; color: #990000 !important; }
+body.theme-winxp .zone-status-pill.warn { background: rgba(204,136,0,0.15) !important; color: #886600 !important; }
+/* === Incident list items === */
 body.theme-winxp .incident-list-item {
   background: #ffffff !important;
   border: 1px solid #aca899 !important;
@@ -1995,6 +2268,20 @@ body.theme-winxp .incident-list-item:hover {
   border-color: #003399 !important;
   background: #dae9fd !important;
 }
+/* === Modal backdrop === */
+body.theme-winxp .modal-backdrop.show {
+  opacity: 0.45 !important;
+}
+/* === DSS items (device stats strip) === */
+body.theme-winxp .dss-item {
+  background: #ece9d8 !important;
+  border: 1px solid #aca899 !important;
+  border-radius: 3px !important;
+}
+body.theme-winxp .dss-item.up { border-left: 3px solid #008000 !important; color: #006600 !important; }
+body.theme-winxp .dss-item.down { border-left: 3px solid #cc0000 !important; color: #990000 !important; }
+body.theme-winxp .dss-item.warning { border-left: 3px solid #cc8800 !important; color: #886600 !important; }
+body.theme-winxp .dss-lbl { color: #444444 !important; }
 
 /* 7. WARM EARTHY FOREST */
 body.theme-forest {
