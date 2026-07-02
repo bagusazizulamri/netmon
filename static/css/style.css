@@ -1127,12 +1127,20 @@ body.theme-brutalism .nm-toast {
   box-shadow: 4px 4px 0px 0px #000000 !important;
   border-radius: 0px !important;
 }
+body.theme-brutalism .btn-nm {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
 body.theme-brutalism .btn-nm:hover {
   background: #ffde4d !important;
   color: #000000 !important;
   transform: translate(-2px, -2px);
   box-shadow: 6px 6px 0px 0px #000000 !important;
 }
+body.theme-brutalism .btn-success { background: #39e078 !important; border-color: #000000 !important; color: #000000 !important; }
+body.theme-brutalism .btn-danger  { background: #ff5252 !important; border-color: #000000 !important; color: #000000 !important; }
+body.theme-brutalism .btn-primary { background: #ffde4d !important; border-color: #000000 !important; color: #000000 !important; }
+body.theme-brutalism .btn-confirm-cancel { background: #ffffff !important; border-color: #000000 !important; color: #000000 !important; }
 body.theme-brutalism .sidebar {
   background: #f4f0db !important;
 }
@@ -1204,6 +1212,20 @@ body.theme-minimalism .custom-confirm-dialog {
   border: 1px solid #e4e4e7 !important;
   box-shadow: none !important;
 }
+body.theme-minimalism .btn-nm {
+  background: #ffffff !important;
+  border: 1px solid #e4e4e7 !important;
+  color: #18181b !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+body.theme-minimalism .btn-nm:hover {
+  background: #f4f4f5 !important;
+}
+body.theme-minimalism .btn-success { background: #f4fbf7 !important; border-color: #a7f3d0 !important; color: #047857 !important; }
+body.theme-minimalism .btn-danger  { background: #fef2f2 !important; border-color: #fecaca !important; color: #b91c1c !important; }
+body.theme-minimalism .btn-primary { background: #eff6ff !important; border-color: #bfdbfe !important; color: #1d4ed8 !important; }
+body.theme-minimalism .btn-confirm-cancel { background: #ffffff !important; color: #18181b !important; }
 body.theme-minimalism .sidebar {
   background: #ffffff !important;
 }
@@ -1239,6 +1261,22 @@ body.theme-morphism .nm-toast {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
 }
+body.theme-morphism .btn-nm {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+body.theme-morphism .btn-nm:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+body.theme-morphism .btn-success { background: rgba(16, 185, 129, 0.15) !important; border-color: rgba(16, 185, 129, 0.3) !important; color: #34d399 !important; }
+body.theme-morphism .btn-danger  { background: rgba(239, 68, 68, 0.15) !important; border-color: rgba(239, 68, 68, 0.3) !important; color: #f87171 !important; }
+body.theme-morphism .btn-primary { background: rgba(14, 165, 233, 0.15) !important; border-color: rgba(14, 165, 233, 0.3) !important; color: #38bdf8 !important; }
+body.theme-morphism .btn-confirm-cancel { background: rgba(255,255,255,0.05) !important; color: #cbd5e1 !important; }
 body.theme-morphism .sidebar {
   background: rgba(6, 9, 19, 0.6) !important;
   backdrop-filter: blur(24px) !important;
@@ -1316,6 +1354,25 @@ body.theme-win7 .btn-nm:hover {
   background: linear-gradient(180deg, #eaf6fd 0%, #d9f0fc 50%, #bee6fd 51%, #a7d9f5 100%) !important;
   border: 1px solid #3c7fb1 !important;
 }
+body.theme-win7 .btn-success {
+  background: linear-gradient(180deg, #e2f7e2 0%, #b2e6b2 50%, #82c882 51%, #a2dfa2 100%) !important;
+  border: 1px solid #2e7d32 !important;
+  color: #0d230e !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+}
+body.theme-win7 .btn-success:hover {
+  background: linear-gradient(180deg, #f0fff0 0%, #c2f0c2 50%, #99e699 51%, #bef5be 100%) !important;
+}
+body.theme-win7 .btn-danger {
+  background: linear-gradient(180deg, #ffe6e6 0%, #fecaca 50%, #fca5a5 51%, #fda4af 100%) !important;
+  border: 1px solid #c53030 !important;
+  color: #3b0707 !important;
+}
+body.theme-win7 .btn-primary {
+  background: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 51%, #93c5fd 100%) !important;
+  border: 1px solid #0284c7 !important;
+  color: #032b40 !important;
+}
 body.theme-win7 .nm-input,
 body.theme-win7 .nm-select {
   background: #ffffff !important;
@@ -1353,6 +1410,20 @@ body.theme-linear .custom-confirm-dialog {
   border: 1px solid #27272a !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7) !important;
 }
+body.theme-linear .btn-nm {
+  background: #09090b !important;
+  border: 1px solid #27272a !important;
+  color: #fafafa !important;
+  border-radius: 6px !important;
+}
+body.theme-linear .btn-nm:hover {
+  background: #18181b !important;
+  border-color: #3f3f46 !important;
+}
+body.theme-linear .btn-success { background: #052e16 !important; border-color: #14532d !important; color: #4ade80 !important; }
+body.theme-linear .btn-danger  { background: #450a0a !important; border-color: #7f1d1d !important; color: #f87171 !important; }
+body.theme-linear .btn-primary { background: #1e1b4b !important; border-color: #312e81 !important; color: #818cf8 !important; }
+body.theme-linear .btn-confirm-cancel { background: #09090b !important; color: #fafafa !important; }
 body.theme-linear .sidebar {
   background: #09090b !important;
 }
@@ -1401,6 +1472,19 @@ body.theme-forest td,
 body.theme-forest .nav-item span {
   color: #1a2b1d !important;
 }
+body.theme-forest .btn-nm {
+  background: #eae3d2 !important;
+  border: 1px solid #d4cbb8 !important;
+  color: #2d352e !important;
+  border-radius: 8px !important;
+}
+body.theme-forest .btn-nm:hover {
+  background: #dcd4be !important;
+}
+body.theme-forest .btn-success { background: #d2e4d5 !important; border-color: #a8cbb0 !important; color: #1e3f20 !important; }
+body.theme-forest .btn-danger  { background: #fbebeb !important; border-color: #f3c7c7 !important; color: #7f2d2d !important; }
+body.theme-forest .btn-primary { background: #e0ece3 !important; border-color: #b8d4bf !important; color: #2e4a31 !important; }
+body.theme-forest .btn-confirm-cancel { background: #eae3d2 !important; color: #2d352e !important; }
 body.theme-forest .sidebar {
   background: #eae3d2 !important;
   border-right: 1px solid #d4cbb8 !important;
