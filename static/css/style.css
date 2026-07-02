@@ -1,36 +1,39 @@
 /* ============================================================
-   NetMon – Clean Dark Theme
-   Minimal, functional, no-nonsense.
+   NetMon – Bauhaus & Retro-Modern Dark Theme
+   Premium geometric typography, distinctive primary accents, high readability.
    ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 :root {
-  --bg-base:       #1e1e1e; /* macOS dark background */
-  --bg-card:       #2d2d2d; /* macOS panel background */
-  --bg-card-solid: #2d2d2d;
-  --bg-hover:      rgba(255, 255, 255, 0.06);
-  --border:        #3a3a3c; /* macOS dark border */
-  --border-lt:     #2c2c2e;
+  --bg-base:       #111113; /* Deep dark space */
+  --bg-card:       #19191c; /* Elevated dark */
+  --bg-card-solid: #19191c;
+  --bg-hover:      rgba(255, 255, 255, 0.05);
+  --border:        #29292e; /* Subtle geometric border */
+  --border-lt:     #212125;
 
-  --accent:        #0a84ff; /* Apple Blue */
-  --accent-dim:    rgba(10, 132, 255, 0.15);
-  --green:         #30d158; /* Apple Green */
-  --green-dim:     rgba(48, 209, 88, 0.15);
-  --yellow:        #ffd60a; /* Apple Yellow */
-  --yellow-dim:    rgba(255, 214, 10, 0.15);
-  --red:           #ff453a; /* Apple Red */
-  --red-dim:       rgba(255, 69, 58, 0.15);
-  --purple:        #bf5af2;
-  --orange:        #ff9f0a;
+  /* Bauhaus & Retro-Modern Accents */
+  --accent:        #4361ee; /* Retro Royal Blue */
+  --accent-dim:    rgba(67, 97, 238, 0.15);
+  --green:         #06d6a0; /* Minty Green */
+  --green-dim:     rgba(6, 214, 160, 0.15);
+  --yellow:        #ffd166; /* Bauhaus Yellow */
+  --yellow-dim:    rgba(255, 209, 102, 0.15);
+  --red:           #ef476f; /* Retro Pinkish Red */
+  --red-dim:       rgba(239, 71, 111, 0.15);
+  --purple:        #7209b7;
+  --orange:        #f77f00;
 
-  --text-primary:   #ffffff;
-  --text-secondary: #a1a1a6;
-  --text-muted:     #76767b;
+  --text-primary:   #f8f9fa;
+  --text-secondary: #adb5bd;
+  --text-muted:     #6c757d;
 
-  --sidebar-w:  220px;
+  --sidebar-w:  240px;
   --header-h:   0px;
-  --radius:     12px; /* Standard macOS radius */
+  --radius:     16px; /* Slightly rounder for retro feel */
   --radius-sm:  8px;
-  --radius-lg:  18px;
-  --trans:      0.2s cubic-bezier(0.16, 1, 0.3, 1); /* Apple-like ease-out */
+  --radius-lg:  24px;
+  --trans:      0.25s cubic-bezier(0.25, 1, 0.5, 1);
 
   font-size: 14px;
 }
@@ -38,20 +41,24 @@
 /* ============================================================ RESET */
 *, *::before, *::after { box-sizing: border-box; margin: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   display: flex;
   min-height: 100vh;
   overflow-x: hidden;
-  letter-spacing: -0.011em;
+  letter-spacing: 0.01em;
+}
+
+h1, h2, h3, h4, h5, h6, .sidebar-logo, .fw-700, .fw-800, .fw-900 {
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 /* ============================================================ SIDEBAR */
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: #252525; /* Solid dark macOS Sidebar */
+  background: #0b0b0d; /* Ultra dark retro-modern sidebar */
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
