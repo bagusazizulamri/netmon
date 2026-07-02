@@ -176,20 +176,20 @@
   </div>
 
   <!-- Right Side: Active Incidents & Top Talkers -->
-  <div class="col-12 col-xl-4 d-flex flex-column justify-content-between gap-4">
+  <div class="col-12 col-xl-4 d-flex flex-column gap-4">
     <!-- Active Incidents -->
-    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 200px; height: 0;">
+    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 210px; height: 0;">
       <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
         <span class="fw-600 fs-6 text-primary"><i class="bi bi-exclamation-circle-fill me-2 text-danger"></i>Insiden Aktif</span>
         <span class="badge bg-danger text-white px-2 py-0.5 text-xs" id="active-incidents-count" style="border-radius: 8px;">0</span>
       </div>
-      <div class="panel-body p-2 flex-grow-1" style="overflow-y: auto;" id="active-incidents-list">
+      <div class="panel-body p-3 flex-grow-1" style="overflow-y: auto;" id="active-incidents-list">
         <div class="text-center text-muted py-4">Loading alerts…</div>
       </div>
     </div>
 
     <!-- Top Talkers -->
-    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 180px; height: 0;">
+    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 210px; height: 0;">
       <div class="panel-header border-bottom p-3" style="background: transparent;">
         <span class="fw-600 fs-6 text-primary"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Top Talkers</span>
       </div>
@@ -419,7 +419,7 @@ function renderActiveIncidents(alerts) {
       </div>` : '';
 
     return `
-      <div class="d-flex align-items-start gap-2.5 p-2 rounded mb-1" style="cursor: pointer; background: var(--bg-hover); border: 1px solid ${isFalseAlarm ? 'rgba(240, 136, 62, 0.2)' : 'var(--border-lt)'};" onclick="showIncidentDetail(${a.id})">
+      <div class="incident-list-item d-flex align-items-start gap-2.5 ${isFalseAlarm ? 'false-alarm' : ''}" onclick="showIncidentDetail(${a.id})">
         <i class="bi ${sevIcon} ${sevClass} mt-0.5 flex-shrink-0" style="font-size:13px;"></i>
         <div class="flex-grow-1 min-w-0">
           <div class="fw-500 text-primary text-truncate-2" style="font-size: 12px; line-height: 1.4;">
@@ -575,17 +575,24 @@ function renderTopTalkers(devices) {
     return;
   }
   
+  const maxVal = Math.max(...topTalkers.map(d => (d.wan_in || 0) + (d.wan_out || 0)), 1);
+
   container.innerHTML = topTalkers.map(d => {
     const totalBytesSec = (d.wan_in || 0) + (d.wan_out || 0);
+    const pct = ((totalBytesSec / maxVal) * 100).toFixed(0);
     return `
-      <div class="d-flex align-items-center justify-content-between py-1 border-bottom" style="border-color: var(--border-lt) !important; padding-bottom: 8px; margin-bottom: 8px;">
-        <div class="min-w-0">
-          <div class="fw-600 text-primary truncate" style="font-size: 12.5px; cursor: pointer;" onclick="openDeviceDetail(${d.id})">${esc(d.name)}</div>
-          <div class="text-xs text-muted mt-0.5">${esc(d.ip)} • ${esc(d.vendor || 'Generic')}</div>
+      <div class="mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-1.5">
+          <div class="min-w-0">
+            <span class="fw-600 text-primary truncate d-inline-block align-middle" style="font-size: 12.5px; cursor: pointer; max-width: 140px;" onclick="openDeviceDetail(${d.id})">${esc(d.name)}</span>
+            <span class="text-muted ms-1.5" style="font-size: 10px;">${esc(d.ip)}</span>
+          </div>
+          <div class="text-end">
+            <span class="fw-600 text-secondary mono-sm" style="font-size: 11.5px;">${formatBandwidth(totalBytesSec)}</span>
+          </div>
         </div>
-        <div class="text-end">
-          <div class="fw-600 text-secondary" style="font-size: 12px; font-family: 'IBM Plex Mono', monospace;">${formatBandwidth(totalBytesSec)}</div>
-          <div class="text-xs text-muted mt-0.5">${d.cpu_usage ? 'CPU ' + Math.round(d.cpu_usage) + '%' : ''}</div>
+        <div class="progress" style="height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; border: 1px solid var(--border-lt);">
+          <div class="progress-bar" style="width: ${pct}%; background: var(--accent); height: 100%; border-radius: 3px;"></div>
         </div>
       </div>
     `;
