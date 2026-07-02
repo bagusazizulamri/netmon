@@ -805,13 +805,13 @@ def get_network_traffic_history():
         hours = 1.0
 
     if hours <= 2:
-        bucket_fmt = "strftime('%H:%M', m.timestamp)"
+        bucket_fmt = "strftime('%H:%M', m.timestamp, 'localtime')"
         limit = 120
     elif hours <= 24:
-        bucket_fmt = "strftime('%H:', m.timestamp) || (CASE WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 15 THEN '00' WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 30 THEN '15' WHEN CAST(strftime('%M', m.timestamp) AS INTEGER) < 45 THEN '30' ELSE '45' END)"
+        bucket_fmt = "strftime('%H:', m.timestamp, 'localtime') || (CASE WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 15 THEN '00' WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 30 THEN '15' WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 45 THEN '30' ELSE '45' END)"
         limit = 96
     else:
-        bucket_fmt = "strftime('%m-%d %H:00', m.timestamp)"
+        bucket_fmt = "strftime('%m-%d %H:00', m.timestamp, 'localtime')"
         limit = 50
 
     with db.conn() as c:

@@ -590,7 +590,7 @@ class Database:
         with self.conn() as c:
             if iface_name:
                 rows = c.execute('''
-                    SELECT sampled_at, rx_bps, tx_bps FROM interface_traffic
+                    SELECT strftime('%Y-%m-%dT%H:%M:%SZ', sampled_at) AS ts, rx_bps, tx_bps FROM interface_traffic
                     WHERE device_id=? AND iface_name=?
                       AND sampled_at >= datetime('now', ? || ' hours')
                     ORDER BY sampled_at ASC LIMIT ?
@@ -636,7 +636,7 @@ class Database:
     def get_metric_history(self, device_id, name, hours=1):
         with self.conn() as c:
             rows = c.execute('''
-                SELECT timestamp, metric_value FROM snmp_metrics
+                SELECT strftime('%Y-%m-%dT%H:%M:%SZ', timestamp) AS ts, metric_value FROM snmp_metrics
                 WHERE device_id = ? AND metric_name = ?
                   AND timestamp >= datetime('now', ? || ' hours')
                 ORDER BY timestamp ASC
