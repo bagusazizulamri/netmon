@@ -2230,6 +2230,167 @@ body.theme-winxp #det-desc {
   color: #333333 !important;
   border: 1px solid #aca899 !important;
 }
+/* === Modal body & footer visibility === */
+body.theme-winxp .nm-modal .modal-body {
+  background: #ece9d8 !important;
+  color: #000000 !important;
+}
+body.theme-winxp .nm-modal .modal-body *:not(.bi):not([class*="bi-"]):not(.status-dot):not(.sev-badge):not(.zone-status-pill):not(.nm-progress-bar):not(.pulse):not(.sdot) {
+  color: inherit;
+}
+body.theme-winxp .nm-modal .modal-body .nm-label {
+  color: #444444 !important;
+}
+body.theme-winxp .nm-modal .modal-body .text-muted {
+  color: #555555 !important;
+}
+body.theme-winxp .nm-modal .modal-body .text-secondary {
+  color: #333333 !important;
+}
+body.theme-winxp .nm-modal .modal-body .text-primary,
+body.theme-winxp .nm-modal .modal-body .text-accent {
+  color: #003399 !important;
+}
+body.theme-winxp .nm-modal .modal-body h5,
+body.theme-winxp .nm-modal .modal-body h6,
+body.theme-winxp .nm-modal .modal-body strong {
+  color: #000000 !important;
+}
+body.theme-winxp .nm-modal .modal-footer {
+  background: #ece9d8 !important;
+  border-top: 1px solid #aca899 !important;
+  color: #000000 !important;
+}
+body.theme-winxp .nm-modal .modal-footer .text-muted {
+  color: #555555 !important;
+}
+/* Detail modal info grid */
+body.theme-winxp .di-row {
+  border-bottom: 1px solid #d6d2c2 !important;
+}
+body.theme-winxp .di-row span {
+  color: #555555 !important;
+}
+body.theme-winxp .di-row strong {
+  color: #000000 !important;
+}
+/* Detail modal traffic legend */
+body.theme-winxp .nm-modal .modal-body [style*="background: var(--bg-hover)"] {
+  background: #d6d2c2 !important;
+}
+/* === Confirm dialog visibility === */
+body.theme-winxp .custom-confirm-overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+body.theme-winxp .custom-confirm-dialog {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+}
+body.theme-winxp .custom-confirm-icon {
+  color: #cc0000 !important;
+}
+body.theme-winxp .custom-confirm-title {
+  color: #000000 !important;
+}
+body.theme-winxp .custom-confirm-message {
+  color: #333333 !important;
+}
+/* === Loading dialog visibility === */
+body.theme-winxp .custom-loading-overlay {
+  background: rgba(0, 0, 0, 0.55) !important;
+}
+body.theme-winxp .custom-loading-dialog {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+}
+body.theme-winxp .custom-spinner {
+  border: 4px solid #aca899 !important;
+  border-top: 4px solid #003399 !important;
+}
+body.theme-winxp .custom-loading-message {
+  color: #000000 !important;
+}
+/* === Incident modal specifics === */
+body.theme-winxp #inc-message {
+  background: #ffffff !important;
+  border: 1px solid #aca899 !important;
+  color: #000000 !important;
+}
+body.theme-winxp #inc-ip {
+  color: #003399 !important;
+}
+body.theme-winxp #inc-time {
+  color: #333333 !important;
+}
+body.theme-winxp #inc-ai-analysis {
+  background: rgba(0, 51, 153, 0.08) !important;
+  border: 1px solid rgba(0, 51, 153, 0.2) !important;
+  color: #003399 !important;
+}
+body.theme-winxp #inc-ai-analysis * {
+  color: #003399 !important;
+}
+/* === Toast span text inside toast === */
+body.theme-winxp .nm-toast span {
+  color: inherit !important;
+}
+/* === nm-section-lbl & nm-divider inside modals === */
+body.theme-winxp .nm-section-lbl {
+  color: #003399 !important;
+}
+body.theme-winxp .nm-divider {
+  border-top: 1px solid #aca899 !important;
+}
+/* === Inline bg-hover backgrounds visible on XP === */
+body.theme-winxp .bg-hover {
+  background: #d6d2c2 !important;
+}
+body.theme-winxp .bg-accent-dim {
+  background: rgba(0, 51, 153, 0.08) !important;
+}
+/* === nm-toggle-wrap text inside modals === */
+body.theme-winxp .nm-toggle-wrap {
+  color: #333333 !important;
+}
+/* === Select option bg in modals === */
+body.theme-winxp .nm-select option {
+  background: #ece9d8 !important;
+  color: #000000 !important;
+}
+/* === Detail modal status badge === */
+body.theme-winxp #det-status-badge {
+  font-weight: 600 !important;
+}
+/* === Scan results in modal === */
+body.theme-winxp .scan-results {
+  color: #000000 !important;
+}
+/* === Alert items inside panels === */
+body.theme-winxp .alert-item {
+  border-bottom: 1px solid #d6d2c2 !important;
+}
+body.theme-winxp .alert-msg {
+  color: #000000 !important;
+}
+body.theme-winxp .alert-meta {
+  color: #555555 !important;
+}
+body.theme-winxp .alert-item.critical .alert-icon { color: #cc0000 !important; }
+body.theme-winxp .alert-item.warning .alert-icon  { color: #cc8800 !important; }
+body.theme-winxp .alert-item.info .alert-icon     { color: #003399 !important; }
+body.theme-winxp .btn-ack {
+  border: 1px solid #aca899 !important;
+  color: #555555 !important;
+}
+body.theme-winxp .btn-ack:hover {
+  color: #006600 !important;
+  border-color: #006600 !important;
+}
+body.theme-winxp .ack-badge { color: #006600 !important; }
+body.theme-winxp .unack-badge {
+  color: #886600 !important;
+  background: rgba(204,136,0,0.15) !important;
+}
 /* === Scrollbar: XP style === */
 body.theme-winxp ::-webkit-scrollbar { width: 16px; height: 16px; }
 body.theme-winxp ::-webkit-scrollbar-track { background: #ece9d8; border: 1px solid #aca899; }
