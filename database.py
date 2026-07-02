@@ -616,6 +616,47 @@ class Database:
                 ''', (device_id, f'-{int(hours)}', limit)).fetchall()
             return [{'ts': r[0], 'rx_bps': r[1], 'tx_bps': r[2]} for r in rows]
 
+    def get_backbone_traffic_history(self, hours):
+        """Riwayat throughput backbone (wan_in/wan_out gabungan semua router) untuk chart dashboard.
+        Real peak per-device per-bucket (MAX), baru dijumlahkan lintas-device (SUM) -- bukan SUM
+        mentah lintas-waktu, supaya tidak menggelembungkan nilai saat bucket berisi banyak sample."""
+        if hours <= 2:
+            bucket_fmt = "strftime('%H:%M', m.timestamp, 'localtime')"
+            limit = 130
+        elif hours <= 24:
+            bucket_fmt = ("strftime('%H:', m.timestamp, 'localtime') || "
+                          "(CASE WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 15 THEN '00' "
+                          "WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 30 THEN '15' "
+                          "WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 45 THEN '30' ELSE '45' END)")
+            limit = 100
+        else:
+            bucket_fmt = "strftime('%m-%d %H:00', m.timestamp, 'localtime')"
+            limit = 200
+
+        with self.conn() as c:
+            rows = c.execute(f'''
+                WITH per_device_bucket AS (
+                    SELECT
+                        m.device_id,
+                        {bucket_fmt} AS bucket,
+                        MAX(CASE WHEN m.metric_name = 'wan_in' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS rx_peak,
+                        MAX(CASE WHEN m.metric_name = 'wan_out' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS tx_peak
+                    FROM snmp_metrics m
+                    JOIN devices d ON m.device_id = d.id
+                    WHERE d.type = 'router'
+                      AND m.metric_name IN ('wan_in', 'wan_out')
+                      AND m.timestamp >= datetime('now', ? || ' hours')
+                    GROUP BY m.device_id, bucket
+                )
+                SELECT bucket, SUM(rx_peak) AS rx_sum, SUM(tx_peak) AS tx_sum
+                FROM per_device_bucket
+                GROUP BY bucket
+                ORDER BY bucket ASC
+                LIMIT ?
+            ''', (f'-{hours}', limit)).fetchall()
+
+        return [{'t': r['bucket'], 'in': round((r['rx_sum'] or 0) / 1000000.0, 2), 'out': round((r['tx_sum'] or 0) / 1000000.0, 2)} for r in rows]
+
     def get_device_interfaces(self, device_id, hours=24):
         with self.conn() as c:
             rows = c.execute('''

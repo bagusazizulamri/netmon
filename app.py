@@ -804,35 +804,8 @@ def get_network_traffic_history():
     except:
         hours = 1.0
 
-    if hours <= 2:
-        bucket_fmt = "strftime('%H:%M', m.timestamp, 'localtime')"
-        limit = 120
-    elif hours <= 24:
-        bucket_fmt = "strftime('%H:', m.timestamp, 'localtime') || (CASE WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 15 THEN '00' WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 30 THEN '15' WHEN CAST(strftime('%M', m.timestamp, 'localtime') AS INTEGER) < 45 THEN '30' ELSE '45' END)"
-        limit = 96
-    else:
-        bucket_fmt = "strftime('%m-%d %H:00', m.timestamp, 'localtime')"
-        limit = 50
-
-    with db.conn() as c:
-        rows = c.execute(f'''
-            SELECT 
-                {bucket_fmt} AS bucket,
-                SUM(CASE WHEN m.metric_name = 'wan_in' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS rx_sum,
-                SUM(CASE WHEN m.metric_name = 'wan_out' THEN CAST(m.metric_value AS REAL) ELSE 0 END) AS tx_sum
-            FROM snmp_metrics m
-            JOIN devices d ON m.device_id = d.id
-            WHERE d.type = 'router' 
-              AND m.metric_name IN ('wan_in', 'wan_out')
-              AND m.timestamp >= datetime('now', ? || ' hours')
-            GROUP BY bucket
-            ORDER BY m.timestamp ASC
-            LIMIT ?
-        ''', (f'-{hours}', limit)).fetchall()
-        
-        points = [{'t': r['bucket'], 'in': round((r['rx_sum'] or 0) / 1000000.0, 2), 'out': round((r['tx_sum'] or 0) / 1000000.0, 2)} for r in rows]
-        
-        return jsonify(points)
+    points = db.get_backbone_traffic_history(hours)
+    return jsonify(points)
 
 # ============================================================
 # WEBSOCKET EVENTS
