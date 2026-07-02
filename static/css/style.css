@@ -670,13 +670,31 @@ body.theme-morphism .page-header {
 /* ============================================================ SETTINGS */
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  max-width: 1200px;
+  max-width: 100%;
 }
-@media (max-width: 992px) {
+@media (max-width: 1200px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+.about-panel {
+  grid-column: span 3;
+}
+@media (max-width: 1200px) {
+  .about-panel {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 768px) {
+  .about-panel {
+    grid-column: span 1;
   }
 }
 .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
