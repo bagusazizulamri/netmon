@@ -144,7 +144,7 @@
 <div class="row g-4 mb-4 align-items-stretch">
   <!-- Left Side: Throughput Backbone Area Chart -->
   <div class="col-12 col-xl-8">
-    <div class="nm-panel h-100 p-0 d-flex flex-column" style="min-height: 440px;">
+    <div class="nm-panel backbone-panel p-0">
       <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: transparent;">
         <div>
           <span class="fw-600 fs-6 text-primary"><i class="bi bi-graph-up me-2 text-accent"></i>Throughput Backbone</span>
@@ -168,7 +168,7 @@
           <i class="bi bi-graph-up text-secondary fs-3 d-block mb-2"></i>
           <span style="font-size: 13px;">Belum cukup data traffic</span>
         </div>
-        <div id="traffic-chart-container" style="position: relative; height: 320px; width: 100%;">
+        <div id="traffic-chart-container" class="traffic-chart-container-fluid">
           <canvas id="throughputChart"></canvas>
         </div>
       </div>
@@ -176,33 +176,31 @@
   </div>
 
   <!-- Right Side: Active Incidents & Top Talkers -->
-  <div class="col-12 col-xl-4 d-flex flex-column">
-    <div class="d-flex flex-column gap-4 flex-grow-1">
-      <!-- Active Incidents -->
-      <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="height: 0; min-height: 200px;">
-        <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
-          <div>
-            <span class="fw-600 fs-6 text-primary"><i class="bi bi-exclamation-circle-fill me-2 text-danger"></i>Insiden Aktif</span>
-            <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Daftar gangguan jaringan saat ini</div>
-          </div>
-          <span class="badge bg-danger text-white px-2 py-0.5 text-xs" id="active-incidents-count" style="border-radius: 8px;">0</span>
+  <div class="col-12 col-xl-4 d-flex flex-column gap-4">
+    <!-- Active Incidents -->
+    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column">
+      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+        <div>
+          <span class="fw-600 fs-6 text-primary"><i class="bi bi-exclamation-circle-fill me-2 text-danger"></i>Insiden Aktif</span>
+          <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Daftar gangguan jaringan saat ini</div>
         </div>
-        <div class="panel-body p-3 flex-grow-1" style="overflow-y: auto;" id="active-incidents-list">
-          <div class="text-center text-muted py-4">Loading alerts…</div>
+        <span class="badge bg-danger text-white px-2 py-0.5 text-xs" id="active-incidents-count" style="border-radius: 8px;">0</span>
+      </div>
+      <div class="panel-body p-3 flex-grow-1" style="overflow-y: auto;" id="active-incidents-list">
+        <div class="text-center text-muted py-4">Loading alerts…</div>
+      </div>
+    </div>
+
+    <!-- Top Talkers -->
+    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column">
+      <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
+        <div>
+          <span class="fw-600 fs-6 text-primary"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Top Talkers</span>
+          <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Perangkat pemakai bandwidth terbesar</div>
         </div>
       </div>
-
-      <!-- Top Talkers -->
-      <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="height: 0; min-height: 200px;">
-        <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
-          <div>
-            <span class="fw-600 fs-6 text-primary"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Top Talkers</span>
-            <div class="text-xs text-muted mt-0.5" style="font-size: 11px;">Perangkat pemakai bandwidth terbesar</div>
-          </div>
-        </div>
-        <div class="panel-body p-3 flex-grow-1" style="overflow-y: auto;" id="top-talkers-list">
-          <div class="text-center text-muted py-4">Loading top devices…</div>
-        </div>
+      <div class="panel-body p-3 flex-grow-1" style="overflow-y: auto;" id="top-talkers-list">
+        <div class="text-center text-muted py-4">Loading top devices…</div>
       </div>
     </div>
   </div>
