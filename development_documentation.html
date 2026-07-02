@@ -143,14 +143,14 @@
   <div style="text-align: center; margin-bottom: 40px;">
     <h1 style="border: none; color: #007aff; font-size: 32px; margin-bottom: 5px;">NetMon</h1>
     <p style="font-size: 16px; color: #8e8e93; margin: 0;">Dokumentasi Pengembangan & Arsitektur Sistem</p>
-    <p style="font-size: 12px; color: #aeaeb2; margin: 5px 0 0 0;">Periode Laporan: 1 Juni 2026 – 1 Juli 2026</p>
+    <p style="font-size: 12px; color: #aeaeb2; margin: 5px 0 0 0;">Periode Laporan: 1 Juni 2026 – 2 Juli 2026</p>
   </div>
 
   <hr style="border: none; border-top: 1px solid #e5e5ea; margin-bottom: 30px;">
 
   <h2>1. Ringkasan Eksekutif</h2>
   <p><strong>NetMon</strong> adalah aplikasi pemantauan jaringan (<em>Network Monitoring</em>) terintegrasi yang menyatukan penangkapan data SNMP otomatis, visualisasi topologi interaktif (Floor Plan), manajemen zona, antarmuka terminal interaktif (TUI), serta sistem penyaringan peringatan palsu cerdas bertenaga AI.</p>
-  <p>Selama periode pengembangan dari <strong>1 Juni 2026 hingga 1 Juli 2026</strong>, NetMon telah melalui serangkaian pembaruan arsitektural besar untuk meningkatkan performa konkurensi (khususnya pada lingkungan Windows/WSL), stabilitas penangkapan data SNMP, efisiensi rendering antarmuka di sisi klien, serta integrasi kecerdasan buatan (<em>Artificial Intelligence</em>) untuk meredam alarm palsu (<em>false warnings</em>).</p>
+  <p>Selama periode pengembangan dari <strong>1 Juni 2026 hingga 2 Juli 2026</strong>, NetMon telah melalui serangkaian pembaruan arsitektural besar untuk meningkatkan performa konkurensi (khususnya pada lingkungan Windows/WSL), stabilitas penangkapan data SNMP, efisiensi rendering antarmuka di sisi klien, serta integrasi kecerdasan buatan (<em>Artificial Intelligence</em>) untuk meredam alarm palsu (<em>false warnings</em>).</p>
 
   <div class="info-box">
     <p>Pemberitahuan: Dokumen ini dirancang dengan gaya kompatibilitas Microsoft Word. Anda dapat membuka file ini langsung menggunakan Microsoft Word atau mengunggahnya ke Google Docs, lalu menyimpannya sebagai format dokumen (.docx).</p>
@@ -211,7 +211,7 @@
           </ul>
         </td>
       </tr>
-      <tr>
+       <tr>
         <td><strong>1 Juli 2026</strong></td>
         <td>
           <ul>
@@ -219,6 +219,19 @@
             <li><strong>Device Uplink Speed Configuration</strong>: Konfigurasi per-perangkat untuk kapasitas bandwidth fisik uplink (hingga 100 Gbps) guna menyesuaikan batas filter anomali dan visualisasi puncak (Mbps vs Gbps).</li>
             <li><strong>Per-Device Alert Muting</strong>: Tombol bisukan (mute) alert pada daftar perangkat untuk meredam alarm dari perangkat berisik.</li>
             <li><strong>Double-Check Offline Verification</strong>: Prosedur verifikasi bertahap (retrial SNMP + ping fallback) untuk meniadakan alarm offline palsu akibat kemacetan jaringan sesaat.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>2 Juli 2026</strong></td>
+        <td>
+          <ul>
+            <li><strong>Pemisahan Interval Polling</strong>: Memecah job polling latar belakang menjadi polling status device (default 30s) dan polling traffic interface (default 10s) untuk data throughput real-time yang lebih rapat dan akurat.</li>
+            <li><strong>Auto-Detect & Konfigurasi WAN Manual</strong>: Mendukung pemindaian port fisik dan mengabaikan tunnel virtual untuk deteksi kecepatan fisik uplink. Ditambahkan dropdown pilihan interface WAN manual di halaman Devices.</li>
+            <li><strong>Rollover 32-Bit Kontekstual</strong>: Algoritma pendeteksi rollover counter 32-bit berbasis selisih waktu (<code>dt</code>) dan nilai selisih negatif ekstrim untuk membedakan antara rollover asli dengan reboot perangkat.</li>
+            <li><strong>Throughput Laporan Terbobot Waktu</strong>: Mengubah penghitungan rata-rata throughput laporan bulanan dari rata-rata aritmatika menjadi rata-rata terbobot waktu (Time-Weighted Average) berbasis durasi interval polling valid.</li>
+            <li><strong>Filter Kalender Bulanan Akurat</strong>: Membatasi query telemetri laporan bulanan berdasarkan batas tanggal awal/akhir bulan kalender dari input <code>month_str</code>, serta memperbaiki isolasi anomali agar discard filter tidak menabrak metrik normal yang berbagi timestamp sama.</li>
+            <li><strong>Quick Acknowledge & Security Audit</strong>: Tombol Ack instan langsung pada bilah samping insiden aktif di dashboard, serta audit celah keamanan menyeluruh yang disimpan di <code>report.html</code>.</li>
           </ul>
         </td>
       </tr>
@@ -478,7 +491,8 @@
       "2026-06-26": "Mengoptimasi rasio aspek canvas floorplan agar gambar denah auto-fit sesuai viewport tanpa distorsi koordinat.",
       "2026-06-29": "Menambahkan penyimpanan retensi telemetri lalu lintas data selama 7 hari di database SQLite.",
       "2026-06-30": "Meningkatkan performa floorplan canvas dengan requestDraw() berbasis event dan mengganti shadowBlur dengan akselerasi GPU.",
-      "2026-07-01": "Migrasi AI False Warning Detector ke Groq API (Llama 3.3 70B), membuat fitur klik detail insiden dashboard, optimasi cache token, dan auto-restart service di update.sh."
+      "2026-07-01": "Migrasi AI False Warning Detector ke Groq API (Llama 3.3 70B), membuat fitur klik detail insiden dashboard, optimasi cache token, dan auto-restart service di update.sh.",
+      "2026-07-02": "Penerapan filter kalender bulanan, isolasi discard timestamp berbasis metric-name, optimalisasi perhitungan time-weighted average di laporan bulanan, dan integrasi pilihan interface WAN manual di UI."
     };
 
     // Kegiatan generik cadangan untuk tanggal yang tidak terdaftar

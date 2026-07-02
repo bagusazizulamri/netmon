@@ -20,6 +20,10 @@ Real-time network monitoring with SNMP auto-discovery, interactive floor plan al
 | **Bandwidth Reports** | Monthly reports on backbone & uplink throughput with AI anomaly filtering and PDF export |
 | **Per-Device Muting** | Mute/unmute alerts from individual devices with a single click to prevent alert spam |
 | **Double-Check Offline** | Two-step offline validation (SNMP re-poll + ping) to ensure high-accuracy alerts |
+| **Split Polling Intervals** | Decouple device status checks (default 30s) and interface traffic polling (default 10s) for high-accuracy bandwidth sampling |
+| **Manual WAN Override** | Manually configure router WAN interface mapping via an on-demand dropdown on the Devices page |
+| **Time-Weighted Reports** | Monthly bandwidth average calculated via time-weighted algorithms over valid intervals |
+| **Context-Aware Rollovers** | Distinguishes 32-bit SNMP counter rollovers from device reboots based on polling delta time (dt) |
 
 ---
 
