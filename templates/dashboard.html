@@ -624,6 +624,18 @@ function renderZoneHealth(zones) {
     return;
   }
   
+  const count = zones.length;
+  let colClass = 'col-12 col-sm-6 col-md-4 col-xl-3'; // Default: 4 kolom per baris
+  if (count === 4) {
+    colClass = 'col-12 col-sm-6 col-md-6 col-xl-6'; // 2 baris x 2 kolom
+  } else if (count === 3) {
+    colClass = 'col-12 col-sm-6 col-md-4 col-xl-4'; // 1 baris x 3 kolom
+  } else if (count === 2) {
+    colClass = 'col-12 col-sm-6 col-md-6 col-xl-6'; // 1 baris x 2 kolom
+  } else if (count === 1) {
+    colClass = 'col-12'; // 1 baris x 1 kolom
+  }
+
   container.innerHTML = zones.map(z => {
     const total = z.total || 0;
     const ok = z.up_count || 0;
@@ -640,7 +652,7 @@ function renderZoneHealth(zones) {
     const barColor = pct >= 100 ? 'var(--green)' : (pct >= 80 ? 'var(--warning)' : 'var(--danger)');
     
     return `
-      <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+      <div class="${colClass}">
         <div class="border p-2.5 h-100 transition-all zone-card d-flex flex-column justify-content-between" style="border-color: var(--border) !important; background: var(--bg-card); border-radius: var(--radius);">
           <div>
             <div class="d-flex align-items-center justify-content-between mb-1.5">
