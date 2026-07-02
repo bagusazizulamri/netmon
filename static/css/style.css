@@ -8,6 +8,8 @@
   --bg-base:       #111113; /* Deep dark space */
   --bg-card:       #19191c; /* Elevated dark */
   --bg-card-solid: #19191c;
+  --bg-card2:      #1e1e22; /* Elevated surfaces: cards, tooltips, toasts */
+  --bg-panel:      #19191c; /* Panel/tab backgrounds */
   --bg-hover:      rgba(255, 255, 255, 0.05);
   --border:        #29292e; /* Subtle geometric border */
   --border-lt:     #212125;
@@ -502,15 +504,15 @@ body.theme-morphism .page-header {
 
 /* ============================================================ MODALS */
 .nm-modal {
-  background: #2c2c2e !important; /* Solid macOS dark gray modal */
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--bg-card-solid, #2c2c2e) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08)) !important;
   color: var(--text-primary);
   border-radius: var(--radius);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
 }
-.nm-modal .modal-header { border-color: rgba(255, 255, 255, 0.08); padding: 14px 18px; }
-.nm-modal .modal-footer { border-color: rgba(255, 255, 255, 0.08); padding: 12px 18px; }
-.nm-modal .modal-body   { padding: 18px; }
+.nm-modal .modal-header { border-color: var(--border, rgba(255, 255, 255, 0.08)); padding: 14px 18px; }
+.nm-modal .modal-footer { border-color: var(--border, rgba(255, 255, 255, 0.08)); padding: 12px 18px; color: var(--text-primary); }
+.nm-modal .modal-body   { padding: 18px; color: var(--text-primary); }
 
 /* Clean flat backdrop overlay */
 .modal-backdrop {
@@ -891,6 +893,8 @@ body.light-theme {
   --bg-base:       #f5f5f7; /* Apple Off-white */
   --bg-card:       #ffffff;
   --bg-card-solid: #ffffff;
+  --bg-card2:      #f9f9fb; /* Elevated surfaces light */
+  --bg-panel:      #ffffff; /* Panel/tab backgrounds light */
   --bg-hover:      rgba(0, 0, 0, 0.04);
   --border:        #e5e5ea; /* System gray 4 */
   --border-lt:     #f2f2f7;
@@ -1123,14 +1127,20 @@ body.light-theme .nm-modal {
   background: #ffffff !important; /* Solid clean light macOS Modal */
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-primary) !important;
 }
 
 body.light-theme .nm-modal .modal-header {
   border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
+body.light-theme .nm-modal .modal-body {
+  color: var(--text-primary) !important;
+}
+
 body.light-theme .nm-modal .modal-footer {
   border-color: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-primary) !important;
 }
 
 body.light-theme .modal-backdrop.show {
