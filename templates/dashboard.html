@@ -57,6 +57,29 @@
     color: #ffffff;
     border-color: var(--green);
   }
+  @media (min-width: 1200px) {
+    .dashboard-right-col {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
+      gap: 24px !important;
+    }
+    .dashboard-right-col .nm-panel {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      height: 0 !important;
+    }
+  }
+  @media (max-width: 1199px) {
+    .dashboard-right-col {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 24px !important;
+    }
+    .dashboard-right-col .nm-panel {
+      min-height: 220px !important;
+    }
+  }
 </style>
 
 <div class="page-header mb-4">
@@ -176,9 +199,9 @@
   </div>
 
   <!-- Right Side: Active Incidents & Top Talkers -->
-  <div class="col-12 col-xl-4 d-flex flex-column gap-4">
+  <div class="col-12 col-xl-4 dashboard-right-col">
     <!-- Active Incidents -->
-    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 210px; height: 0;">
+    <div class="nm-panel p-0 d-flex flex-column">
       <div class="panel-header border-bottom p-3 d-flex justify-content-between align-items-center" style="background: transparent;">
         <span class="fw-600 fs-6 text-primary"><i class="bi bi-exclamation-circle-fill me-2 text-danger"></i>Insiden Aktif</span>
         <span class="badge bg-danger text-white px-2 py-0.5 text-xs" id="active-incidents-count" style="border-radius: 8px;">0</span>
@@ -189,7 +212,7 @@
     </div>
 
     <!-- Top Talkers -->
-    <div class="nm-panel p-0 flex-grow-1 d-flex flex-column" style="min-height: 210px; height: 0;">
+    <div class="nm-panel p-0 d-flex flex-column">
       <div class="panel-header border-bottom p-3" style="background: transparent;">
         <span class="fw-600 fs-6 text-primary"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Top Talkers</span>
       </div>
