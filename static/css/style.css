@@ -1889,3 +1889,12 @@ body.theme-win7 .incident-list-item:hover {
   border-color: #3c7fb1 !important;
   background: #eaf6fd !important;
 }
+
+/* ============================================================ DASHBOARD LAYOUT REFACTORING */
+.traffic-chart-container-fluid {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+}
