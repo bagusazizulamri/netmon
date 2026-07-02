@@ -21,21 +21,21 @@
     <div class="panel-header"><span><i class="bi bi-clock-fill me-2 text-accent"></i>Polling</span></div>
     <div class="panel-body">
       <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Poll Interval (seconds)</label>
           <input type="number" class="nm-input" id="s-poll" min="10" max="3600" value="30">
           <small class="text-muted">Min 10s. How often SNMP-enabled devices are queried.</small>
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Traffic Poll Interval (seconds)</label>
           <input type="number" class="nm-input" id="s-traffic-poll" min="5" max="3600" value="10">
           <small class="text-muted">Min 5s. How often interface traffic statistics are queried.</small>
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Default SNMP Community</label>
           <input type="text" class="nm-input" id="s-community" value="public">
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Default SNMP Version</label>
           <select class="nm-select w-100" id="s-version">
             <option value="1">v1</option>
@@ -43,7 +43,7 @@
             <option value="3">v3</option>
           </select>
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Alert Retention (days)</label>
           <input type="number" class="nm-input" id="s-alert-ret" min="1" value="30">
         </div>
@@ -56,14 +56,14 @@
     <div class="panel-header"><span><i class="bi bi-bell-fill me-2 text-accent"></i>Alerting</span></div>
     <div class="panel-body">
       <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Alert on Device Down</label>
           <div class="nm-toggle-wrap">
             <label class="nm-toggle"><input type="checkbox" id="s-alert-down" checked><span class="nm-slider"></span></label>
             <span>Create alert when SNMP unreachable</span>
           </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Alert on Device Recovery</label>
           <div class="nm-toggle-wrap">
             <label class="nm-toggle"><input type="checkbox" id="s-alert-up" checked><span class="nm-slider"></span></label>
@@ -79,7 +79,7 @@
     <div class="panel-header"><span><i class="bi bi-palette-fill me-2 text-accent"></i>Appearance</span></div>
     <div class="panel-body">
       <div class="row g-3">
-        <div class="col-md-12">
+        <div class="col-12">
           <label class="nm-label">UI Theme</label>
           <select class="nm-select w-100" id="s-theme">
             <option value="default">Default Dark</option>
@@ -87,6 +87,8 @@
             <option value="minimalism">Minimalism</option>
             <option value="morphism">Glassmorphism</option>
             <option value="win7">3D Windows 7 (Aero)</option>
+            <option value="linear">Sleek Linear Dark</option>
+            <option value="forest">Warm Earthy Forest</option>
           </select>
           <small class="text-muted">Pilih gaya visual antarmuka sistem.</small>
         </div>
@@ -120,23 +122,23 @@
     </div>
     <div class="panel-body">
       <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Controller Host / IP</label>
           <input type="text" class="nm-input" id="s-uf-host" placeholder="192.168.1.1 or controller.local">
         </div>
-        <div class="col-md-3">
+        <div class="col-12">
           <label class="nm-label">Port</label>
           <input type="number" class="nm-input" id="s-uf-port" value="8443">
         </div>
-        <div class="col-md-3">
+        <div class="col-12">
           <label class="nm-label">Site</label>
           <input type="text" class="nm-input" id="s-uf-site" value="default">
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Username</label>
           <input type="text" class="nm-input" id="s-uf-user" placeholder="admin">
         </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <label class="nm-label">Password</label>
           <input type="password" class="nm-input" id="s-uf-pass" placeholder="Leave blank to keep existing">
         </div>

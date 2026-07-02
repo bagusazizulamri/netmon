@@ -655,8 +655,7 @@ body {
 .type-pill.info   { background: var(--bg-hover); color: var(--text-muted); }
 
 /* ============================================================ SETTINGS */
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 18px; }
-@media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; } }
+.settings-grid { display: flex; flex-direction: column; gap: 20px; max-width: 800px; }
 .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .about-item { display: flex; flex-direction: column; gap: 2px; }
 .about-lbl  { font-size: 11px; color: var(--text-muted); }
@@ -1079,6 +1078,23 @@ body.theme-brutalism {
   --radius-sm: 0px;
   --radius-lg: 0px;
 }
+body.theme-brutalism {
+  color: #000000 !important;
+}
+body.theme-brutalism *,
+body.theme-brutalism .text-muted,
+body.theme-brutalism .text-secondary,
+body.theme-brutalism .about-lbl,
+body.theme-brutalism .kpi-lbl,
+body.theme-brutalism .kpi-sub,
+body.theme-brutalism .nav-item span,
+body.theme-brutalism .page-sub,
+body.theme-brutalism .nm-label,
+body.theme-brutalism .logo-text,
+body.theme-brutalism .about-val,
+body.theme-brutalism .live-badge {
+  color: #000000 !important;
+}
 body.theme-brutalism .nm-panel,
 body.theme-brutalism .sidebar,
 body.theme-brutalism .btn-nm,
@@ -1110,6 +1126,15 @@ body.theme-brutalism .custom-confirm-title {
   font-weight: 800 !important;
   text-transform: uppercase;
 }
+body.theme-brutalism .nav-item.active {
+  background: #ffde4d !important;
+  border: 3px solid #000000 !important;
+}
+body.theme-brutalism .live-badge {
+  background: #ffde4d !important;
+  border: 2px solid #000000 !important;
+  font-weight: 800 !important;
+}
 
 /* 2. MINIMALISM */
 body.theme-minimalism {
@@ -1122,11 +1147,34 @@ body.theme-minimalism {
   --accent: #18181b;
   --accent-dim: rgba(24, 24, 27, 0.08);
   --text-primary: #18181b;
-  --text-secondary: #71717a;
-  --text-muted: #a1a1aa;
+  --text-secondary: #4f4f52;
+  --text-muted: #71717a;
   --radius: 4px;
   --radius-sm: 2px;
   --radius-lg: 6px;
+}
+body.theme-minimalism {
+  color: #18181b !important;
+}
+body.theme-minimalism .text-muted,
+body.theme-minimalism .text-secondary,
+body.theme-minimalism .about-lbl,
+body.theme-minimalism .kpi-lbl,
+body.theme-minimalism .kpi-sub,
+body.theme-minimalism .page-sub,
+body.theme-minimalism .nm-label,
+body.theme-minimalism .about-val {
+  color: #4f4f52 !important;
+}
+body.theme-minimalism .logo-text,
+body.theme-minimalism h1,
+body.theme-minimalism h2,
+body.theme-minimalism h3,
+body.theme-minimalism h4,
+body.theme-minimalism th,
+body.theme-minimalism td,
+body.theme-minimalism .nav-item span {
+  color: #18181b !important;
 }
 body.theme-minimalism .nm-panel,
 body.theme-minimalism .sidebar,
@@ -1140,6 +1188,10 @@ body.theme-minimalism .custom-confirm-dialog {
 }
 body.theme-minimalism .sidebar {
   background: #ffffff !important;
+}
+body.theme-minimalism .nav-item.active {
+  background: #f4f4f5 !important;
+  font-weight: 600;
 }
 
 /* 3. MORPHISM (GLASSMORPHISM) */
@@ -1193,6 +1245,29 @@ body.theme-win7 {
   --radius-sm: 3px;
   --radius-lg: 10px;
 }
+body.theme-win7 {
+  color: #000000 !important;
+}
+body.theme-win7 .text-muted,
+body.theme-win7 .text-secondary,
+body.theme-win7 .about-lbl,
+body.theme-win7 .kpi-lbl,
+body.theme-win7 .kpi-sub,
+body.theme-win7 .page-sub,
+body.theme-win7 .nm-label,
+body.theme-win7 .about-val {
+  color: #2b3a4a !important;
+}
+body.theme-win7 .logo-text,
+body.theme-win7 h1,
+body.theme-win7 h2,
+body.theme-win7 h3,
+body.theme-win7 h4,
+body.theme-win7 th,
+body.theme-win7 td,
+body.theme-win7 .nav-item span {
+  color: #1c3d5a !important;
+}
 body.theme-win7 .sidebar {
   background: linear-gradient(180deg, #d3e3f7 0%, #a4c2eb 100%) !important;
   border-right: 2px solid #7f9db9 !important;
@@ -1232,4 +1307,99 @@ body.theme-win7 .nm-select {
   border-radius: 2px !important;
   color: #000000 !important;
 }
+body.theme-win7 .nav-item.active {
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid #7f9db9 !important;
+  font-weight: 600;
+}
+
+/* 5. SLEEK LINEAR DARK */
+body.theme-linear {
+  --bg-base: #000000;
+  --bg-card: #09090b;
+  --bg-card-solid: #09090b;
+  --bg-hover: #18181b;
+  --border: #27272a;
+  --border-lt: #18181b;
+  --accent: #ffffff;
+  --accent-dim: rgba(255, 255, 255, 0.1);
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+}
+body.theme-linear .nm-panel,
+body.theme-linear .sidebar,
+body.theme-linear .modal-content,
+body.theme-linear .custom-confirm-dialog {
+  border: 1px solid #27272a !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7) !important;
+}
+body.theme-linear .sidebar {
+  background: #09090b !important;
+}
+body.theme-linear .nav-item.active {
+  background: #18181b !important;
+  color: #ffffff !important;
+  border-left: 2px solid #ffffff !important;
+  border-radius: 0px !important;
+}
+
+/* 6. WARM EARTHY FOREST */
+body.theme-forest {
+  --bg-base: #f5f2eb;
+  --bg-card: #ffffff;
+  --bg-card-solid: #ffffff;
+  --bg-hover: #eae3d2;
+  --border: #d4cbb8;
+  --border-lt: #f5f2eb;
+  --accent: #2e4a31;
+  --accent-dim: rgba(46, 74, 49, 0.15);
+  --text-primary: #2d352e;
+  --text-secondary: #4a554c;
+  --text-muted: #828c83;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+}
+body.theme-forest {
+  color: #2d352e !important;
+}
+body.theme-forest .text-muted,
+body.theme-forest .text-secondary,
+body.theme-forest .about-lbl,
+body.theme-forest .kpi-lbl,
+body.theme-forest .kpi-sub,
+body.theme-forest .page-sub,
+body.theme-forest .nm-label,
+body.theme-forest .about-val {
+  color: #4a554c !important;
+}
+body.theme-forest .logo-text,
+body.theme-forest h1,
+body.theme-forest h2,
+body.theme-forest h3,
+body.theme-forest h4,
+body.theme-forest th,
+body.theme-forest td,
+body.theme-forest .nav-item span {
+  color: #1a2b1d !important;
+}
+body.theme-forest .sidebar {
+  background: #eae3d2 !important;
+  border-right: 1px solid #d4cbb8 !important;
+}
+body.theme-forest .nav-item.active {
+  background: #dcd4be !important;
+  font-weight: 600;
+}
+body.theme-forest .nm-panel,
+body.theme-forest .modal-content,
+body.theme-forest .custom-confirm-dialog {
+  border: 1px solid #d4cbb8 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
 
