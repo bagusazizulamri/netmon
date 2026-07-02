@@ -1048,3 +1048,41 @@ window.showConfirm = function(title, message, onConfirm) {
     overlay.classList.add('active');
   }, 10);
 };
+
+window.showLoading = function(message = 'Processing...') {
+  let overlay = document.getElementById('global-loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'global-loading-overlay';
+    overlay.className = 'custom-loading-overlay';
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'custom-loading-dialog';
+    
+    const spinner = document.createElement('div');
+    spinner.className = 'custom-spinner';
+    
+    const messageEl = document.createElement('div');
+    messageEl.id = 'global-loading-message';
+    messageEl.className = 'custom-loading-message';
+    
+    dialog.appendChild(spinner);
+    dialog.appendChild(messageEl);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+  }
+  
+  const msgEl = document.getElementById('global-loading-message');
+  if (msgEl) msgEl.textContent = message;
+  
+  setTimeout(() => {
+    overlay.classList.add('active');
+  }, 10);
+};
+
+window.hideLoading = function() {
+  const overlay = document.getElementById('global-loading-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+};

@@ -294,6 +294,8 @@ function generateReport() {
     return;
   }
 
+  showLoading('Generating report, please wait...');
+
   fetch('/api/reports/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -301,6 +303,7 @@ function generateReport() {
   })
   .then(r => r.json())
   .then(res => {
+    hideLoading();
     if (res.status === 'success') {
       showToast('Laporan berhasil dibuat!', 'success');
       loadReportsList();
@@ -314,6 +317,7 @@ function generateReport() {
     }
   })
   .catch(err => {
+    hideLoading();
     console.error("Error generating report:", err);
     alert("Koneksi gagal saat men-generate laporan.");
   });
