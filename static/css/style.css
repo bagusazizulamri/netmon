@@ -1823,3 +1823,31 @@ body.theme-forest .custom-loading-dialog {
   font-weight: 600;
   color: var(--text-primary);
 }
+
+/* ============================================================ ZONE CARD DASHBOARD STYLES */
+.zone-card {
+  transition: transform var(--trans), border-color var(--trans), box-shadow var(--trans);
+}
+.zone-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+body.theme-brutalism .zone-card {
+  border: 3px solid #000000 !important;
+  border-radius: 0px !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+}
+body.theme-brutalism .zone-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #000000 !important;
+}
+body.theme-win7 .zone-card {
+  border: 1px solid #7f9db9 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+body.theme-win7 .zone-card:hover {
+  border-color: #3c7fb1 !important;
+  background: #d3e1f1 !important;
+}
