@@ -585,7 +585,14 @@ function renderTopTalkers(devices) {
   
   const maxVal = Math.max(...topTalkers.map(d => (d.wan_in || 0) + (d.wan_out || 0)), 1);
 
-  container.innerHTML = topTalkers.map(d => {
+  const headerHtml = `
+    <div class="d-flex justify-content-between text-muted mb-3 px-1" style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-lt); padding-bottom: 6px;">
+      <span>Perangkat (IP)</span>
+      <span>Trafik (In + Out)</span>
+    </div>
+  `;
+
+  container.innerHTML = headerHtml + topTalkers.map(d => {
     const totalBytesSec = (d.wan_in || 0) + (d.wan_out || 0);
     const pct = ((totalBytesSec / maxVal) * 100).toFixed(0);
     return `
