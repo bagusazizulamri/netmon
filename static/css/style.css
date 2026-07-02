@@ -158,11 +158,29 @@ h1, h2, h3, h4, h5, h6, .sidebar-logo, .fw-700, .fw-800, .fw-900 {
 .slabel { font-size: 12px; color: var(--text-secondary); flex: 1; }
 .sval   { font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; color: var(--text-primary); }
 
-.sidebar-time {
-  font-size: 11px;
+.sidebar-clock {
+  margin: 6px 12px;
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.clock-time {
+  font-size: 16px;
+  font-weight: 700;
   font-family: 'IBM Plex Mono', monospace;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+.clock-date {
+  font-size: 10px;
   color: var(--text-muted);
-  margin-top: 8px;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
 }
 .sidebar-conn {
   font-size: 11px;
@@ -1396,9 +1414,26 @@ body.theme-brutalism .sidebar-logo .bi {
 }
 body.theme-brutalism .sidebar .slabel,
 body.theme-brutalism .sidebar .sval,
-body.theme-brutalism .sidebar .sidebar-time,
 body.theme-brutalism .sidebar .sidebar-conn {
   color: #000000 !important;
+}
+body.theme-brutalism .sidebar-clock {
+  background: #ffffff !important;
+  border: 3px solid #000000 !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-brutalism .clock-time {
+  font-family: 'IBM Plex Mono', monospace !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+body.theme-brutalism .clock-date {
+  font-family: 'IBM Plex Mono', monospace !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
 }
 body.theme-brutalism .sidebar-status {
   border-top: 3px solid #000000 !important;
@@ -1520,9 +1555,23 @@ body.theme-minimalism .sidebar .slabel {
 body.theme-minimalism .sidebar .sval {
   color: #18181b !important;
 }
-body.theme-minimalism .sidebar .sidebar-time,
 body.theme-minimalism .sidebar .sidebar-conn {
   color: #71717a !important;
+}
+body.theme-minimalism .sidebar-clock {
+  background: #f4f4f5 !important;
+  border: 1px solid #e4e4e7 !important;
+  border-radius: 6px !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-minimalism .clock-time {
+  color: #18181b !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600 !important;
+}
+body.theme-minimalism .clock-date {
+  color: #71717a !important;
+  font-family: 'Inter', sans-serif !important;
 }
 body.theme-minimalism .sidebar-status {
   border-top: 1px solid #e4e4e7 !important;
@@ -1609,9 +1658,22 @@ body.theme-morphism .sidebar .slabel {
 body.theme-morphism .sidebar .sval {
   color: #e2e8f0 !important;
 }
-body.theme-morphism .sidebar .sidebar-time,
 body.theme-morphism .sidebar .sidebar-conn {
   color: #64748b !important;
+}
+body.theme-morphism .sidebar-clock {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-radius: 12px !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-morphism .clock-time {
+  color: #e2e8f0 !important;
+}
+body.theme-morphism .clock-date {
+  color: #94a3b8 !important;
 }
 body.theme-morphism .sidebar-status {
   border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -1765,9 +1827,23 @@ body.theme-win7 .sidebar .slabel {
 body.theme-win7 .sidebar .sval {
   color: #1c3d5a !important;
 }
-body.theme-win7 .sidebar .sidebar-time,
 body.theme-win7 .sidebar .sidebar-conn {
   color: #4a7aaa !important;
+}
+body.theme-win7 .sidebar-clock {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-win7 .clock-time {
+  color: #1c3d5a !important;
+  font-family: 'Segoe UI', sans-serif !important;
+}
+body.theme-win7 .clock-date {
+  color: #4a7aaa !important;
+  font-family: 'Segoe UI', sans-serif !important;
 }
 body.theme-win7 .sidebar-status {
   border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
@@ -1948,9 +2024,23 @@ body.theme-frutiger .sidebar .slabel {
 body.theme-frutiger .sidebar .sval {
   color: #1a2e44 !important;
 }
-body.theme-frutiger .sidebar .sidebar-time,
 body.theme-frutiger .sidebar .sidebar-conn {
   color: #6a8fae !important;
+}
+body.theme-frutiger .sidebar-clock {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 248, 255, 0.4) 100%) !important;
+  border: 1px solid rgba(120, 170, 220, 0.4) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 6px rgba(0, 80, 160, 0.08) !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-frutiger .clock-time {
+  color: #1a2e44 !important;
+  font-family: 'Outfit', 'Segoe UI', sans-serif !important;
+}
+body.theme-frutiger .clock-date {
+  color: #5a7a9c !important;
+  font-family: 'Outfit', 'Segoe UI', sans-serif !important;
 }
 body.theme-frutiger .sidebar-status {
   border-top: 1px solid rgba(120, 170, 220, 0.25) !important;
@@ -2232,11 +2322,28 @@ body.theme-winxp .sidebar .slabel {
 body.theme-winxp .sidebar .sval {
   color: #ffffff !important;
 }
-body.theme-winxp .sidebar .sidebar-time {
-  color: #7eb4f0 !important;
-}
 body.theme-winxp .sidebar .sidebar-conn {
   color: #7eb4f0 !important;
+}
+body.theme-winxp .sidebar-clock {
+  background: #000000 !important;
+  border: 2px solid #aca899 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 #fff !important;
+  padding: 6px 12px !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-winxp .clock-time {
+  font-family: 'Courier New', monospace !important;
+  color: #00ff00 !important;
+  font-size: 17px !important;
+  font-weight: bold !important;
+  letter-spacing: 1px !important;
+}
+body.theme-winxp .clock-date {
+  font-family: 'Tahoma', sans-serif !important;
+  color: #a0a0a0 !important;
+  font-size: 9px !important;
 }
 body.theme-winxp .sidebar .sdot.up { background: #44dd44 !important; }
 body.theme-winxp .sidebar .sdot.down { background: #ff5555 !important; }
@@ -2781,9 +2888,22 @@ body.theme-forest .sidebar .slabel {
 body.theme-forest .sidebar .sval {
   color: #2d352e !important;
 }
-body.theme-forest .sidebar .sidebar-time,
 body.theme-forest .sidebar .sidebar-conn {
   color: #828c83 !important;
+}
+body.theme-forest .sidebar-clock {
+  background: #ebdcc5 !important;
+  border: 1px solid #d4cbb8 !important;
+  border-radius: 6px !important;
+  margin: 10px 12px 14px 12px !important;
+}
+body.theme-forest .clock-time {
+  color: #1a2b1d !important;
+  font-family: 'Georgia', serif !important;
+}
+body.theme-forest .clock-date {
+  color: #6a7a6c !important;
+  font-family: 'Georgia', serif !important;
 }
 body.theme-forest .sidebar-status {
   border-top: 1px solid #d4cbb8 !important;

@@ -91,8 +91,18 @@ function updateSidebarStats(s) {
 
 // ---- Clock ----
 function updateClock() {
-  const el = document.getElementById('sb-time');
-  if (el) el.textContent = new Date().toLocaleTimeString();
+  const timeEl = document.getElementById('sb-time');
+  const dateEl = document.getElementById('sb-date');
+  const now = new Date();
+  if (timeEl) timeEl.textContent = now.toLocaleTimeString();
+  if (dateEl) {
+    dateEl.textContent = now.toLocaleDateString(undefined, { 
+      weekday: 'short', 
+      day: 'numeric', 
+      month: 'short', 
+      year: 'numeric' 
+    });
+  }
 }
 setInterval(updateClock, 1000);
 updateClock();
