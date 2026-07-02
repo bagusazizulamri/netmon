@@ -171,12 +171,25 @@ body {
 
 /* ============================================================ PAGE HEADER */
 .page-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+  z-index: 100;
+  padding: 16px 0;
+  margin-top: -24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 22px;
   gap: 16px;
   flex-wrap: wrap;
+  transition: background var(--trans), border-color var(--trans);
+}
+body.theme-morphism .page-header {
+  background: rgba(6, 9, 19, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
 .page-title { font-size: 20px; font-weight: 700; margin: 0; }
 .page-sub   { font-size: 13px; color: var(--text-muted); margin: 2px 0 0; }
@@ -724,6 +737,7 @@ body {
   :root { --sidebar-w: 0px; }
   .sidebar { transform: translateX(-210px); }
   .main-content { margin-left: 0; padding: 14px; }
+  .page-header { margin-top: -14px; padding: 12px 0; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .dash-grid  { grid-template-columns: 1fr; }
   .fp-sidebar { display: none !important; }
