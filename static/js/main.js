@@ -991,3 +991,60 @@ document.addEventListener('DOMContentLoaded', () => {
     updateThemeUI(newLight);
   });
 });
+
+window.showConfirm = function(title, message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'custom-confirm-overlay';
+  
+  const dialog = document.createElement('div');
+  dialog.className = 'custom-confirm-dialog';
+  
+  const icon = document.createElement('div');
+  icon.className = 'custom-confirm-icon';
+  icon.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+  
+  const titleEl = document.createElement('h3');
+  titleEl.className = 'custom-confirm-title';
+  titleEl.textContent = title;
+  
+  const messageEl = document.createElement('p');
+  messageEl.className = 'custom-confirm-message';
+  messageEl.textContent = message;
+  
+  const buttons = document.createElement('div');
+  buttons.className = 'custom-confirm-buttons';
+  
+  const btnCancel = document.createElement('button');
+  btnCancel.className = 'btn-nm btn-confirm-cancel';
+  btnCancel.textContent = 'Cancel';
+  btnCancel.onclick = () => {
+    overlay.classList.remove('active');
+    setTimeout(() => overlay.remove(), 200);
+  };
+  
+  const btnConfirm = document.createElement('button');
+  btnConfirm.className = 'btn-nm btn-confirm-danger';
+  btnConfirm.textContent = 'Confirm';
+  btnConfirm.onclick = () => {
+    overlay.classList.remove('active');
+    setTimeout(() => {
+      overlay.remove();
+      if (typeof onConfirm === 'function') onConfirm();
+    }, 200);
+  };
+  
+  buttons.appendChild(btnCancel);
+  buttons.appendChild(btnConfirm);
+  
+  dialog.appendChild(icon);
+  dialog.appendChild(titleEl);
+  dialog.appendChild(messageEl);
+  dialog.appendChild(buttons);
+  overlay.appendChild(dialog);
+  
+  document.body.appendChild(overlay);
+  
+  setTimeout(() => {
+    overlay.classList.add('active');
+  }, 10);
+};

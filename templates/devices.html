@@ -306,25 +306,7 @@
   </div>
 </div>
 
-<!-- Delete Confirm -->
-<div class="modal fade" id="delModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content nm-modal">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger"><i class="bi bi-trash3-fill me-2"></i>Delete Device</h5>
-        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p>Delete <strong id="del-name"></strong>?<br>
-        <small class="text-muted">This cannot be undone.</small></p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn-nm btn-danger" id="del-confirm-btn">Delete</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 
 
 
@@ -334,13 +316,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 let allDevices = [], allZones = [];
-let devModal, scanModal, unifiModal, delModal;
+let devModal, scanModal, unifiModal;
 
 document.addEventListener('DOMContentLoaded', () => {
   devModal    = new bootstrap.Modal(document.getElementById('deviceModal'));
   scanModal   = new bootstrap.Modal(document.getElementById('scanModal'));
   unifiModal  = new bootstrap.Modal(document.getElementById('unifiModal'));
-  delModal    = new bootstrap.Modal(document.getElementById('delModal'));
   loadAll();
 });
 
@@ -605,14 +586,11 @@ function saveDevice() {
 }
 
 function confirmDelete(id, name) {
-  document.getElementById('del-name').textContent = name;
-  const btn = document.getElementById('del-confirm-btn');
-  btn.onclick = () => {
+  showConfirm('Delete Device', `Apakah Anda yakin ingin menghapus perangkat "${name}"?`, () => {
     fetch(`/api/devices/${id}`, {method:'DELETE'}).then(() => {
-      delModal.hide(); showToast('Device deleted', 'info'); loadAll();
+      showToast('Device deleted', 'info'); loadAll();
     });
-  };
-  delModal.show();
+  });
 }
 
 function pollNow(id) {
@@ -623,17 +601,19 @@ function toggleAlerts(id) {
   const d = allDevices.find(x => x.id === id);
   const action = d && d.alerts_enabled ? 'MATIKAN' : 'AKTIFKAN';
   const name = d ? d.name : `Device #${id}`;
-  if (!confirm(`${action} alert untuk ${name}?`)) return;
-  fetch(`/api/devices/${id}/toggle_alerts`, {method:'POST'})
-    .then(r => r.json())
-    .then(res => {
-      if (res.status === 'success') {
-        const msg = res.alerts_enabled ? `Alert ${name} diaktifkan kembali` : `Alert ${name} dimatikan`;
-        showToast(msg, res.alerts_enabled ? 'success' : 'warning');
-        loadAll();
-      }
-    })
-    .catch(() => showToast('Gagal mengubah status alert', 'danger'));
+  
+  showConfirm('Toggle Alert', `Apakah Anda yakin ingin ${action} alert untuk ${name}?`, () => {
+    fetch(`/api/devices/${id}/toggle_alerts`, {method:'POST'})
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          const msg = res.alerts_enabled ? `Alert ${name} diaktifkan kembali` : `Alert ${name} dimatikan`;
+          showToast(msg, res.alerts_enabled ? 'success' : 'warning');
+          loadAll();
+        }
+      })
+      .catch(() => showToast('Gagal mengubah status alert', 'danger'));
+  });
 }
 
 function pollAll() {

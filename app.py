@@ -23,6 +23,14 @@ db = Database()
 snmp_worker = SNMPWorker(db, socketio)
 scheduler = BackgroundScheduler(daemon=True)
 
+@app.context_processor
+def inject_theme():
+    try:
+        settings = db.get_settings()
+        return {'theme': settings.get('theme', 'default')}
+    except Exception:
+        return {'theme': 'default'}
+
 # ============================================================
 # PAGE ROUTES
 # ============================================================

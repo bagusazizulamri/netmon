@@ -74,6 +74,26 @@
     </div>
   </div>
 
+  <!-- ============ APPEARANCE ============ -->
+  <div class="nm-panel">
+    <div class="panel-header"><span><i class="bi bi-palette-fill me-2 text-accent"></i>Appearance</span></div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-md-12">
+          <label class="nm-label">UI Theme</label>
+          <select class="nm-select w-100" id="s-theme">
+            <option value="default">Default Dark</option>
+            <option value="brutalism">Neo-Brutalism</option>
+            <option value="minimalism">Minimalism</option>
+            <option value="morphism">Glassmorphism</option>
+            <option value="win7">3D Windows 7 (Aero)</option>
+          </select>
+          <small class="text-muted">Pilih gaya visual antarmuka sistem.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ AI DETECTOR ============ -->
   <div class="nm-panel">
     <div class="panel-header">
@@ -206,36 +226,17 @@
   </div>
 </div>
 
-<!-- Delete zone confirm -->
-<div class="modal fade" id="delZoneModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content nm-modal">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger">Delete Zone</h5>
-        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        Delete zone <strong id="del-zone-name"></strong>?<br>
-        <small class="text-muted">Devices in this zone will be moved to Default Zone.</small>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-nm" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn-nm btn-danger" id="del-zone-btn">Delete</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-let zoneModal, delZoneModal;
+let zoneModal;
 let zones = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   zoneModal    = new bootstrap.Modal(document.getElementById('zoneModal'));
-  delZoneModal = new bootstrap.Modal(document.getElementById('delZoneModal'));
   loadSettings();
   loadZones();
   loadAbout();
@@ -255,6 +256,7 @@ function loadSettings() {
     setVal('s-uf-port',    s.unifi_port || 8443);
     setVal('s-uf-site',    s.unifi_site || 'default');
     setVal('s-uf-user',    s.unifi_user || '');
+    setVal('s-theme',      s.theme || 'default');
   });
 }
 
@@ -284,6 +286,7 @@ function saveAll() {
     unifi_port:           getVal('s-uf-port'),
     unifi_site:           getVal('s-uf-site'),
     unifi_user:           getVal('s-uf-user'),
+    theme:                getVal('s-theme')
   };
   const pass = getVal('s-uf-pass');
   if (pass && pass !== '***') data.unifi_pass = pass;
@@ -294,8 +297,10 @@ function saveAll() {
 
   fetch('/api/settings', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
-  }).then(r=>r.json()).then(() => showToast('Settings saved', 'success'))
-    .catch(() => showToast('Error saving settings', 'danger'));
+  }).then(r=>r.json()).then(() => {
+    showToast('Settings saved', 'success');
+    setTimeout(() => location.reload(), 800);
+  }).catch(() => showToast('Error saving settings', 'danger'));
 }
 
 function testUnifi() {
@@ -399,18 +404,17 @@ function saveZone() {
 }
 
 function deleteZone(id, name) {
-  document.getElementById('del-zone-name').textContent = name;
-  document.getElementById('del-zone-btn').onclick = () => {
-    fetch(`/api/zones/${id}`, {method:'DELETE'}).then(() => { delZoneModal.hide(); loadZones(); showToast('Zone deleted', 'info'); });
-  };
-  delZoneModal.show();
+  showConfirm('Delete Zone', `Apakah Anda Yakin ingin menghapus zona "${name}"? Perangkat di zona ini akan dipindahkan ke Default Zone.`, () => {
+    fetch(`/api/zones/${id}`, {method:'DELETE'}).then(() => { loadZones(); showToast('Zone deleted', 'info'); });
+  });
 }
 
 function setPColor(c) { document.getElementById('zone-color').value = c; }
 
 function confirmPurge() {
-  if (!confirm('Purge all acknowledged alerts and logs older than retention period?')) return;
-  showToast('Purge completed (restart app to run cleanup)', 'info');
+  showConfirm('Purge Logs', 'Purge all acknowledged alerts and logs older than retention period?', () => {
+    showToast('Purge completed (restart app to run cleanup)', 'info');
+  });
 }
 
 // Helpers

@@ -325,29 +325,29 @@ function printReport() {
 
 function deleteReport(id, monthTitle, event) {
   if (event) event.stopPropagation();
-  if (!confirm(`Apakah Anda yakin ingin menghapus Laporan Bulanan ${monthTitle}?`)) return;
-  
-  fetch(`/api/reports/${id}`, { method: 'DELETE' })
-    .then(r => r.json())
-    .then(res => {
-      if (res.status === 'success') {
-        showToast('Laporan berhasil dihapus!', 'info');
-        if (activeReport && activeReport.id === id) {
-          activeReport = null;
-          document.getElementById('report-empty-state').style.display = 'block';
-          document.getElementById('report-view-panel').style.display = 'none';
-          document.getElementById('print-btn').style.display = 'none';
-          document.getElementById('pdf-btn').style.display = 'none';
+  showConfirm('Delete Report', `Apakah Anda yakin ingin menghapus Laporan Bulanan ${monthTitle}?`, () => {
+    fetch(`/api/reports/${id}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          showToast('Laporan berhasil dihapus!', 'info');
+          if (activeReport && activeReport.id === id) {
+            activeReport = null;
+            document.getElementById('report-empty-state').style.display = 'block';
+            document.getElementById('report-view-panel').style.display = 'none';
+            document.getElementById('print-btn').style.display = 'none';
+            document.getElementById('pdf-btn').style.display = 'none';
+          }
+          loadReportsList();
+        } else {
+          alert("Gagal menghapus laporan: " + res.message);
         }
-        loadReportsList();
-      } else {
-        alert("Gagal menghapus laporan: " + res.message);
-      }
-    })
-    .catch(err => {
-      console.error("Error deleting report:", err);
-      alert("Koneksi gagal saat menghapus laporan.");
-    });
+      })
+      .catch(err => {
+        console.error("Error deleting report:", err);
+        alert("Koneksi gagal saat menghapus laporan.");
+      });
+  });
 }
 
 function downloadPDF() {
