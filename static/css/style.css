@@ -1309,6 +1309,8 @@ body:not(.light-theme) .kpi-card {
 /* Light theme close buttons helper: Restore default black close icon */
 body.theme-brutalism .btn-close-white,
 body.theme-minimalism .btn-close-white,
+body.theme-frutiger .btn-close-white,
+body.theme-winxp .btn-close-white,
 body.theme-forest .btn-close-white {
   filter: none !important;
 }
@@ -1667,56 +1669,334 @@ body.theme-win7 .nav-item.active {
   font-weight: 600;
 }
 
-/* 5. SLEEK LINEAR DARK */
-body.theme-linear {
-  --bg-base: #000000;
-  --bg-card: #09090b;
-  --bg-card-solid: #09090b;
-  --bg-hover: #18181b;
-  --border: #27272a;
-  --border-lt: #18181b;
-  --accent: #ffffff;
-  --accent-dim: rgba(255, 255, 255, 0.1);
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
-  --radius: 8px;
-  --radius-sm: 4px;
-  --radius-lg: 12px;
+/* 5. FRUTIGER AERO */
+body.theme-frutiger {
+  --bg-base: #c6dff6;
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-card-solid: #eaf3fc;
+  --bg-hover: rgba(255, 255, 255, 0.55);
+  --border: rgba(120, 170, 220, 0.45);
+  --border-lt: rgba(255, 255, 255, 0.6);
+  --accent: #1a7ad4;
+  --accent-dim: rgba(26, 122, 212, 0.15);
+  --text-primary: #1a2e44;
+  --text-secondary: #3a5a7c;
+  --text-muted: #6a8fae;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  color: #1a2e44 !important;
+  background: linear-gradient(160deg, #a8d8f0 0%, #c6dff6 30%, #e8f4e8 70%, #f0f8e0 100%) !important;
 }
-body.theme-linear .nm-panel,
-body.theme-linear .sidebar,
-body.theme-linear .modal-content,
-body.theme-linear .custom-confirm-dialog,
-body.theme-linear .custom-loading-dialog {
-  border: 1px solid #27272a !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7) !important;
+body.theme-frutiger .text-muted,
+body.theme-frutiger .text-secondary,
+body.theme-frutiger .about-lbl,
+body.theme-frutiger .kpi-lbl,
+body.theme-frutiger .kpi-sub,
+body.theme-frutiger .page-sub,
+body.theme-frutiger .nm-label,
+body.theme-frutiger .about-val {
+  color: #3a5a7c !important;
 }
-body.theme-linear .btn-nm {
-  background: #09090b !important;
-  border: 1px solid #27272a !important;
-  color: #fafafa !important;
-  border-radius: 6px !important;
+body.theme-frutiger .logo-text,
+body.theme-frutiger h1,
+body.theme-frutiger h2,
+body.theme-frutiger h3,
+body.theme-frutiger h4,
+body.theme-frutiger th,
+body.theme-frutiger td,
+body.theme-frutiger .nav-item span {
+  color: #1a2e44 !important;
 }
-body.theme-linear .btn-nm:hover {
-  background: #18181b !important;
-  border-color: #3f3f46 !important;
+body.theme-frutiger .nm-panel,
+body.theme-frutiger .modal-content,
+body.theme-frutiger .custom-confirm-dialog,
+body.theme-frutiger .custom-loading-dialog,
+body.theme-frutiger .nm-toast {
+  background: rgba(255, 255, 255, 0.55) !important;
+  backdrop-filter: blur(20px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: 0 8px 32px rgba(0, 80, 160, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  border-radius: 12px !important;
 }
-body.theme-linear .btn-success { background: #052e16 !important; border-color: #14532d !important; color: #4ade80 !important; }
-body.theme-linear .btn-danger  { background: #450a0a !important; border-color: #7f1d1d !important; color: #f87171 !important; }
-body.theme-linear .btn-primary { background: #1e1b4b !important; border-color: #312e81 !important; color: #818cf8 !important; }
-body.theme-linear .btn-confirm-cancel { background: #09090b !important; color: #fafafa !important; }
-body.theme-linear .sidebar {
-  background: #09090b !important;
+body.theme-frutiger .panel-header {
+  background: linear-gradient(180deg, rgba(120, 190, 240, 0.35) 0%, rgba(80, 160, 220, 0.2) 100%) !important;
+  border-bottom: 1px solid rgba(120, 170, 220, 0.3) !important;
 }
-body.theme-linear .nav-item.active {
-  background: #18181b !important;
-  color: #ffffff !important;
-  border-left: 2px solid #ffffff !important;
-  border-radius: 0px !important;
+body.theme-frutiger .sidebar {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(24px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+body.theme-frutiger .btn-nm {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(230, 240, 255, 0.8) 100%) !important;
+  border: 1px solid rgba(120, 170, 220, 0.5) !important;
+  color: #1a2e44 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(0, 80, 160, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+body.theme-frutiger .btn-nm:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #dceeff 100%) !important;
+  border-color: rgba(60, 140, 210, 0.6) !important;
+  box-shadow: 0 2px 8px rgba(0, 80, 160, 0.18), inset 0 1px 0 #ffffff !important;
+}
+body.theme-frutiger .btn-success {
+  background: linear-gradient(180deg, #e0f7e0 0%, #b8e6b8 100%) !important;
+  border: 1px solid #6dbb6d !important;
+  color: #1a5c1a !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+}
+body.theme-frutiger .btn-danger {
+  background: linear-gradient(180deg, #ffe8e8 0%, #ffbcbc 100%) !important;
+  border: 1px solid #e07070 !important;
+  color: #8b1a1a !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+}
+body.theme-frutiger .btn-primary {
+  background: linear-gradient(180deg, #d0eaff 0%, #8ec8f6 100%) !important;
+  border: 1px solid #5aa0d8 !important;
+  color: #0e3a64 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+}
+body.theme-frutiger .btn-confirm-cancel {
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: #1a2e44 !important;
+}
+body.theme-frutiger .nav-item.active {
+  background: rgba(120, 190, 240, 0.25) !important;
+  border: 1px solid rgba(100, 170, 230, 0.4) !important;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+body.theme-frutiger .nm-input,
+body.theme-frutiger .nm-select {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(120, 170, 220, 0.4) !important;
+  color: #1a2e44 !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 3px rgba(0, 60, 120, 0.08) !important;
+}
+body.theme-frutiger .btn-close-white {
+  filter: none !important;
+}
+body.theme-frutiger .zone-card {
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  border-radius: 12px !important;
+}
+body.theme-frutiger .zone-card:hover {
+  background: rgba(255, 255, 255, 0.7) !important;
+  border-color: rgba(100, 170, 230, 0.5) !important;
+  box-shadow: 0 4px 16px rgba(0, 80, 160, 0.12) !important;
+}
+body.theme-frutiger .incident-list-item {
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(120, 170, 220, 0.3) !important;
+  border-radius: 8px !important;
+}
+body.theme-frutiger .incident-list-item:hover {
+  background: rgba(255, 255, 255, 0.65) !important;
+  border-color: rgba(100, 170, 230, 0.5) !important;
 }
 
-/* 6. WARM EARTHY FOREST */
+/* 6. WINXP CLASSIC */
+body.theme-winxp {
+  --bg-base: #3a6ea5;
+  --bg-card: #ece9d8;
+  --bg-card-solid: #ece9d8;
+  --bg-hover: #d6d2c2;
+  --border: #aca899;
+  --border-lt: #ffffff;
+  --accent: #003399;
+  --accent-dim: rgba(0, 51, 153, 0.15);
+  --text-primary: #000000;
+  --text-secondary: #222222;
+  --text-muted: #555555;
+  --radius: 3px;
+  --radius-sm: 2px;
+  --radius-lg: 5px;
+  color: #000000 !important;
+  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
+}
+body.theme-winxp .text-muted,
+body.theme-winxp .text-secondary,
+body.theme-winxp .about-lbl,
+body.theme-winxp .kpi-lbl,
+body.theme-winxp .kpi-sub,
+body.theme-winxp .page-sub,
+body.theme-winxp .nm-label,
+body.theme-winxp .about-val {
+  color: #333333 !important;
+}
+body.theme-winxp .logo-text,
+body.theme-winxp h1,
+body.theme-winxp h2,
+body.theme-winxp h3,
+body.theme-winxp h4,
+body.theme-winxp th,
+body.theme-winxp td,
+body.theme-winxp .nav-item span {
+  color: #000000 !important;
+  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
+}
+/* XP blue title bar on page headers */
+body.theme-winxp h1,
+body.theme-winxp .page-title {
+  color: #ffffff !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
+}
+body.theme-winxp .page-sub {
+  color: #b4d6fb !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5) !important;
+}
+body.theme-winxp .panel-header {
+  background: linear-gradient(180deg, #0a246a 0%, #3a6ea5 50%, #0a246a 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  padding: 6px 12px !important;
+  border-bottom: 1px solid #0a246a !important;
+}
+body.theme-winxp .panel-header *,
+body.theme-winxp .panel-header span,
+body.theme-winxp .panel-header i {
+  color: #ffffff !important;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6) !important;
+}
+body.theme-winxp .modal-header,
+body.theme-winxp .nm-modal .modal-header {
+  background: linear-gradient(180deg, #0a246a 0%, #3a6ea5 50%, #0a246a 100%) !important;
+  border-bottom: 1px solid #0a246a !important;
+  color: #ffffff !important;
+}
+body.theme-winxp .modal-header *,
+body.theme-winxp .modal-header span,
+body.theme-winxp .modal-header h5,
+body.theme-winxp .modal-header i {
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6) !important;
+}
+/* XP red close button */
+body.theme-winxp .modal-header .btn-close,
+body.theme-winxp .modal-header .btn-close-white {
+  background-color: #d44a3c !important;
+  opacity: 1 !important;
+  border: 1px solid #993322 !important;
+  border-radius: 3px !important;
+  filter: none !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 1px 1px 0 rgba(0,0,0,0.2) !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") !important;
+  background-size: 10px !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  width: 22px !important;
+  height: 22px !important;
+}
+body.theme-winxp .modal-header .btn-close:hover,
+body.theme-winxp .modal-header .btn-close-white:hover {
+  background-color: #e7756a !important;
+}
+body.theme-winxp .sidebar {
+  background: linear-gradient(180deg, #003399 0%, #225eb8 40%, #003399 100%) !important;
+  border-right: 2px solid #0a246a !important;
+}
+body.theme-winxp .sidebar .logo-text,
+body.theme-winxp .sidebar .nav-item span,
+body.theme-winxp .sidebar .sidebar-status {
+  color: #ffffff !important;
+}
+body.theme-winxp .sidebar .nav-item i {
+  color: #b4d6fb !important;
+}
+body.theme-winxp .nm-panel,
+body.theme-winxp .modal-content,
+body.theme-winxp .custom-confirm-dialog,
+body.theme-winxp .custom-loading-dialog {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+  border-radius: 3px !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset, 2px 2px 4px rgba(0, 0, 0, 0.25) !important;
+  overflow: hidden;
+}
+body.theme-winxp .btn-nm {
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 60%, #d6d2c2 100%) !important;
+  border: 1px solid #003399 !important;
+  border-radius: 3px !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+  color: #000000 !important;
+  font-family: 'Tahoma', 'Segoe UI', sans-serif !important;
+}
+body.theme-winxp .btn-nm:hover {
+  background: linear-gradient(180deg, #dae9fd 0%, #b4d6fb 60%, #8ab9e5 100%) !important;
+  border-color: #003399 !important;
+}
+body.theme-winxp .btn-success {
+  background: linear-gradient(180deg, #e5f5e5 0%, #b5d8b5 60%, #8ac88a 100%) !important;
+  border: 1px solid #336633 !important;
+  color: #003300 !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .btn-danger {
+  background: linear-gradient(180deg, #ffe5e5 0%, #f5b5b5 60%, #e08a8a 100%) !important;
+  border: 1px solid #993333 !important;
+  color: #330000 !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .btn-primary {
+  background: linear-gradient(180deg, #dae9fd 0%, #b4d6fb 60%, #8ab9e5 100%) !important;
+  border: 1px solid #003399 !important;
+  color: #003399 !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .btn-confirm-cancel {
+  background: #ece9d8 !important;
+  color: #000000 !important;
+  border: 1px solid #808080 !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .nm-input,
+body.theme-winxp .nm-select {
+  background: #ffffff !important;
+  border: 1px solid #7f9db9 !important;
+  border-radius: 1px !important;
+  color: #000000 !important;
+  box-shadow: 1px 1px 0 #808080 inset !important;
+}
+body.theme-winxp .nav-item.active {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 3px !important;
+  font-weight: 600;
+}
+body.theme-winxp .btn-close-white {
+  filter: none !important;
+}
+body.theme-winxp .zone-card {
+  background: #ece9d8 !important;
+  border: 2px solid #aca899 !important;
+  border-radius: 3px !important;
+  box-shadow: 1px 1px 0 #ffffff inset, -1px -1px 0 #808080 inset !important;
+}
+body.theme-winxp .zone-card:hover {
+  border-color: #003399 !important;
+  background: #d6d2c2 !important;
+}
+body.theme-winxp .incident-list-item {
+  background: #ffffff !important;
+  border: 1px solid #aca899 !important;
+  border-radius: 2px !important;
+  box-shadow: 1px 1px 0 #808080 inset !important;
+}
+body.theme-winxp .incident-list-item:hover {
+  border-color: #003399 !important;
+  background: #dae9fd !important;
+}
+
+/* 7. WARM EARTHY FOREST */
 body.theme-forest {
   --bg-base: #f5f2eb;
   --bg-card: #ffffff;
